@@ -35,4 +35,3 @@ tRIBS uses semantic versioning. We record updates of major, minor, and patch ver
 > Answers provided by the AI may be **inaccurate, or incomplete.** For all scientific and technical applications, the official [tRIBS Documentation](https://tribshms.readthedocs.io/en/latest/) and the source code itself must be considered the **only source of truth**.
 >
 > Use this tool at your own risk.
-chore: Update readme with additional documentation
