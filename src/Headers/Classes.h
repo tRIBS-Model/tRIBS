@@ -38,7 +38,6 @@ class tEvapoTrans;
 class tIntercept;
 class tHydroMet;
 class tHydroMetStoch;
-class tHydroMetConvert;
 class tWaterBalance;
 class tSnowPack; // SKY2008Snow from AJR2007
 class tSnowIntercept; // SKY2008Snow from AJR2007

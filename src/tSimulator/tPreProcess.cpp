@@ -36,43 +36,6 @@ tPreProcess::tPreProcess(SimulationControl *simCtrPtr, tInputFile &infile) {
 	if (simCtrl->Check_label == 'Y') {
 		CheckInputFile(infile);
 	}
-	
-	convertData = infile.ReadItem(convertData, "CONVERTDATA");
-	
-	if (convertData == 1) {
-		tHydroMetConvert hydroMetInput(infile);
-		hydroMetInput.callConvertRFC();
-		hydroMetInput.callMerge();
-		cout<<"\n-----------------------------------------------"<<endl;
-		cout<<"tRIBS HydroMet Pre-Processor completed"<<endl;
-		cout<<"Use tRIBS with Convert Data = 0 for Model Runs"<<endl;
-		cout<<"Exiting Program..."<<endl;
-		cout<<"-----------------------------------------------"<<endl;
-		exit(1);
-	}
-	else if (convertData == 2) {
-		tHydroMetConvert rainGaugeInput(infile);
-		rainGaugeInput.callConvertRFC();
-		rainGaugeInput.callGaugeMerge();
-		cout<<"\n-----------------------------------------------"<<endl;
-		cout<<"tRIBS RainGauge Pre-Processor completed"<<endl;
-		cout<<"Use tRIBS with Convert Data = 0 for Model Runs"<<endl;
-		cout<<"Exiting Program..."<<endl;
-		cout<<"-----------------------------------------------"<<endl;
-		exit(2);
-	}
-	else if (convertData == 3) {
-		tHydroMetConvert hydroMetInput(infile);
-		hydroMetInput.callConvertDMIP();
-		cout<<"\n-----------------------------------------------"<<endl;
-		cout<<"tRIBS HydroMet Pre-Processor completed... "<<endl;
-		cout<<"MDF Files Created for Met and Rain Gauge Data..."<<endl;
-		cout<<"Use tRIBS with Convert Data = 0 for Model Runs"<<endl;
-		cout<<"Must create SDF file based on Station Data for use in tRIBS"<<endl;
-		cout<<"Exiting Program..."<<endl;
-		cout<<"-----------------------------------------------"<<endl;
-		exit(3);
-	}
 }
 
 tPreProcess::~tPreProcess() 
@@ -105,7 +68,7 @@ tPreProcess::~tPreProcess()
 void tPreProcess::CheckInputFile(tInputFile &infile) 
 {
 	double tempVariable = 0.0;
-	int optmesh, optrain, optrock, optconv, optmet;
+	int optmesh, optrain, optrock, optmet;
 
 	int optres;// JECR 2015
 	int optsoil;// JorgeGiuseppe 2015
@@ -171,7 +134,7 @@ void tPreProcess::CheckInputFile(tInputFile &infile)
 	IterReadItem(infile, tempVariable,"OPTRADSHELT");
 
 
-	optmesh=optrain=optrock=optconv=optmet=optfrcst=optstoch=optgw=0; //Int
+	optmesh=optrain=optrock=optmet=optfrcst=optstoch=optgw=0; //Int
   	optpar=optgraph=optrest=0;
 
 	optres=0; // JECR 2015
@@ -188,8 +151,6 @@ void tPreProcess::CheckInputFile(tInputFile &infile)
 	if (optlu == 1) {
 		optluinterp = IterReadItem(infile,optluinterp, "OPTLUINTERP");
 	}
-
-	optconv  = IterReadItem(infile, optconv, "CONVERTDATA");
 
 	optrock  = IterReadItem(infile, optrock ,"OPTBEDROCK");
 	optfrcst = IterReadItem(infile, optfrcst,"FORECASTMODE");
@@ -270,18 +231,7 @@ void tPreProcess::CheckInputFile(tInputFile &infile)
 		CheckFileExists(infile, tempString,"BEDROCKFILE");
 	}
 	
-	if (optconv == 1) {
-		IterReadItem   (infile, tempString,"HYDROMETCONVERT");   //Hydromet data
-		CheckFileExists(infile, tempString,"HYDROMETCONVERT");
-		IterReadItem   (infile, tempString,"HYDROMETBASENAME");
-	}
-	else if (optconv == 2) {
-		IterReadItem   (infile, tempString,"GAUGECONVERT");
-		CheckFileExists(infile, tempString,"GAUGECONVERT");
-		IterReadItem   (infile, tempString,"GAUGEBASENAME");
-	}
-	
-	if (optmet == 1) {
+	if (optmet == 1) {                                          //Meteorological data
 		IterReadItem   (infile, tempString,"HYDROMETSTATIONS");
 		CheckFileExists(infile, tempString,"HYDROMETSTATIONS");
 	}

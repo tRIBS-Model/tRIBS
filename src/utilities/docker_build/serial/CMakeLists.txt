@@ -94,8 +94,6 @@ if(parallel)
             src/tHydro/tEvapoTrans.h
             src/tHydro/tHydroMet.cpp
             src/tHydro/tHydroMet.h
-            src/tHydro/tHydroMetConvert.cpp
-            src/tHydro/tHydroMetConvert.h
             src/tHydro/tHydroMetStoch.cpp
             src/tHydro/tHydroMetStoch.h
             src/tHydro/tHydroModel.cpp
@@ -211,8 +209,6 @@ else()
             src/tHydro/tEvapoTrans.h
             src/tHydro/tHydroMet.cpp
             src/tHydro/tHydroMet.h
-            src/tHydro/tHydroMetConvert.cpp
-            src/tHydro/tHydroMetConvert.h
             src/tHydro/tHydroMetStoch.cpp
             src/tHydro/tHydroMetStoch.h
             src/tHydro/tHydroModel.cpp
