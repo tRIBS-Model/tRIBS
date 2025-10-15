@@ -433,7 +433,7 @@ void tRainfall::InitializeGauge()
 ***************************************************************************/
 void tRainfall::callRainGauge(tRunTimer *t) 
 {
-	NewRainData(hourlyTimeStep);
+	NewRainData(hourlyTimeStep, t);
 
 
 	tCNode * cNode;
@@ -460,12 +460,39 @@ void tRainfall::callRainGauge(tRunTimer *t)
 ** Assign the values from tRainGauge to tCNode.
 **
 ***************************************************************************/
-void tRainfall::NewRainData(int time) 
+void tRainfall::NewRainData(int time, tRunTimer *timer) 
 {  
-	currentTime[0] = rainGauges[0].getYear(time);
-	currentTime[1] = rainGauges[0].getMonth(time);
-	currentTime[2] = rainGauges[0].getDay(time);
-	currentTime[3] = rainGauges[0].getHour(time);
+    // Begin block for validation of rainfall data input 
+    // Get the timestamp from the first rain gauge's data for the current index
+    int file_yr = rainGauges[0].getYear(time);
+    int file_mo = rainGauges[0].getMonth(time);
+    int file_dy = rainGauges[0].getDay(time);
+    int file_hr = rainGauges[0].getHour(time);
+
+    // Get the current simulation time from the timer object
+    int sim_yr = timer->year;
+    int sim_mo = timer->month;
+    int sim_dy = timer->day;
+    int sim_hr = timer->hour;
+
+    // Compare the two timestamps
+    if (file_yr != sim_yr || file_mo != sim_mo || file_dy != sim_dy || file_hr != sim_hr) {
+        std::cerr << "\n\nFATAL ERROR in rain gauge data" << std::endl;
+        std::cerr << "Timestamp mismatch detected during simulation." << std::endl;
+        std::cerr << "Simulation expected data for: " << sim_yr << "/" << sim_mo << "/" << sim_dy 
+                  << " " << sim_hr << ":00" << std::endl;
+        std::cerr << "But found data for:           " << file_yr << "/" << file_mo << "/" << file_dy 
+                  << " " << file_hr << ":00" << std::endl;
+        std::cerr << "This indicates a gap, duplicate, or incorrect data in the rain gauge file(s)." << std::endl;
+        std::cerr << "Exiting Program...\n\n" << std::endl;
+        exit(1);
+    }
+    // End block for validation of rainfall data input
+	
+    currentTime[0] = rainGauges[0].getYear(time);
+    currentTime[1] = rainGauges[0].getMonth(time);
+    currentTime[2] = rainGauges[0].getDay(time);
+    currentTime[3] = rainGauges[0].getHour(time);
 	
 	assignStationToNode();
 	

@@ -3442,6 +3442,78 @@ void tEvapoTrans::readHydroMetData(int num)
 					readDataFile >> tempo;
 				
 			} // loop through 'numParams' 
+
+			// Begin block for validation of meteorological data input
+			
+			// After reading all parameters for the current line (at index 'count'),
+			// validate its timestamp.
+			if (count == 0) {
+				// Check first timestamp
+				// Assuming getters exist like timer->getStartYear(), etc.
+				// If not, use direct member access like timer->yearS
+				if (year[0] != timer->yearS || month[0] != timer->monthS ||
+					day[0] != timer->dayS   || hour[0] != timer->hourS)
+				{
+					std::cerr << "\n\nFATAL ERROR in " << fileName << std::endl;
+					std::cerr << "The first timestamp in the file does not match the simulation start time." << std::endl;
+					std::cerr << "Simulation Start: " << timer->yearS << "/" << timer->monthS 
+							<< "/" << timer->dayS << " " << timer->hourS << ":00" << std::endl;
+					std::cerr << "Found in File:    " << year[0] << "/" << month[0] << "/" << day[0] 
+							<< " " << hour[0] << ":00" << std::endl;
+					std::cerr << "Exiting Program...\n\n" << std::endl;
+					exit(1);
+				}
+			} else {
+				// Check all subsequent timestamps
+				// Calculate what the expected timestamp should be based on the PREVIOUS line.
+				int expected_yr = year[count-1];
+				int expected_mo = month[count-1];
+				int expected_dy = day[count-1];
+				int expected_hr = hour[count-1];
+				
+				// Add the simulation time step (in hours)
+				expected_hr += timer->getEtIStep();
+
+				// Handle time rollovers using the logic adapted from julianDay()
+				while (expected_hr >= 24) {
+					expected_hr -= 24;
+					expected_dy++;
+
+					// Logic adapted directly from julianDay() function
+					int dayInMonth[12] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+					bool isLeap = (expected_yr % 4 == 0 && expected_yr % 100 != 0) || (expected_yr % 400 == 0);
+					if (isLeap) {
+						dayInMonth[1] = 29; // February
+					}
+					// Note: C++ arrays are 0-indexed, so use expected_mo - 1
+					int days_in_current_month = dayInMonth[expected_mo - 1];
+
+					if (expected_dy > days_in_current_month) {
+						expected_dy = 1;
+						expected_mo++;
+						if (expected_mo > 12) {
+							expected_mo = 1;
+							expected_yr++;
+						}
+					}
+				}
+
+				// Compare the calculated expected time with the time read from the file.
+				if (year[count] != expected_yr || month[count] != expected_mo ||
+					day[count] != expected_dy   || hour[count] != expected_hr)
+				{
+					std::cerr << "\n\nFATAL ERROR in " << fileName << std::endl;
+					std::cerr << "Timestamp gap or duplicate detected in data." << std::endl;
+					std::cerr << "After timestamp: " << year[count-1] << "/" << month[count-1] << "/" << day[count-1] 
+							<< " " << hour[count-1] << ":00" << std::endl;
+					std::cerr << "Expected next timestamp: " << expected_yr << "/" << expected_mo << "/" << expected_dy 
+							<< " " << expected_hr << ":00" << std::endl;
+					std::cerr << "But found in file:       " << year[count] << "/" << month[count] << "/" << day[count] 
+							<< " " << hour[count] << ":00" << std::endl;
+					std::cerr << "Exiting Program...\n\n" << std::endl;
+					exit(1);
+				}
+			} // End block for validation of meteorological data input
 		}   // loop through 'numTimes'
 	}
 	else {
