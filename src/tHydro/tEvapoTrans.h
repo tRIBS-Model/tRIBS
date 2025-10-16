@@ -63,7 +63,6 @@ class tEvapoTrans
   void readHydroMetGrid(char*);
   void readLUGrid(char*); // SKYnGM2008LU: added by AJR 2007
   void newHydroMetData(int);
-  void newHydroMetStochData(int);
   void newHydroMetGridData(tCNode *);
   void newLUGridData(tCNode *); // SKYnGM2008LU: added by AJR 2007
   void createVariant();
@@ -125,8 +124,6 @@ class tEvapoTrans
 
   void writeRestart(fstream &) const;
   void readRestart(fstream &);
-
-  tHydroMetStoch *weatherSimul;
 
   // SKYnGM2008LU
   void SetGridTimeInfoVariables(tVariant *, char *);
