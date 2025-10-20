@@ -319,6 +319,12 @@ void tIntercept::InterceptRutter(tCNode *cNode, double evaporation)
              // This can happen due to RK4 overshoot. If so, cap it.
              currentStorage = total_available_water;
         }
+
+		// The RK4 solver can undershoot and produce a non-physical negative storage.
+		// Correct this at the source before it propagates.
+		if (currentStorage < 0.0) {
+			currentStorage = 0.0;
+		}
 		
 		// Calculate the physically possible evaporation RATE
 		double avg_storage = (prevStorage + currentStorage) / 2.0;
