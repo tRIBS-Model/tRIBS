@@ -193,6 +193,8 @@ public:
   double getCumSnEvap();//integrated output // CJC2020
   double getCumTotEvap();//integrated output // CJC2020
   double getCumBarEvap();//integrated output // CJC2020
+  double getCumWetCanEvap();//integrated output // JB2025
+  double getCumDryCanEvap();//integrated output // JB2025
   double getCumPHF();//integrated output
   double getCumRLin();//integrated output
   double getCumRLout();//integrated output
@@ -622,6 +624,8 @@ public:
   void addSnEvap(double); // Snowpack evaporation CJC2020
   void addTotEvap(double); // Snowpack evaporation CJC2020
   void addBarEvap(double); // Snowpack evaporation CJC2020
+  void addWetCanEvap(double);  // WetCan Evap JB2025
+  void addDryCanEvap(double);  // DryCan Evap 2025
   void addPHF(double);
   void addRLin(double);
   void addRLout(double);
@@ -856,6 +860,8 @@ protected:
   double cumSnEvap; // Define snowpack evaporation CJC2020
   double cumTotEvap; // Define total ET CJC2020
   double cumBarEvap; // Define bare soil evaporation CJC2020
+  double cumWetCanEvap;  // Cumulative wet canopy evaporation JB2025
+  double cumDryCanEvap;  // Cumulative dry canopy evaporation JB2025
   double cumPHF;
   double cumRLin;
   double cumRLout;

@@ -25,11 +25,11 @@
 
 // Default Constructor
 
-tCNode::tCNode() :tNode() 
+tCNode::tCNode() :tNode()
 {
-	alpha = 0.0; 
+	alpha = 0.0;
 	NwtOld = NwtNew = 0.0;
-	MuOld = MuNew = 0.0; 
+	MuOld = MuNew = 0.0;
 	MiOld = MiNew = 0.0;
 	NtOld = NtNew = 0.0;
 	NfOld = NfNew = 0.0;
@@ -41,11 +41,11 @@ tCNode::tCNode() :tNode()
 	flowedge = 0;
 	gwchange = 0.0;
 	traveltime = hillpath = streampath = 0.0;
-	intstorm = 0.0; 
+	intstorm = 0.0;
 	Interception=CumIntercept = 0.0;
 	NetPrecipitation = 0.0;
 	// CanStorage = CanopyStorage = 0.0; // SKYnGM2008LU
-	CanStorage = CanopyStorVol = 0.0; // SKYnGM2008LU 
+	CanStorage = CanopyStorVol = 0.0; // SKYnGM2008LU
 	UnSaturatedStorage = SaturatedStorage = 0.0;
 	Recharge = UnSatFlowIn = UnSatFlowOut = 0.0;
 	PotEvaporation=ActEvaporation=EvapWetCanopy = 0.0;
@@ -79,9 +79,9 @@ tCNode::tCNode() :tNode()
 	percOccur=0.0; //ASM perc in 00i
 	avPerc=0.0; //ASM perc in 00i
 	RechDisch = Aspect = VegFraction = 0.0;
-	VegFraction = 0.0; 
+	VegFraction = 0.0;
 	AvSoilMoisture = AvEvapFract = AvET = 0.0;
-	
+
 	xC=yC=-1;
 
 	// ASM 2/10/2017
@@ -90,11 +90,11 @@ tCNode::tCNode() :tNode()
 
 	// SKYnGM2008LU
 	//added for land use grid AJR 2007
-	LandUseAlb = ThroughFall = VegHeight = StomRes = 0.0; 
+	LandUseAlb = ThroughFall = VegHeight = StomRes = 0.0;
 
 	// SKYnGM2008LU
-	IntercepCoeff = CanFieldCap = DrainCoeff = 0.0;  
-	DrainExpPar = OptTransmCoeff = LeafAI = 0.0;	
+	IntercepCoeff = CanFieldCap = DrainCoeff = 0.0;
+	DrainExpPar = OptTransmCoeff = LeafAI = 0.0;
 	CanStorParam = 0.0;
   EvapThresh = TransThresh = 0.0; // CJC2025
 
@@ -112,7 +112,7 @@ tCNode::tCNode() :tNode()
 	AvDrainCoeff = AvDrainExpPar = AvLandUseAlb = AvVegHeight = 0.0;
 	AvOptTransmCoeff = AvStomRes = AvVegFraction = AvLeafAI = 0.0;
   AvEvapThresh = AvTransThresh = 0.0; // CJC2025
-	
+
 	// SKY2008Snow from AJR2007
 	//snowpack -- RINEHART 2007 @ NMT
 	liqWEq = iceWEq =  liqRoute = dU = 0.0;
@@ -121,18 +121,19 @@ tCNode::tCNode() :tNode()
 	cumLHF = cumMelt = 0.0;
 	snSub = snEvap = 0.0; // Initialize snowpack cumulative sublimation & evaporation CJC2020
 	cumSnSub = cumSnEvap = cumTotEvap = cumBarEvap = 0.0; // Initialize snowpack cumulative sublimation & evaporation CJC2020
+	cumWetCanEvap = cumDryCanEvap = 0.0; // Initialize dry & wet canopy evaporation JB2025
 	snLHF = snSHF = snGHF = snPHF = snRLin = snRLout = snRSin = 0.0;
 	Unode = Uerror = 0.0;
 	cumUError = 0.0;
 	cumHrsSun = cumHrsSnow = 0.0;
-	cumLHF = cumSHF = cumPHF = cumRLin = cumRLout = cumRSin = cumGHF = cumMelt = 0.0;  
+	cumLHF = cumSHF = cumPHF = cumRLin = cumRLout = cumRSin = cumGHF = cumMelt = 0.0;
 	persTime = persTimeTemp = peakSWE = peakSWEtemp = initPackTime = peakPackTime = 0.0;
-	initPackTimeTemp = 0.0;  
+	initPackTimeTemp = 0.0;
 	//snowintercept -- RINEHART 2007 @ NMT
 	intSWEq = 0.0;
 	intSnUnload = 0.0;
 	intSub = intPrec = 0.0;
-	cumIntSub = cumIntUnl = cumHrsSun = 0.0;  
+	cumIntSub = cumIntUnl = cumHrsSun = 0.0;
 	//shelter members -- RINEHART 2007 @ NMT
 	horizonAngle0000 = 0.0;
 	horizonAngle0225 = 0.0;
@@ -149,7 +150,7 @@ tCNode::tCNode() :tNode()
 	horizonAngle2700 = 0.0;
 	horizonAngle2925 = 0.0;
 	horizonAngle3150 = 0.0;
-	horizonAngle3375 = 0.0; 
+	horizonAngle3375 = 0.0;
 	sfact = 0.0;
 	lfact = 0.0;
 
@@ -159,7 +160,7 @@ tCNode::tCNode() :tNode()
 
 }
 
-// Input File Constructor 
+// Input File Constructor
 
 tCNode::tCNode(tInputFile &infile) :tNode() {
 	alpha = 0.0; 
@@ -550,7 +551,9 @@ double tCNode::getCumLHF() {return cumLHF;}//flux
 double tCNode::getCumSnSub() {return cumSnSub;}//flux // CJC2020
 double tCNode::getCumSnEvap() {return cumSnEvap;}//flux // CJC2020
 double tCNode::getCumTotEvap() {return cumTotEvap;}//flux // CJC2020
-double tCNode::getCumBarEvap() {return cumBarEvap;}//flux // CJC2020 
+double tCNode::getCumBarEvap() {return cumBarEvap;}//flux // CJC2020
+double tCNode::getCumWetCanEvap() { return cumWetCanEvap; } //flux JB2025
+double tCNode::getCumDryCanEvap() { return cumDryCanEvap; } //flux JB2025
 double tCNode::getCumMelt() {return cumMelt;}//flux
 double tCNode::getCumSHF() {return cumSHF;}//flux
 double tCNode::getCumPHF() {return cumPHF;}//flux
@@ -673,6 +676,7 @@ void tCNode::setEvapWetCanopy(double evapWetCanopy) {
 	EvapWetCanopy = evapWetCanopy;}
 void tCNode::setEvapDryCanopy(double evapDryCanopy) {
 	EvapDryCanopy = evapDryCanopy;}
+
 void tCNode::setEvapSoil(double evapSoil) {EvapSoil = evapSoil;}
 void tCNode::setSoilMoisture(double soilMoisture) {
 	SoilMoisture = soilMoisture;}
@@ -910,6 +914,8 @@ void tCNode::addSnSub(double value) { cumSnSub += value;} // Snowpack sublimatio
 void tCNode::addSnEvap(double value) {cumSnEvap += value;} // Snowpack evaporation CJC2020
 void tCNode::addTotEvap(double value) {cumTotEvap += value;} // total ET CJC2020
 void tCNode::addBarEvap(double value) {cumBarEvap += value;} // bare soil evap CJC2020
+void tCNode::addWetCanEvap(double value) { cumWetCanEvap += value; }  //WetCan evap JB2025
+void tCNode::addDryCanEvap(double value) { cumDryCanEvap += value; } //DryCan evap JB2025
 void tCNode::addPHF(double value) {cumPHF += value;}
 void tCNode::addRLin(double value) {cumRLin += value;}
 void tCNode::addRLout(double value) {cumRLout += value;}
@@ -1423,6 +1429,8 @@ void tCNode::writeRestart(fstream& rStr) const
   BinaryWrite(rStr, cumSnEvap); // Write snowpack evaporation to restart file CJC2020
   BinaryWrite(rStr, cumTotEvap); // Write snowpack evaporation to restart file CJC2020
   BinaryWrite(rStr, cumBarEvap); // Write snowpack evaporation to restart file CJC2020
+  BinaryWrite(rStr, cumWetCanEvap); // Write cumulative WetCan evaporation JB2025
+  BinaryWrite(rStr, cumDryCanEvap); // Write cumulative DryCan evaporation JB2025
   BinaryWrite(rStr, cumPHF);
   BinaryWrite(rStr, cumRLin);
   BinaryWrite(rStr, cumRLout);
@@ -1432,7 +1440,7 @@ void tCNode::writeRestart(fstream& rStr) const
   BinaryWrite(rStr, cumIntSub);
   BinaryWrite(rStr, cumIntUnl);
   BinaryWrite(rStr, cumHrsSnow);
-  
+
   // Added by Giuseppe Mascaro in 2016 to allow ingestion of soil grids
   BinaryWrite(rStr, Ks); 
   BinaryWrite(rStr, ThetaS);
@@ -1702,6 +1710,8 @@ void tCNode::readRestart(fstream& rStr)
   BinaryRead(rStr, cumSnEvap); // Read snowpack evaporation from restart file CJC2020
   BinaryRead(rStr, cumTotEvap); // Read total evaporation from restart file CJC2020
   BinaryRead(rStr, cumBarEvap); // Read soil evaporation from restart file CJC2020
+  BinaryRead(rStr, cumWetCanEvap); // Read total WetCan evaporation from restart file JB2025
+  BinaryRead(rStr, cumDryCanEvap); // Read soil DryCan evaporation from restart file JB2025
   BinaryRead(rStr, cumPHF);
   BinaryRead(rStr, cumRLin);
   BinaryRead(rStr, cumRLout);

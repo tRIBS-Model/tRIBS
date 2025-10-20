@@ -1225,6 +1225,8 @@ void tEvapoTrans::ComputeETComponents(tIntercept *Intercept, tCNode *cNode,
 		cNode->setEvapoTrans(evapoTranspiration);
 		cNode->addTotEvap(evapoTranspiration); // add to cumulative totals CJC2020
 		cNode->addBarEvap(evapSoil); // add to cumulative totals CJC2020
+		cNode->addWetCanEvap(evapWetCanopy);  // add to cumulative totals JB2025
+		cNode->addDryCanEvap(evapDryCanopy); // add to cumulative totals JB2025
 		
 		// Update average ET rate from an element
 		auto te = (double)timer->getElapsedETISteps(timer->getCurrentTime());
