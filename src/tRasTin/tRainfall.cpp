@@ -60,11 +60,9 @@ void tRainfall::SetRainVariables(tInputFile &inFile)
 	
 	// If data are used as the model forcing
 	if (rainfallType == 1)
-		Cout<<"Rainfall Source: \t\tNEXRAD StageIII/P1 Product [cm/hr]\n";
-	else if (rainfallType == 2)
-		Cout<<"Rainfall Source: \t\tWSI Product [mm/hr]\n";
+		Cout<<"Rainfall Source: \t\tGridded Rainfall [mm/hr]\n";
 	
-	if (rainfallType == 1 || rainfallType == 2) { 
+	if (rainfallType == 1) { 
 		inFile.ReadItem(inputname, "RAINFILE");
 		inFile.ReadItem(extension, "RAINEXTENSION");
 		
@@ -73,12 +71,11 @@ void tRainfall::SetRainVariables(tInputFile &inFile)
 			searchRain = inFile.ReadItem(searchRain, "RAINSEARCH");
 		else 
 			searchRain = 24; //Default value
-		optMAP = inFile.ReadItem(optMAP, "RAINDISTRIBUTION");
 		Cout<<"Rainfall Input Path: \t\t'"<<inputname<<"'"<<endl;
 		Cout<<"Rainfall File Extension: \t"<<extension<<endl;
-		NewRain();  
+		NewRain();
 	}
-	else if (rainfallType == 3) {
+	else if (rainfallType == 2) {
 		Cout<<"Rainfall Source: \t\tRaingauge Stations"<<endl;
 		inFile.ReadItem(stationFile, "GAUGESTATIONS");
 
@@ -101,9 +98,8 @@ void tRainfall::SetRainVariables(tInputFile &inFile)
 		Cout<<"\nRainfall Source Option " << rainfallType;
 		Cout<<" not valid." <<endl;
 		Cout<<"\tPlease use: "<<endl;
-		Cout<<"\t\t(1) NEXRAD Stage III Radar"<<endl;
-		Cout<<"\t\t(2) WSI Radar Rainfall"<<endl;
-		Cout<<"\t\t(3) Rain Gauge Station Rainfall"<<endl;
+		Cout<<"\t\t(1) Gridded Rainfall"<<endl;
+		Cout<<"\t\t(2) Rain Gauge Station Rainfall"<<endl;
 		Cout << "Exiting Program...\n\n"<<endl;
 		exit(1);
 	}
@@ -131,7 +127,7 @@ tRainfall::~tRainfall()
 	respPtr = nullptr;
 	simCtrl = nullptr;
 	
-	if (rainfallType == 1 || rainfallType == 2) {
+	if (rainfallType == 1) {
 #ifdef ALPHA_64
 		if ( infile )
 			infile.close();
@@ -146,7 +142,7 @@ tRainfall::~tRainfall()
 			infile.close();
 #endif
 	}
-	if (rainfallType == 3) {
+	if (rainfallType == 2) {
 		delete [] currentTime; 
 		delete [] latitude;
 		delete [] longitude; 
@@ -337,14 +333,8 @@ void tRainfall::NewRain(tRunTimer *t)
 		id = 0;
 		cn = nodeIter.FirstP();
 		while( nodeIter.IsActive() ) { 
-			// Assign MAP to curRain for optMAP = 1
-			if (optMAP == 1)
-				curRain[id]=sumRain/sumArea;
-			
 			if (rainfallType == 1)
-				cn->setRain( curRain[id]*10.0/t->getRainDT()); //NEXRAD - cm/hour
-			else if (rainfallType == 2)
-				cn->setRain( curRain[id]/t->getRainDT());      //WSI - mm/hour
+				cn->setRain( curRain[id]/t->getRainDT());      //Gridded - mm/hour
 			cn = nodeIter.NextP();
 			id++;
 		}
@@ -364,9 +354,7 @@ void tRainfall::NewRain(tRunTimer *t)
 		if (t->getoptForecast() != 3) {
 			while( nodeIter.IsActive() ) {    
 				if (rainfallType == 1)
-					cn->setRain( aveMAP*10.0 ); //NEXRAD - cm/hour
-				else if (rainfallType == 2)
-					cn->setRain( aveMAP );      //WSI - mm/hour
+					cn->setRain( aveMAP );      //Gridded - mm/hour
 				cn = nodeIter.NextP();
 			}
 		}
@@ -819,40 +807,6 @@ void tRainfall::setToNode()
 		ct++;
 	}
 	
-	// If Raindistribution = 1, weighted average of rain gauge data
-	// Reassignment to tCNode after areal weighting
-	
-	if (optMAP == 1) {
-		int id = 0;
-		double *curGauge;
-		
-		double sumRain = 0.0;
-		double sumArea = 0.0;
-		double maxRain = 250.0;  //Maximum valid rainfall (mm/hr)
-		
-		arraySize = gridPtr->getNodeList()->getActiveSize();
-		curGauge = new double[arraySize];
-		
-		// Compute Weighted Mean Gauge Rainfall in Basin
-		cNode = nodeIter.FirstP();
-		while( nodeIter.IsActive() ) {
-			curGauge[id] = cNode->getRain();
-			if (curGauge[id] < 0.0 || curGauge[id] > maxRain*rainDt)
-				curGauge[id] = 0.0;
-			sumRain = sumRain + cNode->getVArea()*curGauge[id];   
-			sumArea = sumArea + cNode->getVArea();
-			cNode = nodeIter.NextP();
-			id++; 
-		}
-		
-		// Assign Weighted Mean Rainfall Values
-		cNode = nodeIter.FirstP();
-		while( nodeIter.IsActive() ) { 
-			cNode->setRain( (sumRain/sumArea) / rainDt );  
-			cNode = nodeIter.NextP();
-		}
-		delete [] curGauge;  
-	}
 	return;
 }
 
@@ -888,7 +842,7 @@ void tRainfall::writeRestart(fstream & rStr) const
   BinaryWrite(rStr, optMAP);
   BinaryWrite(rStr, rainDt);
 
-  if (rainfallType == 3) {
+  if (rainfallType == 2) {
     for (int i = 0; i < 4; i++)
       BinaryWrite(rStr, currentTime[i]);
     for (int i = 0; i < arraySize; i++) {
@@ -924,7 +878,7 @@ void tRainfall::readRestart(fstream & rStr)
   BinaryRead(rStr, optMAP);
   BinaryRead(rStr, rainDt);
 
-  if (rainfallType == 3) {
+  if (rainfallType == 2) {
     for (int i = 0; i < 4; i++)
       BinaryRead(rStr, currentTime[i]);
     for (int i = 0; i < arraySize; i++) {

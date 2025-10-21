@@ -211,15 +211,13 @@ void tPreProcess::CheckInputFile(tInputFile &infile)
 		CheckFileExists(infile,tempString,"DEMFILE");
 	}
 
-	if (optrain == 1 || optrain == 2) {                //Rainfall data
+	if (optrain == 1) {                //Rainfall data
 		IterReadItem(infile, tempString,"RAINFILE");
 		IterReadItem(infile, tempString,"RAINEXTENSION");
-		IterReadItem(infile, tempVariable,"RAINDISTRIBUTION");
 	}
-	else if (optrain == 3) {
+	else if (optrain == 2) {
 		IterReadItem   (infile, tempString,"GAUGESTATIONS");
 		CheckFileExists(infile, tempString,"GAUGESTATIONS");
-		IterReadItem   (infile, tempVariable,"RAINDISTRIBUTION");
 	}
 	
 	if (optrock == 0) {                                  //Bedrock data
