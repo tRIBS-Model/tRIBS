@@ -192,10 +192,8 @@ int main(int argc, char *argv[]){
 	BRoption = ReadItem(BRoption, "RAINSOURCE");
 	theOFStream<<"RAINSOURCE:\t";
 	if (BRoption == 1)
-		theOFStream<<"NEXRAD"<<endl;
+		theOFStream<<"Gridded Rainfall"<<endl;
 	else if (BRoption == 2)
-		theOFStream<<"WSI"<<endl;
-	else if (BRoption == 3)
 		theOFStream<<"Rain gauge"<<endl;
 	else
 		theOFStream<<"-- Unknown --"<<endl;
@@ -228,12 +226,6 @@ int main(int argc, char *argv[]){
 		theOFStream<<"FORECASTLENGTH:  \t"<<tempo<<endl;
 		tempo = ReadItem(tempo, "CLIMATOLOGY");
 		theOFStream<<"CLIMATOLOGY:     \t"<<tempo<<endl;
-		BRoption = ReadItem(BRoption, "RAINDISTRIBUTION");
-		theOFStream<<"RAINDISTRIBUTION:\t";
-		if (BRoption == 0)
-			theOFStream<<"SPATIAL"<<endl;
-		else if (BRoption == 1)
-			theOFStream<<"MAP"<<endl;
 	}
 	theOFStream<<endl<<endl;
 	return 0;
