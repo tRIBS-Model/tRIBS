@@ -31,7 +31,7 @@ tPreProcess::tPreProcess()
 
 tPreProcess::tPreProcess(SimulationControl *simCtrPtr, tInputFile &infile) {
 	
-	simCtrl = simCtrPtr;
+simCtrl = simCtrPtr;
 	
 	if (simCtrl->Check_label == 'Y') {
 		CheckInputFile(infile);
@@ -161,7 +161,6 @@ void tPreProcess::CheckInputFile(tInputFile &infile)
 
 	if (optmesh == 1) {
 		IterReadItem(infile, tempString,  "INPUTDATAFILE");
-		IterReadItem(infile, tempVariable,"INPUTTIME");
 	}
 	else if (optmesh == 2) {
 		IterReadItem   (infile, tempString,"POINTFILENAME");
@@ -185,7 +184,7 @@ void tPreProcess::CheckInputFile(tInputFile &infile)
 		CheckFileExists(infile, tempString,"SCGRID");	
 	}
 	
-	/******************** End of modifications by JECR 2015 *********************/
+	/******************** End of modifications by JECR 2015 *********************/ 
 
 	IterReadItem   (infile, tempString,"SOILTABLENAME");    //Watershed grids
 	CheckFileExists(infile, tempString,"SOILTABLENAME"); 
@@ -415,8 +414,8 @@ double tPreProcess::IterReadItem(tInputFile &infile, double datType,
 		
 		if (datType < -999000.) {
 			cerr<<"\nThe input parameter is either not specified"
-			<<"\nor wrong. Correct the .in file and type 'y'"
-			<<"\n\n>>";
+				<<"\nor wrong. Correct the .in file and type 'y'"
+				<<"\n\n>>";
 			cin>>strg;
 			infile.CloseOldAndOpenNew(infile.GetInFileName());
 		}
@@ -446,8 +445,8 @@ int tPreProcess::IterReadItem(tInputFile &infile, int datType,
 		
 		if (datType == -9999) {
 			cout<<"\nThe input parameter is either not specified"
-			<<"\n\tor wrong. Correct the .in file and type 'y'"
-			<<"\n\n>>";
+				<<"\n\tor wrong. Correct the .in file and type 'y'"
+				<<"\n\n>>";
 			cin>>strg;
 			infile.CloseOldAndOpenNew(infile.GetInFileName());
 		}
@@ -478,8 +477,8 @@ void tPreProcess::IterReadItem(tInputFile &infile, char * theString,
 		
 		if (!strcmp(theString, errr)) {
 			cout<<"\nThe input parameter is either not specified"
-			<<"\nor wrong. Correct the .in file and type 'y'"
-			<<"\n\n>>";
+				<<"\nor wrong. Correct the .in file and type 'y'"
+				<<"\n\n>>";
 			cin>>strg;
 			infile.CloseOldAndOpenNew(infile.GetInFileName());
 		}
