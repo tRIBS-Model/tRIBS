@@ -36,7 +36,6 @@ tEvapoTrans::tEvapoTrans()
 {
     elevation =  0.0;
 	simCtrl = nullptr;
-    weatherSimul = nullptr;
 	respPtr = nullptr;
 	timer = nullptr;
 	timeCount = 0.0;
@@ -116,7 +115,6 @@ tEvapoTrans::tEvapoTrans(SimulationControl *simCtrPtr, tMesh<tCNode> *gridRef,
 {
 	timeCount = 0;	
 	simCtrl = nullptr;
-        weatherSimul = nullptr;
 	gridPtr = nullptr;
 	respPtr = nullptr;
 	timer = nullptr;
@@ -263,13 +261,8 @@ void tEvapoTrans::CreateHydroMetAndLU(tInputFile &infile)
 {
 	if (evapotransOption != 0) {
 				
-		// If stochastic rainfall is used - simulate meterologic variables
-		if (rainPtr->getoptStorm()) {
-			weatherSimul = new tHydroMetStoch(gridPtr, timer, infile, this, rainPtr);
-			newHydroMetStochData(0);
-		}
 		// Read observed data from files otherwise
-		else if (metdataOption == 1) {
+		if (metdataOption == 1) {
 			infile.ReadItem(stationFile, "HYDROMETSTATIONS");
 			readHydroMetStat(stationFile);
 			for (int ct=0;ct<numStations;ct++) {
@@ -336,9 +329,6 @@ void tEvapoTrans::DeleteEvapoTrans()
 		delete [] currentTime;
 		delete [] assignedStation;
 		delete [] weatherStations;
-		
-		if (rainPtr->getoptStorm())
-			delete weatherSimul;
 		
 		if (metdataOption == 2) {
 			if (evapotransOption != 4) {
@@ -472,16 +462,7 @@ void tEvapoTrans::assignStationToNode()
 void tEvapoTrans::setTime(int time)
 {
 	// Get current calendar time
-	if (rainPtr->getoptStorm()) {
-		currentTime[0] = timer->year;
-		currentTime[1] = timer->month;
-		currentTime[2] = timer->day;
-		currentTime[3] = timer->hour;
-		
-		// Obtain current hour
-		nodeHour = timer->hour;
-	}
-	else if (metdataOption == 1) {
+	if (metdataOption == 1) {
 		currentTime[0] = weatherStations[0].getYear(time); 
 		currentTime[1] = weatherStations[0].getMonth(time);
 		currentTime[2] = weatherStations[0].getDay(time);
@@ -523,33 +504,6 @@ void tEvapoTrans::SetEnvironment() {
     // although spatially distributed variables can be easily
     // obtained by re-defining lat/long values for each node)
     SetSunVariables();
-
-    // If stochastic rainfall is used -- use simulated
-    // hydrometeorological variables (spatially uniform)
-    if (rainPtr->getoptStorm()) {
-        tCNode *cNode;
-        tMeshListIter<tCNode> nodeIter(gridPtr->getNodeList());
-
-        newHydroMetStochData(hourlyTimeStep);
-
-        cNode = nodeIter.FirstP();
-        while (nodeIter.IsActive()) {
-            // Set simulated values to the node
-
-            cNode->setAirTemp(airTemp);
-            cNode->setDewTemp(dewTemp);
-            cNode->setRelHumid(rHumidity);
-            cNode->setVapPressure(vPress);
-            cNode->setSkyCover(skyCover);
-            cNode->setWindSpeed(windSpeed);
-            cNode->setAirPressure(atmPress);
-            if (!hourlyTimeStep) {
-                cNode->setSoilTemp(Tlo - 273.15);
-                cNode->setSurfTemp(Tso - 273.15);
-            }
-            cNode = nodeIter.NextP();
-        }
-    }
 }
 
 /***************************************************************************
@@ -702,8 +656,7 @@ void tEvapoTrans::callEvapoPotential()
 	  }
 
 
-      //updates meteorological variables if not in stochastic mode
-      if (!rainPtr->getoptStorm()) {
+      	  //updates meteorological variables
           if (metdataOption == 1) {
               thisStation = assignedStation[count];
               newHydroMetData(hourlyTimeStep); //read in met data from station file -- inherited function
@@ -745,8 +698,6 @@ void tEvapoTrans::callEvapoPotential()
               cNode->setSurfTemp(Tso - 273.15);
           }
 
-      }
-
 	  
 	  if (Ioption == 0) {
 	    cNode->setNetPrecipitation(rain);
@@ -787,13 +738,6 @@ void tEvapoTrans::callEvapoPotential()
 	  // Set computed values to the node variables
 	  setToNode(cNode);
 	  
-	  // Estimate average Ep and cloudiness
-	  if (rainPtr->getoptStorm() && Io > 0.0) {
-	    potEvap = cNode->getPotEvap();
-	    SkyC += skyCover;
-	    cnt++;
-	  }
-	  
 	  cNode = nodeIter.NextP();
 	  count++;
 	}
@@ -805,29 +749,6 @@ void tEvapoTrans::callEvapoPotential()
 	
 	// Update hourly time 
 	hourlyTimeStep++;
-	
-	// Submit the basin average value
-	if (rainPtr->getoptStorm()) {
-		// SKY2008Snow -- Following bug corrected to account for SkyC division by cnt again in the next ComputeDailyEpCld call
-		//cnt ? SkyC /= ((double)cnt) : SkyC = skyCover;
-		cnt ? SkyC = SkyC : SkyC = skyCover;
-		
-		// Get approximate EP from Priestley-Taylor method
-		EP = ApproximateEP();
-		
-		// Submit values to climate simulator
-		weatherSimul->ComputeDailyEpCld(EP, SkyC/cnt);
-		
-		// Assign the radiation variables to the 'tHydrometStoch'
-		if (!count) {
-			weatherSimul->setSunH(alphaD);
-			weatherSimul->setSinH(sinAlpha);
-			weatherSimul->setIo(Io);
-			weatherSimul->setIdir(Ics);
-			weatherSimul->setIdif(Ids);
-			weatherSimul->OutputHydrometVars();
-		}
-	}
 	}
 
 /***************************************************************************
@@ -1064,17 +985,13 @@ void tEvapoTrans::ComputeETComponents(tIntercept *Intercept, tCNode *cNode,
 		betaFuncT(cNode);
 		betaFunc(cNode);
 	
-		// Assign hydromet vars only if real rainfall data are used
-		// Assign (as spatially uniform) otherwise
-		if (!rainPtr->getoptStorm()) {
-			// Get Met Data
-			if (metdataOption == 1) {
-				thisStation = assignedStation[count];
-				newHydroMetData(hourlyTimeStep);//AJR 2008 -- CHANGED FROM OLDTIMESTEP TO HOURLYTIMESTEP
-			}
-			else if (metdataOption == 2) {
-				newHydroMetGridData(cNode);
-			}
+		// Assign hydromet vars
+		if (metdataOption == 1) {
+			thisStation = assignedStation[count];
+			newHydroMetData(hourlyTimeStep);//AJR 2008 -- CHANGED FROM OLDTIMESTEP TO HOURLYTIMESTEP
+		}
+		else if (metdataOption == 2) {
+			newHydroMetGridData(cNode);
 		}
 
 		// The computed Latent Heat LE -
@@ -1795,7 +1712,7 @@ double tEvapoTrans::inShortWave(tCNode *cNode)
 
 		// If observations (for a horizontal surface) exist -
 		// use them, at least in an approximate manner
-		if (tsOption > 1 && !rainPtr->getoptStorm()) {
+		if (tsOption > 1) {
 			// Moved RadGlobClr declaration inside this block since it's only used here JB 2025
 			double RadGlobClr = (inShortR / (1.0 - 0.65 * pow(N, 2.0))); 
 			Ic = Ic/(Ic*sinAlpha + Id)*RadGlobClr;
@@ -1904,20 +1821,8 @@ double tEvapoTrans::inShortWave(tCNode *cNode)
 	else
 		Ic=Is=N=Iv=Isw=Id=Ids=Ics=Ir=0.0;
 
-	// Assign the radiation variables to the 'tHydrometStoch' for ID = 0
-	if (rainPtr->getoptStorm() && (ID == 0)) {
-		weatherSimul->setSunH(alphaD);
-		weatherSimul->setIdir(Ics);
-		weatherSimul->setIdir_vis(0.5*Ics);
-		weatherSimul->setIdir_nir(0.5*Ics);
-		weatherSimul->setIdif(Ids+Ir);//AJR2008, SKY2008Snow
-		weatherSimul->setIdif_vis(0.5*(Ids+Ir));//AJR2008, SKY2008Snow
-		weatherSimul->setIdif_nir(0.5*(Ids+Ir));//AJR2008, SKY2008Snow
-		weatherSimul->OutputHydrometVars();
-	}
-
 	// Set shortwave variables to the node (partition is approximate)
-	if (tsOption > 1 && !rainPtr->getoptStorm()) {
+	if (tsOption > 1) {
         cNode->setShortRadIn(inShortR); //or set(Is), they must be equal
     }
 	else {
@@ -3991,40 +3896,6 @@ void tEvapoTrans::createVariantLU()
 
 /***************************************************************************
 **
-** tEvapoTrans::newHydroMetStochData() Function
-**
-** Assigns the values of the current meteorological parameters that are
-** simulated by functions of the class 'tHydroMetStoch'
-**
-***************************************************************************/
-void tEvapoTrans::newHydroMetStochData(int time) 
-{
-	weatherSimul->SimulateHydrometVars();
-	
-	// Obtain simulated values from tHydroMetStoch
-	airTemp   = weatherSimul->getAirTemp();
-	windSpeed = weatherSimul->getWindSpeed();
-	skyCover  = weatherSimul->getSkyCover();
-	dewTemp   = weatherSimul->getDewTemp();
-	rHumidity = weatherSimul->getRHumidity();
-	vPress    = weatherSimul->getVaporPress();
-	atmPress  = weatherSimul->getAtmPress();
-	
-	// These are currently assigned 9999.99
-	surfTemp  = weatherSimul->getSurfTemp();
-	netRad    = weatherSimul->getNetRad();
-	
-	if (!time) {
-		latitude =  weatherSimul->getLat(1);
-		longitude = weatherSimul->getLong(1);
-		gmt = weatherSimul->getGmt();
-		Tso = weatherSimul->getAirTemp() + 273.15;
-		Tlo = Tso; //Assumption
-	}
-	}
-
-/***************************************************************************
-**
 ** tEvapoTrans::newHydroMetData() Function
 **
 ** Assigns the values of the current meteorological parameters to the 
@@ -5686,8 +5557,6 @@ void tEvapoTrans::writeRestart(fstream & rStr) const
   if (evapotransOption != 0) {
     for (int i = 0; i < 3; i++) 
        BinaryWrite(rStr, currentTime[i]);
-    if (rainPtr->getoptStorm())
-      weatherSimul->writeRestart(rStr);
     if (metdataOption == 1)
       for (int i = 0; i < numStations; i++)
         weatherStations[i].writeRestart(rStr);
@@ -5857,8 +5726,6 @@ void tEvapoTrans::readRestart(fstream & rStr)
   if (evapotransOption != 0) {
     for (int i = 0; i < 3; i++) 
        BinaryRead(rStr, currentTime[i]);
-    if (rainPtr->getoptStorm())
-      weatherSimul->readRestart(rStr);
     if (metdataOption == 1)
       for (int i = 0; i < numStations; i++)
         weatherStations[i].readRestart(rStr);

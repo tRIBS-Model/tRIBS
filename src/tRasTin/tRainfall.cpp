@@ -32,8 +32,7 @@ tRainfall::tRainfall()
 
 // Constructor
 tRainfall::tRainfall(SimulationControl *simCtrPtr, tMesh<tCNode> *gridRef, 
-					 tInputFile &inFile, tResample *resamp) 
-: tStorm( simCtrPtr, inFile )
+					 tInputFile &inFile, tResample *resamp)
 {
 	gridPtr = gridRef;
 	respPtr = resamp;
@@ -60,56 +59,53 @@ void tRainfall::SetRainVariables(tInputFile &inFile)
 	optForecast = 0;  
 	
 	// If data are used as the model forcing
-	if (!getoptStorm()) {
+	if (rainfallType == 1)
+		Cout<<"Rainfall Source: \t\tNEXRAD StageIII/P1 Product [cm/hr]\n";
+	else if (rainfallType == 2)
+		Cout<<"Rainfall Source: \t\tWSI Product [mm/hr]\n";
+	
+	if (rainfallType == 1 || rainfallType == 2) { 
+		inFile.ReadItem(inputname, "RAINFILE");
+		inFile.ReadItem(extension, "RAINEXTENSION");
 		
-		if (rainfallType == 1)
-			Cout<<"Rainfall Source: \t\tNEXRAD StageIII/P1 Product [cm/hr]\n";
-		else if (rainfallType == 2)
-			Cout<<"Rainfall Source: \t\tWSI Product [mm/hr]\n";
-		
-		if (rainfallType == 1 || rainfallType == 2) { 
-			inFile.ReadItem(inputname, "RAINFILE");
-			inFile.ReadItem(extension, "RAINEXTENSION");
-			
-			// To make compatible with existing model setups
-			if (inFile.IsItemIn( "RAINSEARCH" ))
-				searchRain = inFile.ReadItem(searchRain, "RAINSEARCH");
-			else 
-				searchRain = 24; //Default value
-			optMAP = inFile.ReadItem(optMAP, "RAINDISTRIBUTION");
-			Cout<<"Rainfall Input Path: \t\t'"<<inputname<<"'"<<endl;
-			Cout<<"Rainfall File Extension: \t"<<extension<<endl;
-			NewRain();  
+		// To make compatible with existing model setups
+		if (inFile.IsItemIn( "RAINSEARCH" ))
+			searchRain = inFile.ReadItem(searchRain, "RAINSEARCH");
+		else 
+			searchRain = 24; //Default value
+		optMAP = inFile.ReadItem(optMAP, "RAINDISTRIBUTION");
+		Cout<<"Rainfall Input Path: \t\t'"<<inputname<<"'"<<endl;
+		Cout<<"Rainfall File Extension: \t"<<extension<<endl;
+		NewRain();  
+	}
+	else if (rainfallType == 3) {
+		Cout<<"Rainfall Source: \t\tRaingauge Stations"<<endl;
+		inFile.ReadItem(stationFile, "GAUGESTATIONS");
+
+		// SKY2008Snow from AJR2007
+		if (inFile.IsItemIn("PRECLAPSE"))
+			precLapseRate = inFile.ReadItem(precLapseRate, "PRECLAPSE"); //AJR @ NMT 2007
+		else
+			precLapseRate = 0.0;
+
+		readGaugeStat(stationFile);
+		for (int ct=0;ct<numStations;ct++) {
+			readGaugeData(ct);
 		}
-		else if (rainfallType == 3) {
-			Cout<<"Rainfall Source: \t\tRaingauge Stations"<<endl;
-			inFile.ReadItem(stationFile, "GAUGESTATIONS");
 
-			// SKY2008Snow from AJR2007
-			if (inFile.IsItemIn("PRECLAPSE"))
-				precLapseRate = inFile.ReadItem(precLapseRate, "PRECLAPSE"); //AJR @ NMT 2007
-			else
-				precLapseRate = 0.0;
+		assignStationToNode();
+		InitializeGauge();
 
-			readGaugeStat(stationFile);
-			for (int ct=0;ct<numStations;ct++) {
-				readGaugeData(ct);
-			}
-
-			assignStationToNode();
-			InitializeGauge();
-
-		}
-		else {
-			Cout<<"\nRainfall Source Option " << rainfallType;
-			Cout<<" not valid." <<endl;
-			Cout<<"\tPlease use: "<<endl;
-			Cout<<"\t\t(1) NEXRAD Stage III Radar"<<endl;
-			Cout<<"\t\t(2) WSI Radar Rainfall"<<endl;
-			Cout<<"\t\t(3) Rain Gauge Station Rainfall"<<endl;
-			Cout << "Exiting Program...\n\n"<<endl;
-			exit(1);
-		}
+	}
+	else {
+		Cout<<"\nRainfall Source Option " << rainfallType;
+		Cout<<" not valid." <<endl;
+		Cout<<"\tPlease use: "<<endl;
+		Cout<<"\t\t(1) NEXRAD Stage III Radar"<<endl;
+		Cout<<"\t\t(2) WSI Radar Rainfall"<<endl;
+		Cout<<"\t\t(3) Rain Gauge Station Rainfall"<<endl;
+		Cout << "Exiting Program...\n\n"<<endl;
+		exit(1);
 	}
 	
 	// Get Forecast File Directory, use same extension
@@ -908,8 +904,6 @@ void tRainfall::writeRestart(fstream & rStr) const
   BinaryWrite(rStr, aveMAP);
   BinaryWrite(rStr, cumMAP);
   BinaryWrite(rStr, climate);
-
-  tStorm::writeRestart(rStr);
 }
 
 /***************************************************************************
@@ -946,8 +940,6 @@ void tRainfall::readRestart(fstream & rStr)
   BinaryRead(rStr, aveMAP);
   BinaryRead(rStr, cumMAP);
   BinaryRead(rStr, climate);
-
-  tStorm::readRestart(rStr);
 }
 
 //=========================================================================

@@ -19,7 +19,6 @@
 #define TRAINFALL_H
 
 #include "src/Headers/Inclusions.h"
-#include "src/tStorm/tStorm.h"
 
 using namespace std;
 
@@ -33,7 +32,7 @@ class tRunTimer;
 //
 //=========================================================================
 
-class tRainfall : public tStorm 
+class tRainfall
 {
 public:
   tRainfall();
