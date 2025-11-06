@@ -544,8 +544,6 @@ void tFlowResults::write_inter_hyd(char *filename, char *identification,
 #endif
 
 		// Print out header information
-		if (simCtrl->Header_label=='Y' && writeFlag == 0) {
-			
 			// fprintf(ifile,"%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
 			// SKY2008Snow from AJR2007
 			fprintf(ifile,"%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
@@ -565,7 +563,6 @@ void tFlowResults::write_inter_hyd(char *filename, char *identification,
 			//		"hr","m3/s","mm/hr","mm/hr","mm/hr","[]", "[]", "[]", "[]",
 			//		"mm","mm", "[]", "[]");
 			writeFlag = 1;
-		}
 		
 		for (ii=0; ii < iimax; ii++) {    
 			timer->res_time_begin(ii+1, &it_hour, &it_min);
@@ -735,14 +732,13 @@ void tFlowResults::write_Runoff_Types(char *filename, char *)
 		exit(2);
 	}
 	
-	if (simCtrl->Header_label=='Y') {
-		fprintf(ifile,"%s\t","Time");
-		fprintf(ifile,"%s\t","Hsrf");
-		fprintf(ifile,"%s\t","Sbsrf");
-		fprintf(ifile,"%s\t","Psrf");
-		fprintf(ifile,"%s\n","Satsrf");
-		fprintf(ifile,"%s\t%s\t%s\t%s\t%s\n","hr","m3/s","m3/s","m3/s","m3/s");
-	}
+	// Write Header
+	fprintf(ifile,"%s\t","Time");
+	fprintf(ifile,"%s\t","Hsrf");
+	fprintf(ifile,"%s\t","Sbsrf");
+	fprintf(ifile,"%s\t","Psrf");
+	fprintf(ifile,"%s\n","Satsrf");
+	fprintf(ifile,"%s\t%s\t%s\t%s\t%s\n","hr","m3/s","m3/s","m3/s","m3/s");
 	
 	// Current Hydrographs
 	for (ii=0; ii<iimax; ii++)  {      // Current

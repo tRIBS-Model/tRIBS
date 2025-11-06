@@ -91,7 +91,6 @@ void tPreProcess::CheckInputFile(tInputFile &infile)
     // BEGIN Move tControl Arguments to .in file WR 08282023
     IterReadItem(infile, tempVariable,"OPTGROUNDWATER"); //   Cout<<"\t-G    Run groundwater model"<<endl;
     IterReadItem(infile, tempVariable,"OPTSPATIAL"); //  Cout<<"\t-R    Write intermediate states (spatial output)"<<endl;
-    IterReadItem(infile, tempVariable,"OPTHEADER"); //  Cout<<"\t-M    Do NOT Write headers in pixel/hydrograph/voronoi output files"<<endl;
     // END
 	IterReadItem(infile, tempString,"STARTDATE");     //Run and time parameters
 	IterReadItem(infile, tempVariable,"RUNTIME");

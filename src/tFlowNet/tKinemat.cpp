@@ -129,8 +129,7 @@ tKinemat::tKinemat(SimulationControl *sPtr, tMesh<tCNode> *gridRef, tInputFile &
              << "\nExiting Program..." << endl << flush;
         exit(2);
     }
-    if (simCtrl->Header_label=='Y')
-        theOFStream << "1-Time,hr\t " << "2-Qstrm,m3/s\t" << "3-Hlev,m" << "\n";
+    theOFStream << "1-Time,hr\t " << "2-Qstrm,m3/s\t" << "3-Hlev,m" << "\n";
 #endif
 
     // Allocate memory for stacks in stream nodes
@@ -166,81 +165,6 @@ tKinemat::tKinemat(SimulationControl *sPtr, tMesh<tCNode> *gridRef, tInputFile &
     /******** Edits by JECR 2015 End *******/
 
 }
-//
-// /****************************************************************************
-//**
-//**  tKinemat::tKinemat()
-//**
-//**  Constructor for testing purposes
-//**
-//*****************************************************************************/
-//tKinemat::tKinemat() : ais(NULL), bis(NULL), his(NULL), reis(NULL),
-//siis(NULL), rifis(NULL), sumis(NULL), C(NULL),
-//Y1(NULL), Y2(NULL), Y3(NULL)
-//{
-//	ControlOut.open("h-cntr.stream");
-//
-//	if ( !ControlOut.good() ) {
-//		cout<<"\nWarning: Simulation control file not created... "
-//		<<"\nExiting program..."<<endl<<flush;
-//		exit(2);
-//	}
-//
-//	GeomtFile.open("artif_chann.dat");
-//
-//	if (!GeomtFile) {
-//		cout<<"\nError: File artif_chann.dat not found!\nExiting Program..."<<endl;
-//		exit(2);
-//	}
-//
-//	theOFStream.open("_Outlet.qout");
-//	if ( !theOFStream.good() ) {
-//		cout<<"\nWarning: Output file not created... "
-//		<<"\nExiting program..."<<endl<<flush;
-//		exit(2);
-//	}
-//	if (simCtrl->Header_label == 'Y')
-//		theOFStream<<"1-Time,hr\t "<<"2-Qstrm,m3/s\t"<<"3-Hlev,m"<<"\n";
-//}
-//
-// /****************************************************************************
-//**
-//**  tKinemat::tKinemat()
-//**
-//**  Constructor for testing purposes
-//**
-//*****************************************************************************/
-//tKinemat::tKinemat(char *argv[]) : ais(NULL), bis(NULL), his(NULL),
-//reis(NULL), siis(NULL), rifis(NULL),
-//sumis(NULL), C(NULL), Y1(NULL),
-//Y2(NULL), Y3(NULL)
-//{
-//	GeomtFile.open( argv[1] );
-//	if (!GeomtFile) {
-//		cout<<"\nError: File "<<argv[1]<<" not found!\nExiting Program..."<<endl;
-//		exit(2);
-//	}
-//
-//	theOFStream.open(argv[2]);
-//	if ( !theOFStream.good() ) {
-//		cout<<"\nWarning: Output file not created... "
-//		<<"\nExiting program..."<<endl<<flush;
-//		exit(2);
-//	}
-//	if (simCtrl->Header_label == 'Y')
-//		theOFStream<<"1-Time,hr\t "<<"2-Qstrm,m3/s\t"<<"3-Hlev,m"<<endl<<flush;
-//
-//	ControlOut.open("h_cntr.stream");
-//
-//	if ( !ControlOut.good() ) {
-//		cout<<"\nWarning: Simulation control file not created... "
-//		<<"\nExiting program..."<<endl<<flush;
-//		exit(2);
-//	}
-//
-//	n = m = m1 = 0;
-//}
-
 
 /****************************************************************************
 **
@@ -344,8 +268,7 @@ void tKinemat::UpdateForNewRun(tInputFile &infile, int keep) {
              << "\nExiting program..." << endl << flush;
         exit(2);
     }
-    if (simCtrl->Header_label=='Y')
-        theOFStream << "1-Time,hr\t " << "2-Qstrm,m3/s\t" << "3-Hlev,m" << "\n";
+    theOFStream << "1-Time,hr\t " << "2-Qstrm,m3/s\t" << "3-Hlev,m" << "\n";
 
 
     // If a decision made to keep the state vars --
@@ -2520,8 +2443,7 @@ void tKinemat::openOutletFile(tInputFile &infile)
       exit(2);
     }
 
-    if (simCtrl->Header_label=='Y')
-      theOFStream<<"1-Time,hr\t "<<"2-Qstrm,m3/s\t"<<"3-Hlev,m"<<"\n";
+    theOFStream<<"1-Time,hr\t "<<"2-Qstrm,m3/s\t"<<"3-Hlev,m"<<"\n";
   }
 
 }

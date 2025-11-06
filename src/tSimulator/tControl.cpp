@@ -54,7 +54,6 @@ SimulationControl::SimulationControl(int argc, char **argv)
 	hydro_visual     = 'N';
 	smooth_weather   = 'N';
     debug            = 'N';
-    Header_label = 'Y'; //Default is yes
     disp_time = 'N';
 	num_simul = 0;
 	VerbID = -999;
@@ -133,11 +132,6 @@ SimulationControl::SimulationControl(int argc, char **argv)
 				mod_is_on = 'Y';
 				break;
 			}
-            case 'M':                 //turn off headers
-            {
-                Header_label = 'N';
-                break;
-            }
 			case 'W':                 //Hydrograph visualization (SGI only)
 			{
 				hydro_visual = 'Y';
