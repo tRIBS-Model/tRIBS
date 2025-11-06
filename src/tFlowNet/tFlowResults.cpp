@@ -87,8 +87,9 @@ void tFlowResults::SetFlowResVariables(tInputFile &infile, double add_time)
 		tmp[i] = ' ';
 	}
 	
-	infile.ReadItem( baseHydroName,"OUTHYDROFILENAME"); 
-	infile.ReadItem( Extension, "OUTHYDROEXTENSION");
+	infile.ReadItem( baseHydroName,"OUTHYDROFILENAME");  
+	// The OUTHYDROEXTENSION option has been removed and is now hardcoded.
+	strcpy(Extension, "mrf");
 	
 	i=kMaxNameSize-1;
 	while (flag) {

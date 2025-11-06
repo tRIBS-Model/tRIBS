@@ -261,8 +261,6 @@ void tPreProcess::CheckInputFile(tInputFile &infile)
 	CheckPathNameCorrect(infile, tempString, "OUTHYDROFILENAME");
 #endif
 	
-	IterReadItem(infile, tempString,"OUTHYDROEXTENSION");
-	
 	IterReadItem(infile, tempString,"NODEOUTPUTLIST");
 	IterReadItem(infile, tempString,"HYDRONODELIST");
 	IterReadItem(infile, tempString,"OUTLETNODELIST");
