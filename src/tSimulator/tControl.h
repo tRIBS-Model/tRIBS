@@ -80,7 +80,6 @@ class SimulationControl {
   char mod_is_on;         // The model stays on and waits for commands
   char hydro_visual;      // To turn on hydrograph visualization
   char Header_label;      // Suppress header information in outputs
-  bool hydrog_results;    // Write intermediate hydrographs (.mrf) true or fals
   char fore_rain_label;   // Forecasted rain = Y or N 
   char smooth_weather;    // Special option: no randomness in climate
   char disp_time;

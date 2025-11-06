@@ -82,7 +82,6 @@ SimulationControl::SimulationControl(int argc, char **argv)
     /* WR 08282023 removed command line arguments and specified in input file
     "OPTGROUNDWATER" -G    Run groundwater model: GW_model_label
     "OPTSPATIAL" -R    Write intermediate states (spatial output): inter_results
-    "OPTINTERHYDO")-H    Write intermediate hydrographs (.mrf): hydrog_results
     */
 
 	for (int i=2; i < argc; i++)  //Start from the 3rd argument

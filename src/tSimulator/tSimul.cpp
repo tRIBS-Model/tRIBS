@@ -95,7 +95,6 @@ void Simulator::initialize_simulation(tEvapoTrans *EvapoTrans, tSnowPack *SnowPa
     /*  removed command line arguments that should be specified in input file
     "OPTGROUNDWATER" -G    Run groundwater model: GW_model_label
     "OPTSPATIAL" -R    Write intermediate states (spatial output): inter_results
-    "OPTINTERHYDRO")-H    Write intermediate hydrographs (.mrf): hydrog_results
     "OPTHEADER"); -M    Do NOT Write headers in pixel/hydrograph/voronoi output files: : Header_label
     */
 
@@ -108,11 +107,6 @@ void Simulator::initialize_simulation(tEvapoTrans *EvapoTrans, tSnowPack *SnowPa
         simCtrl->inter_results = InFl.ReadItem(simCtrl->inter_results, "OPTSPATIAL");
     else
         simCtrl->inter_results = false; //Default option
-
-    if (InFl.IsItemIn( "OPTINTERHYDRO" ))
-        simCtrl->hydrog_results = InFl.ReadItem(simCtrl->hydrog_results, "OPTINTERHYDRO");
-    else
-        simCtrl->hydrog_results = false; //Default option
 
 	// Ouput pre-processing
 	if (simCtrl->inter_results)
@@ -290,8 +284,7 @@ void Simulator::simulation_loop(tHydroModel *Moisture, tKinemat *Flow,
 *****************************************************************************/
 void Simulator::end_simulation(tKinemat *Flow) 
 { 
-	if ( !simCtrl->hydrog_results )
-		Flow->getResultsPtr()->
+	Flow->getResultsPtr()->
 			writeAndUpdate( timer->getCurrentTime(), 0 );
 	
 	Flow->getResultsPtr()->
@@ -505,10 +498,6 @@ void Simulator::OutputSimulatedVars(tKinemat *Flow)
 			forenum=0;
 		else 
 			forenum=1;
-        if ((simCtrl->hydrog_results) && (timer->getCurrentTime())) {
-            Flow->getResultsPtr()->
-                    writeAndUpdate( timer->getCurrentTime(), forenum );
-        }
 		
 		// Write selected dynamic variables
 		// if ( simCtrl->inter_results == 'Y' )
