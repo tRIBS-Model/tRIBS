@@ -213,11 +213,12 @@ void tPreProcess::CheckInputFile(tInputFile &infile)
 	if (optrain == 1) {                //Rainfall data
 		IterReadItem(infile, tempString,"RAINFILE");
 		IterReadItem(infile, tempString,"RAINEXTENSION");
+		IterReadItem(infile, tempVariable,"RAINDISTRIBUTION");
 	}
 	else if (optrain == 2) {
 		IterReadItem   (infile, tempString,"GAUGESTATIONS");
 		CheckFileExists(infile, tempString,"GAUGESTATIONS");
-	}
+		IterReadItem   (infile, tempVariable,"RAINDISTRIBUTION");
 	
 	if (optrock == 0) {                                  //Bedrock data
 		IterReadItem(infile,tempVariable,"DEPTHTOBEDROCK");
