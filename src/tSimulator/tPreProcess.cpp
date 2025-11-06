@@ -296,15 +296,6 @@ void tPreProcess::CheckInputFile(tInputFile &infile)
      }
    }
 
-   // Visualization options
-   optv = IterReadItem(infile, optv, "OPTVIZ");
-   if (optv > 0) {
-       IterReadItem(infile, tempString,"OUTVIZFILENAME");
-#ifndef PARALLEL_TRIBS
-       CheckPathNameCorrect(infile, tempString, "OUTVIZFILENAME");
-#endif
-   }
-
 	Cout<<"\nInput File Keywords Checked..."<<endl<<flush;
 	return;
 }

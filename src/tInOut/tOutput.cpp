@@ -54,11 +54,6 @@ tOutput<tSubNode>::tOutput(SimulationControl *simCtrPtr,
 	Cout<<"\nOutput Files:"<<endl<<endl;
 	infile.ReadItem(baseName, "OUTFILENAME" );    //basename of output
 	infile.ReadItem(nodeFile, "NODEOUTPUTLIST");  //pathname of node output
-
-	// Binary viz output
-   vizOption = infile.ReadItem(vizOption, "OPTVIZ");
-   if (this->vizOption > 0)
-	    infile.ReadItem(vizName, "OUTVIZFILENAME" );
 	
 #ifdef PARALLEL_TRIBS
   // Nodes, edges, triangles, and Z files are only written
@@ -113,11 +108,6 @@ tOutput<tSubNode>::tOutput( SimulationControl *simCtrPtr,
 	Cout<<"\nOutput Files:"<<endl<<endl;
 	infile.ReadItem( baseName, "OUTFILENAME" );          
 	infile.ReadItem( nodeFile, "NODEOUTPUTLIST");  
-	
-	// Binary viz output
-   vizOption = infile.ReadItem(vizOption, "OPTVIZ");
-   if (this->vizOption > 0)
-	    infile.ReadItem(vizName, "OUTVIZFILENAME" );
 	
 #ifdef PARALLEL_TRIBS
   // Nodes, edges, triangles, and Z files are only written
@@ -213,32 +203,6 @@ void tOutput<tSubNode>::CreateAndOpenFile( ofstream *theOFStream,
 */
 	return;
 }
-
-template< class tSubNode >
-void tOutput<tSubNode>::CreateAndOpenVizFile( ofstream *theOFStream,
-                                           char *extension )
-{ 
-	char procex[10];
-	char fullName[kMaxNameSize+6];
-   
-	strcpy( fullName, vizName );
-	strcat( fullName, extension );
-#ifdef PARALLEL_TRIBS
-	snprintf( procex,sizeof(procex),".%-d", tParallel::getMyProc()); //WR 09192023: converted sprintf to snprintf, needed to add sizeof(procex): warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.
-	strcat(fullName, procex);
-#else
-	snprintf( procex, sizeof(procex), "");
-	strcat(fullName, procex);
-#endif 
-  
-	theOFStream->open( fullName, ios::binary );
-  
-	if ( !theOFStream->good() )
-		cerr << "File "<<fullName<<" not created.";
-  
-	Cout<<"Creating Output File: \t '"<<fullName<<"' "<<endl;
-	return;
-} 
 
 /*************************************************************************
 **
@@ -732,21 +696,9 @@ void tOutput<tSubNode>::WriteNodeData( double , tResample *)
 }
 
 template< class tSubNode >
-void tOutput<tSubNode>::WriteGeometry( tResample *)
-{
-	cout<<"tOutput:WriteNodeData VOID function!"<<endl; 
-}
-
-template< class tSubNode >
 void tOutput<tSubNode>::WriteDynamicVars( double )
 {
 	cout<<"tOutput:WriteDynamicVars VOID function!"<<endl; 
-}
-
-template< class tSubNode >
-void tOutput<tSubNode>::WriteDynamicVarsBinary( double )
-{
-	cout<<"tOutput:WriteDynamicVarsBinary VOID function!"<<endl; 
 }
 
 template< class tSubNode >
@@ -952,10 +904,6 @@ void tCOutput<tSubNode>::WriteNodeData( double time, tResample *tresamp )
 			cn = ni.NextP();
 		} 
 
-		// Write geometry and static information for visualizer
-		if (this->vizOption == 1)
-			WriteGeometry(tresamp);
-
 #ifdef PARALLEL_TRIBS
     // If the last reach is on this processor, report the final
     // outlet node
@@ -976,96 +924,6 @@ void tCOutput<tSubNode>::WriteNodeData( double time, tResample *tresamp )
 	drareaofs.close();
 	widthsofs.close();
 	return;
-}
-
-/*************************************************************************
-**
-**  tCOutput::WriteGeometry()
-**
-**  Writes the voronoi polygon information and static data suitable for
-**  the tRIBS reader for EnSight or ParaView
-**  After variables giving the number of polygons and number of points
-**  making up those polygons comes all points in order by polygon
-**  Next is the number of points per polygon which will all the polygons
-**  to be created from the points array.  Finally the data is written for
-**  each cell or polygon organized by data item across all cells.
-**
-*************************************************************************/
-template< class tSubNode >
-void tCOutput<tSubNode>::WriteGeometry(tResample* tresamp)
-{
-	tSubNode *cn;
-	tMeshListIter<tSubNode> ni( this->g->getNodeList() );
-
-	// Write the geometry data for visualizer using tResample because
-	// boundary polygons have been clipped
-	// Visualizer data is written in binary and organized by variable
-	// across all cells rather than all data for a single cell
-	ofstream geomofs;
-	char geomext[16] = ".tribs";
-	this->CreateAndOpenVizFile( &geomofs, geomext );
-
-	// Count the total number of voronoi vertices making up the polygons
-	int nActiveNodes = this->g->getNodeList()->getActiveSize();
-	int nPoints = 0;
-	for (int i = 0; i < nActiveNodes; i++)
-		nPoints += tresamp->nPoints[i];
-
-	// Write the counts of nodes (polygons) and points forming the polygons
-	BinaryWrite(geomofs, nActiveNodes);
-	BinaryWrite(geomofs, nPoints);
-
-	// Write all the voronoi vertices which are points in the unstructured grid
-	for (int i = 0; i < nActiveNodes; i++) {
-		for (int k = 0; k < tresamp->nPoints[i]; k++) {
-			BinaryWrite(geomofs, (float) tresamp->vXs[i][k]);
-			BinaryWrite(geomofs, (float) tresamp->vYs[i][k]);
-		}
-	}
-
-	// Write the edges per cell (polygon)
-	for (int i = 0; i < nActiveNodes; i++)
-		BinaryWrite(geomofs, tresamp->nPoints[i]);
-
-	// Write the centroid points per cell
-	for (cn = ni.FirstP(); ni.IsActive(); cn = ni.NextP())
-		BinaryWrite(geomofs, (float) cn->getX());
-	for (cn = ni.FirstP(); ni.IsActive(); cn = ni.NextP())
-		BinaryWrite(geomofs, (float) cn->getY());
-
-	// Centroid z is the elevation
-	for (cn = ni.FirstP(); ni.IsActive(); cn = ni.NextP())
-		BinaryWrite(geomofs, (float) cn->getZ());
-
-	// Write the boundary flag per cell
-	for (cn = ni.FirstP(); ni.IsActive(); cn = ni.NextP())
-		BinaryWrite(geomofs, (float) cn->getBoundaryFlag());
-
-	// WRite the reach number per cell
-	for (cn = ni.FirstP(); ni.IsActive(); cn = ni.NextP())
-		BinaryWrite(geomofs, (float) cn->getReach());
-
-	// Write the flood status per cell
-	for (cn = ni.FirstP(); ni.IsActive(); cn = ni.NextP())
-		BinaryWrite(geomofs, (float) cn->getFloodStatus());
-
-	// Write the flow width per cell
-	for (cn = ni.FirstP(); ni.IsActive(); cn = ni.NextP())
-		BinaryWrite(geomofs, (float) cn->getFlowEdg()->getVEdgLen());
-
-	// Write the flow length per cell
-	for (cn = ni.FirstP(); ni.IsActive(); cn = ni.NextP())
-		BinaryWrite(geomofs, (float) cn->getFlowEdg()->getLength());
-
-	// Write the contributing area per cell
-	for (cn = ni.FirstP(); ni.IsActive(); cn = ni.NextP())
-		BinaryWrite(geomofs, (float) cn->getContrArea());
-
-	// Write the slope per cell
-	for (cn = ni.FirstP(); ni.IsActive(); cn = ni.NextP())
-		BinaryWrite(geomofs, (float) cn->getFlowEdg()->getSlope());
-
-	geomofs.close();
 }
 
 /*************************************************************************
@@ -1403,122 +1261,10 @@ void tCOutput<tSubNode>::WriteDynamicVars( double time )
 	// and end of simulation
 	if ( time == 0.0 || this->timer->IsFinished() )
 		WriteIntegrVars( time );
-
-	// Write binary information that varies with time step for visualizer
-	if (this->vizOption == 1)
-		WriteDynamicVarsBinary(time);
 	
 	return;
 }
 
-template< class tSubNode >
-void tCOutput<tSubNode>::WriteDynamicVarsBinary( double time )
-{
-	tSubNode* cn;
-	tMeshListIter<tCNode> niter(this->g->getNodeList());
-	int hour = (int)floor(time);
-    int nActiveNodes = this->g->getNodeList()->getActiveSize(); // Get number of nodes for array sizing
-
-    // Create temporary arrays to hold the corrected vertical depths for all nodes.
-    float* nwt_vert = new float[nActiveNodes];
-    float* nf_vert = new float[nActiveNodes];
-    float* nt_vert = new float[nActiveNodes];
-    float* mu_vert = new float[nActiveNodes];
-
-    // Loop through the nodes once to populate all temporary arrays.
-    int i = 0;
-    for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP(), i++) {
-        // Calculate cos_slope just once per node in this single loop.
-        tEdge *flowEdge = cn->getFlowEdg();
-        double slope_rad = atan(flowEdge->getSlope());
-        double cos_slope = cos(slope_rad);
-        if (cos_slope < 1E-9) cos_slope = 1.E-9;
-
-        // Apply correction and store in the corresponding temporary array.
-        nwt_vert[i] = (float)(cn->getNwtNew() / cos_slope);
-        nf_vert[i]  = (float)(cn->getNfNew()  / cos_slope);
-        nt_vert[i]  = (float)(cn->getNtNew()  / cos_slope);
-        mu_vert[i]  = (float)(cn->getMuNew()  / cos_slope);
-    }
-
-	char extension[20];
-	snprintf(extension,sizeof(extension), "_dyn.%04d", hour);
-
-	ofstream ostr;
-	this->CreateAndOpenVizFile(&ostr, extension);
-
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) nwt_vert[i]);
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) nf_vert[i]);
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) nt_vert[i]);
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) mu_vert[i]);
-
-    // 4. Clean up the memory allocated for the temporary arrays.
-    delete[] nwt_vert;
-    delete[] nf_vert;
-    delete[] nt_vert;
-    delete[] mu_vert;
-
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getQpout());
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getQpin());
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getGwaterChng());
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getSrf());
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getRain());
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getSoilMoistureSC());
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getRootMoistureSC());
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getAirTemp());
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getDewTemp());
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getSurfTemp());
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getSoilTemp());
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getAirPressure());
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getRelHumid());
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getSkyCover());
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getWindSpeed());
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getNetRad());
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getActEvap());
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getEvapoTrans());
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getEvapSoil());
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getGFlux());
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getHFlux());
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getLFlux());
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getNetPrecipitation());
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getRecharge());
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getQstrm());
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getHlevel());
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getCanStorage());
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getFlowVelocity());
-}
 
 /*************************************************************************
 **
