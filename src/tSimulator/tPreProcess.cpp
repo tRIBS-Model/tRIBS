@@ -219,6 +219,7 @@ void tPreProcess::CheckInputFile(tInputFile &infile)
 		IterReadItem   (infile, tempString,"GAUGESTATIONS");
 		CheckFileExists(infile, tempString,"GAUGESTATIONS");
 		IterReadItem   (infile, tempVariable,"RAINDISTRIBUTION");
+	}
 	
 	if (optrock == 0) {                                  //Bedrock data
 		IterReadItem(infile,tempVariable,"DEPTHTOBEDROCK");

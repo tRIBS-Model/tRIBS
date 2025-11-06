@@ -54,7 +54,7 @@ Simulator::Simulator(SimulationControl *simctrlptr, tRainfall *rainptr,
 	outp->WriteOutput( 0 );
 	
 	// Get rainsearch if rainfall used
-	if (rainIn->rainfallType == 1 || rainIn->rainfallType == 2) {
+	if (rainIn->rainfallType == 1) {
 		searchRain = rainIn->searchRain;     // Rainfall search threshold
 	}
 	count = 0;
@@ -124,7 +124,7 @@ void Simulator::initialize_simulation(tEvapoTrans *EvapoTrans, tSnowPack *SnowPa
 	//outp->WritePixelInfo(   timer->getCurrentTime() );
 
 	// Prepare rainfall input
-	if (rainIn->rainfallType == 1 || rainIn->rainfallType == 2) {
+	if (rainIn->rainfallType == 1) {
 		
 		// Check if time for rainfall forecast 
 		if (fmod(timer->getCurrentTime(), timer->getRainDT())==0 &&
@@ -355,10 +355,10 @@ void Simulator::UpdatePrecipitationInput()
 		fState = checkForecast();
 	
 	// Options for radar or rain gauges 
-	if (rainIn->rainfallType == 1 || rainIn->rainfallType == 2)
+	if (rainIn->rainfallType == 1)
 		get_next_mrain(simCtrl->mode);
 	
-	else if (rainIn->rainfallType == 3) {
+	else if (rainIn->rainfallType == 2) {
 		if ( timer->isGaugeTime(timer->getRainDT()) ) {
 			get_next_gaugerain();  // updates rain to nodes from station data
 		}
