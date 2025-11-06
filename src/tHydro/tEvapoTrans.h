@@ -68,8 +68,6 @@ class tEvapoTrans
   void createVariant();
   void createVariantLU(); // SKYnGM2008LU: added by AJR 2007
   void EvapPenmanMonteith(tCNode *);
-  void EvapDeardorff(tCNode *);
-  void EvapPriestlyTaylor(tCNode *);
   void EvapPan();
   void robustNess(double *, int);
   void setToNode(tCNode *);

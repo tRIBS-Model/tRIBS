@@ -331,7 +331,7 @@ void tEvapoTrans::DeleteEvapoTrans()
 		delete [] weatherStations;
 		
 		if (metdataOption == 2) {
-			if (evapotransOption != 4) {
+			if (evapotransOption != 2) {
 				delete airpressure;
 				delete dewtemperature;
 				delete skycover;
@@ -716,12 +716,6 @@ void tEvapoTrans::callEvapoPotential()
 	    EvapPenmanMonteith(cNode);
 	  }
 	  else if (evapotransOption == 2) {
-	    EvapDeardorff(cNode);
-	  }
-	  else if (evapotransOption == 3) {
-	    EvapPriestlyTaylor(cNode);
-	  }
-	  else if (evapotransOption == 4) {
 	    EvapPan();
 	  }
 	  else {
@@ -729,9 +723,7 @@ void tEvapoTrans::callEvapoPotential()
 	    Cout <<" not valid." << endl;
 	    Cout << "\tPlease use :" << endl;
 	    Cout << "\t\t(1) for Penman-Monteith Method" << endl;
-	    Cout << "\t\t(2) for Deardorff Method"<< endl;
-	    Cout << "\t\t(3) for Priestly-Taylor Method" << endl;
-	    Cout << "\t\t(4) for Pan Evaporation Measurements" << endl;
+	    Cout << "\t\t(2) for Pan Evaporation Measurements" << endl;
 	    Cout << "Exiting Program...\n\n"<<endl;
 	    exit(1);
 	  }
@@ -847,11 +839,7 @@ void tEvapoTrans::setCoeffs(tCNode* cNode)
 		coeffRs = landPtr->getLandProp(10);
 		coeffV  = landPtr->getLandProp(11);
 	}
-	else if (evapotransOption == 2 || evapotransOption == 3) {
-		coeffAl = landPtr->getLandProp(7); 
-		coeffV  = landPtr->getLandProp(11);
-	}
-	else if (evapotransOption == 4)
+	else if (evapotransOption == 2)
 		coeffV  = landPtr->getLandProp(11);
 		
 	// CJC2025: Set the values for the stress thresholds from the table.
@@ -2441,11 +2429,8 @@ void tEvapoTrans::FunctionAndDerivative(tCNode* cNode,
 	Rn = Rabsb_soi - Lsoi;
 	
 	// 4.) == Sensible heat flux ==
-	if (evapotransOption == 1 || evapotransOption == 3) {
+	if (evapotransOption == 1) {
         H = rho * Cp * (Tg - (airTemp + 273.15)) / Rah;
-    }
-	else if (evapotransOption == 2) {
-        H = rho * Cp * (Tg - (airTemp + 273.15)) * Ch * windSpeedC;
     }
 	Hsoi = H;
 	
@@ -2460,18 +2445,6 @@ void tEvapoTrans::FunctionAndDerivative(tCNode* cNode,
 		Ep  = num/denomrs/lam;
 		LE = soiFct*lam*Eps + vegFct*lam*Ep;
 		Ep *= (denomrs/denom);
-	}
-	else if (evapotransOption == 2) {
-		esat = satVaporPress(Tg-273.15);
-		ccTs = (lam*esat)/(rv*pow(Tg,2.0));  
-		qhSatTs = (0.622/P)*esat;
-		qhTa    = (0.622/P)*es;
-		(qhSatTs > qhTa ? Ep = rho*Ch*(qhSatTs-qhTa)*windSpeedC : Ep = 0.0);
-		LE = Ep*lam*betaS;
-	}
-	else if (evapotransOption == 3) {
-		(Rn > G ? Ep = (alpha/lam)*(Rn-G)*((cc/psy)/denom) : Ep = 0.0);
-		LE = Ep*lam*betaS;
 	}
 	lEsoi = LE;
 	
@@ -2494,14 +2467,6 @@ void tEvapoTrans::FunctionAndDerivative(tCNode* cNode,
 		dHdTg = rho*Cp/Rah;
 		dlEdTg = soiFct*(cc/psy)*(dRndTg-dGdTg)/denom
 			+ vegFct*(cc/psy)*(dRndTg-dGdTg)/denomrs;
-	}
-	else if (evapotransOption == 2) {
-		dHdTg = rho*Cp*Ch*windSpeedC;
-		dlEdTg = lam*rho*Ch*windSpeedC*(0.622/P)*ccTs*betaS;
-	}
-	else if (evapotransOption == 3) {
-		dHdTg = rho*Cp/Rah;
-		dlEdTg = betaS*(alpha)*((cc/psy)/denom)*(dRndTg - dGdTg);
 	}
 	
 	// ----------------------------------------------
@@ -2696,74 +2661,6 @@ void tEvapoTrans::EvapPenmanMonteith(tCNode* cNode)
 {
 	potEvap = 3600.0*energyBalance(cNode);   // Actual rate, including resistances
 	actEvap = 3600.0*(lFlux/(latentHeat()));  
-}
-
-/***************************************************************************
-**
-** tEvapoTrans::EvapDeardorff() Function  
-**
-** Potential Evaporation computed from Deardorff Equation
-**       
-**        Ep(t) = rho(t)*Ch*u(t)*(qhSatTs(t)-qhTa(t))   (kg/m2/s)
-**     
-**        rho(t) Moist Air Density (kg/m3) using densityMoist()
-**        Ch     Heat and Moisture Coefficient Ch = 0.0025
-**        u(t)   Wind Speed (m/s)
-**        qhSatTs(t)  Specific humidity at surface Temperature Ts  []
-**            qhSatTs(t) = (0.622*esat(Ts))/(atmPress)          3.28
-**               esat(Ts) as in vaporPress() (mb)
-**               atmPress from totalPress() (mb)  
-**        qhTa   Specific Humidity at Air Temperature []
-**            qhTa = 0.622*vaporPress/atmPress                     
-**        Ts     Surface Temperature in K
-**
-** EvapDeardorff() requires:
-**       airTemp, windSpeed, dewTemp/rHumidity, atmPress, skyCover
-**       coeffA  for inShortWave()
-**
-** EvapDeardorff() does not require:
-**       netRad, surfTemp (optional)
-**       coeffH  for aeroResist()
-**       coeffRs for stomResist()
-**       coeffKt for inShortWave()  bare-soil evaporation (=1)
-**
-** Multiply by 3600 to convert kg/m2/s to mm/hr due to 1kg/m2 = 1mm water
-**
-***************************************************************************/
-void tEvapoTrans::EvapDeardorff(tCNode* cNode) 
-{
-	potEvap = 3600.0*energyBalance(cNode);
-	actEvap = potEvap*betaS;
-}
-
-/***************************************************************************
-**
-** tEvapoTrans::EvapPriestlyTaylor() Function
-**
-** Calculates evaporation using the Priestly-Taylor formula which is useful
-** under conditions of minimum advection (energy-dominated).
-**
-**       Ep(t) = (alpha/L(t))*(CC(t)/(CC(t)+Psy(t)))*(Rn(t)-G(t))
-**
-**       alpha  Priestly Taylor coefficient = 1.26 Semi-humid, Humid regions
-**
-** EvapPriestlyTaylor() requires (same as Deardorff):
-**       airTemp, windSpeed, dewTemp/rHumidity, atmPress, skyCover
-**       coeffA  for inShortWave()
-**       netRad, surfTemp (calculated as in PM)
-**
-** EvapPriestlyTaylor() does not require:
-**       coeffH  for aeroResist()
-**       coeffRs for stomResist()
-**       coeffKt for inShortWave()  bare-soil evaporation (=1)
-**
-** Multiply by 3600 to convert kg/m2/s to mm/hr due to 1kg/m2 = 1mm water
-**
-***************************************************************************/
-void tEvapoTrans::EvapPriestlyTaylor(tCNode* cNode) 
-{
-	potEvap = 3600.0*energyBalance(cNode);
-	actEvap = potEvap*betaS;
 }
 
 /***************************************************************************
@@ -3218,7 +3115,7 @@ void tEvapoTrans::readHydroMetData(int num)
 	day   = new int[numTimes];
 	hour  = new int[numTimes];
 	
-	if (evapotransOption != 4) {
+	if (evapotransOption != 2) {
 		AtmPressure = new double[numTimes];
 		DewTemperature= new double[numTimes];
 		AirTemperature = new double[numTimes];
@@ -3449,7 +3346,7 @@ void tEvapoTrans::readHydroMetData(int num)
 	weatherStations[num].setDay(day);
 	weatherStations[num].setHour(hour);
 	
-	if (evapotransOption != 4) {
+	if (evapotransOption != 2) {
 		robustNess(AirTemperature, numTimes);
 		robustNess(DewTemperature, numTimes);
 		robustNess(AtmPressure, numTimes);
@@ -3694,7 +3591,7 @@ void tEvapoTrans::readLUGrid(char *gridFile)
 void tEvapoTrans::createVariant() 
 {
 
-	if (evapotransOption != 4) {
+	if (evapotransOption != 2) {
 		for (int ct=0;ct<nParm;ct++) { 
 			if (strcmp(gridParamNames[ct],"PA")==0) {
 				airpressure = new tVariant(gridPtr,respPtr);
@@ -3908,7 +3805,7 @@ void tEvapoTrans::newHydroMetData(int time)
 	// Obtain values from tHydroMet
 	for (int i=0; i<numStations;i++) {
 		if (thisStation == weatherStations[i].getStation()) {
-			if (evapotransOption != 4) {
+			if (evapotransOption != 2) {
 				airTemp = weatherStations[i].getAirTemp(time);
 
 				// SKY2008Snow from AJR2007
@@ -3970,7 +3867,7 @@ void tEvapoTrans::newHydroMetData(int time)
 **
 ***************************************************************************/
 void tEvapoTrans::newHydroMetGridData(tCNode * cNode) {   
-	if (evapotransOption != 4) {
+	if (evapotransOption != 2) {
 		airTemp = cNode->getAirTemp();
 		dewTemp = cNode->getDewTemp();
 		surfTemp = cNode->getSurfTemp();
@@ -4016,9 +3913,7 @@ void tEvapoTrans::newLUGridData(tCNode * cNode)
 { 
 	for (int ct=0;ct<nParmLU;ct++) { 
 		if (strcmp(LUgridParamNames[ct],"AL")==0) {
-			if ( (evapotransOption == 1) ||
-					(evapotransOption == 2) ||
-					(evapotransOption == 3) ){
+			if (evapotransOption == 1) {
 				coeffAl = cNode->getLandUseAlb();
 			}
 		}
@@ -4039,9 +3934,7 @@ void tEvapoTrans::newLUGridData(tCNode * cNode)
 		}		
 		if (strcmp(LUgridParamNames[ct],"VF")==0) {
 			if ( (evapotransOption == 1) ||
-					(evapotransOption == 2) ||
-					(evapotransOption == 3) ||
-					(evapotransOption == 4) ){
+					(evapotransOption == 2) ){
 				coeffV = cNode->getVegFraction();
 
                 if (coeffV >= 1.0) //prevents loss of snow when unloaded from canopy WR 05/12/2024
@@ -4077,7 +3970,7 @@ void tEvapoTrans::newLUGridData(tCNode * cNode)
 ***************************************************************************/
 void tEvapoTrans::resampleGrids(tRunTimer *t) 
 {
-	if (evapotransOption!=4) {
+	if (evapotransOption!=2) {
 		for (int ct=0;ct<nParm;ct++) { 
 			if (strcmp(gridBaseNames[ct],"NO_DATA")!=0) {
 				if (strcmp(gridParamNames[ct],"TA")==0) {
