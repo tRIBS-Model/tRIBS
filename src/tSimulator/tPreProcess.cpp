@@ -262,7 +262,6 @@ void tPreProcess::CheckInputFile(tInputFile &infile)
 #endif
 	
 	IterReadItem(infile, tempString,"OUTHYDROEXTENSION");
-	//IterReadItem(infile,tempString,"RIBSHYDOUTPUT");
 	
 	IterReadItem(infile, tempString,"NODEOUTPUTLIST");
 	IterReadItem(infile, tempString,"HYDRONODELIST");

@@ -42,7 +42,6 @@
 **	Allocate memory for the hydrographs
 **	Initialize hydrographs to zero
 **
-**  ribsOutput used as flag for compatibility with RIBS user interphase
 **  visualization of the previous and current hydrograph. 
 **              0: current hydrograph only
 **              1: previous and current hydrograph
@@ -89,7 +88,6 @@ void tFlowResults::SetFlowResVariables(tInputFile &infile, double add_time)
 	}
 	
 	infile.ReadItem( baseHydroName,"OUTHYDROFILENAME"); 
-	ribsOutput = infile.ReadItem( ribsOutput, "RIBSHYDOUTPUT");
 	infile.ReadItem( Extension, "OUTHYDROEXTENSION");
 	
 	i=kMaxNameSize-1;
@@ -497,26 +495,6 @@ void tFlowResults::write_inter_hyd(char *filename, char *identification,
 	// Assign Forecast State if Option != 0
 	if (timer->getoptForecast()!=0)
 		fState[count] = checkForecast();
-	
-	// RIBS Compatibility
-	
-	if (ribsOutput == 1) {
-		
-		// Previous hydrograph
-		for (ii=1; ii < iimax; ii++) {    
-			timer->res_time_begin(ii, &it_hour, &it_min);
-			fprintf(ifile,"0 %04d.%02d %f %f\n",
-					it_hour, it_min, phydro[ii], prr[ii-1]);
-		}
-		// Current hydrograph
-		for (ii=1; ii < iimax; ii++) {    
-			timer->res_time_begin(ii, &it_hour, &it_min);
-			fprintf(ifile," 1 %04d.%02d %f %f\n",
-					it_hour, it_min, phydro[ii]+mhydro[ii], crr[ii-1]);
-		}
-	}
-	
-	else if (ribsOutput == 0) {
 		
 #ifdef PARALLEL_TRIBS
 
@@ -655,7 +633,6 @@ void tFlowResults::write_inter_hyd(char *filename, char *identification,
 
 #endif
 
-	}
 	Cout<<"\nCreating Hydrograph Output: '"<<filename<<"'"<<endl;
 
 #ifdef PARALLEL_TRIBS
@@ -1202,7 +1179,6 @@ void tFlowResults::writeRestart(fstream & rStr) const
 {
   BinaryWrite(rStr, limit);
   BinaryWrite(rStr, iimax);
-  BinaryWrite(rStr, ribsOutput);
   BinaryWrite(rStr, writeFlag);
   BinaryWrite(rStr, count);
   for (int i = 0; i < limit; i++)
@@ -1258,7 +1234,6 @@ void tFlowResults::readRestart(fstream & rStr)
 {
   BinaryRead(rStr, limit);
   BinaryRead(rStr, iimax);
-  BinaryRead(rStr, ribsOutput);
   BinaryRead(rStr, writeFlag);
   BinaryRead(rStr, count);
   for (int i = 0; i < limit; i++)
