@@ -340,11 +340,8 @@ void tKinemat::AssignChannelWidths(tInputFile &infile) {
     tEdge *firstedg, *curedg;
     tMeshListIter<tCNode> nodIter(gridPtr->getNodeList());
 
-    // Option 8 version looped on active nodes only because tGraph update
-    // was called after this code.  With meshbuilder, reach nodes not in
-    // this partition are moved to the back before this, so we have to
-    // loop on all nodes MESHB
-    int option = infile.ReadItem(option, "OPTMESHINPUT");
+    // Loop on active nodes only because tGraph update
+    // is called after this code. 
 
     for (cn = nodIter.FirstP(); nodIter.IsActive(); cn = nodIter.NextP()) {
         if (cn->getBoundaryFlag() == kStream) {
