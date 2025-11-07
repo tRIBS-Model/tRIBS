@@ -346,25 +346,15 @@ void tKinemat::AssignChannelWidths(tInputFile &infile) {
     // loop on all nodes MESHB
     int option = infile.ReadItem(option, "OPTMESHINPUT");
 
-    if (option == 9) {
-        for (cn = nodIter.FirstP(); !(nodIter.AtEnd()); cn = nodIter.NextP()) {
-            if (cn->getBoundaryFlag() == kStream) {
-                value = cn->getContrArea() * 1.0E-6;  // to give units of km^2
-                value = WCoeff * pow(value, WExpnt);
-                cn->setChannelWidth(value);
-                cn->ActivateSortTracer(); // tracer is assigned to '1'
-            }
-        }
-    } else {
-        for (cn = nodIter.FirstP(); nodIter.IsActive(); cn = nodIter.NextP()) {
-            if (cn->getBoundaryFlag() == kStream) {
-                value = cn->getContrArea() * 1.0E-6;  // to give units of km^2
-                value = WCoeff * pow(value, WExpnt);
-                cn->setChannelWidth(value);
-                cn->ActivateSortTracer(); // tracer is assigned to '1'
-            }
+    for (cn = nodIter.FirstP(); nodIter.IsActive(); cn = nodIter.NextP()) {
+        if (cn->getBoundaryFlag() == kStream) {
+            value = cn->getContrArea() * 1.0E-6;  // to give units of km^2
+            value = WCoeff * pow(value, WExpnt);
+            cn->setChannelWidth(value);
+            cn->ActivateSortTracer(); // tracer is assigned to '1'
         }
     }
+
     value = OutletNode->getContrArea() * 1.0E-6;
     value = WCoeff * pow(value, WExpnt);
     OutletNode->setChannelWidth(value);
