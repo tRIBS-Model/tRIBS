@@ -25,7 +25,7 @@
 //=========================================================================
 
 // Default Constructor
-tRainfall::tRainfall() 
+tRainfall::tRainfall()
 {
     gridPtr = 0;
 }
@@ -71,6 +71,7 @@ void tRainfall::SetRainVariables(tInputFile &inFile)
 			searchRain = inFile.ReadItem(searchRain, "RAINSEARCH");
 		else 
 			searchRain = 24; //Default value
+		optMAP = inFile.ReadItem(optMAP, "RAINDISTRIBUTION");
 		Cout<<"Rainfall Input Path: \t\t'"<<inputname<<"'"<<endl;
 		Cout<<"Rainfall File Extension: \t"<<extension<<endl;
 		NewRain();
@@ -333,6 +334,9 @@ void tRainfall::NewRain(tRunTimer *t)
 		id = 0;
 		cn = nodeIter.FirstP();
 		while( nodeIter.IsActive() ) { 
+			// Assign MAP to curRain for optMAP = 1
+			if (optMAP == 1)
+				curRain[id]=sumRain/sumArea;
 			if (rainfallType == 1)
 				cn->setRain( curRain[id]/t->getRainDT());      //Gridded - mm/hour
 			cn = nodeIter.NextP();
@@ -805,6 +809,41 @@ void tRainfall::setToNode()
 		cNode->setRain(gaugeRain[ct]);
 		cNode = nodeIter.NextP();
 		ct++;
+	}
+	
+	// If Raindistribution = 1, weighted average of rain gauge data
+	// Reassignment to tCNode after areal weighting
+	
+	if (optMAP == 1) {
+		int id = 0;
+		double *curGauge;
+		
+		double sumRain = 0.0;
+		double sumArea = 0.0;
+		double maxRain = 250.0;  //Maximum valid rainfall (mm/hr)
+		
+		arraySize = gridPtr->getNodeList()->getActiveSize();
+		curGauge = new double[arraySize];
+		
+		// Compute Weighted Mean Gauge Rainfall in Basin
+		cNode = nodeIter.FirstP();
+		while( nodeIter.IsActive() ) {
+			curGauge[id] = cNode->getRain();
+			if (curGauge[id] < 0.0 || curGauge[id] > maxRain*rainDt)
+				curGauge[id] = 0.0;
+			sumRain = sumRain + cNode->getVArea()*curGauge[id];   
+			sumArea = sumArea + cNode->getVArea();
+			cNode = nodeIter.NextP();
+			id++; 
+		}
+		
+		// Assign Weighted Mean Rainfall Values
+		cNode = nodeIter.FirstP();
+		while( nodeIter.IsActive() ) { 
+			cNode->setRain( (sumRain/sumArea) / rainDt );  
+			cNode = nodeIter.NextP();
+		}
+		delete [] curGauge;  
 	}
 	
 	return;

@@ -407,19 +407,13 @@ void tSnowPack::callSnowPack(tIntercept *Intercept, int flag) {
             if (evapotransOption == 1) {
                 EvapPenmanMonteith(cNode); // SKY2008Snow
             } else if (evapotransOption == 2) {
-                EvapDeardorff(cNode); // SKY2008Snow
-            } else if (evapotransOption == 3) {
-                EvapPriestlyTaylor(cNode); // SKY2008Snow
-            } else if (evapotransOption == 4) {
                 EvapPan();
             } else {
                 cout << "\nEvapotranspiration Option " << evapotransOption;
                 cout << " not valid." << endl;
                 cout << "\tPlease use :" << endl;
                 cout << "\t\t(1) for Penman-Monteith Method" << endl;
-                cout << "\t\t(2) for Deardorff Method" << endl;
-                cout << "\t\t(3) for Priestly-Taylor Method" << endl;
-                cout << "\t\t(4) for Pan Evaporation Measurements" << endl;
+                cout << "\t\t(2) for Pan Evaporation Measurements" << endl;
                 cout << "Exiting Program...\n\n" << endl;
                 exit(1);
             }
@@ -767,19 +761,13 @@ void tSnowPack::callSnowIntercept(tCNode *node, tIntercept *interceptModel, int 
         if (evapotransOption == 1) {
             EvapPenmanMonteith(node); // call to get EvapPot, but energy balance for soil es
         } else if (evapotransOption == 2) {
-            EvapDeardorff(node); // SKY2008Snow
-        } else if (evapotransOption == 3) {
-            EvapPriestlyTaylor(node); // SKY2008Snow
-        } else if (evapotransOption == 4) {
             EvapPan();
         } else {
             cout << "\nEvapotranspiration Option " << evapotransOption;
             cout << " not valid." << endl;
             cout << "\tPlease use :" << endl;
             cout << "\t\t(1) for Penman-Monteith Method" << endl;
-            cout << "\t\t(2) for Deardorff Method" << endl;
-            cout << "\t\t(3) for Priestly-Taylor Method" << endl;
-            cout << "\t\t(4) for Pan Evaporation Measurements" << endl;
+            cout << "\t\t(2) for Pan Evaporation Measurements" << endl;
             cout << "Exiting Program...\n\n" << endl;
             exit(1);
         }

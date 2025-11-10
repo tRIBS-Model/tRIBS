@@ -54,7 +54,7 @@ Simulator::Simulator(SimulationControl *simctrlptr, tRainfall *rainptr,
 	outp->WriteOutput( 0 );
 	
 	// Get rainsearch if rainfall used
-	if (rainIn->rainfallType == 1 || rainIn->rainfallType == 2) {
+	if (rainIn->rainfallType == 1) {
 		searchRain = rainIn->searchRain;     // Rainfall search threshold
 	}
 	count = 0;
@@ -95,8 +95,6 @@ void Simulator::initialize_simulation(tEvapoTrans *EvapoTrans, tSnowPack *SnowPa
     /*  removed command line arguments that should be specified in input file
     "OPTGROUNDWATER" -G    Run groundwater model: GW_model_label
     "OPTSPATIAL" -R    Write intermediate states (spatial output): inter_results
-    "OPTINTERHYDRO")-H    Write intermediate hydrographs (.mrf): hydrog_results
-    "OPTHEADER"); -M    Do NOT Write headers in pixel/hydrograph/voronoi output files: : Header_label
     */
 
     if (InFl.IsItemIn( "OPTGROUNDWATER" ))
@@ -109,11 +107,6 @@ void Simulator::initialize_simulation(tEvapoTrans *EvapoTrans, tSnowPack *SnowPa
     else
         simCtrl->inter_results = false; //Default option
 
-    if (InFl.IsItemIn( "OPTINTERHYDRO" ))
-        simCtrl->hydrog_results = InFl.ReadItem(simCtrl->hydrog_results, "OPTINTERHYDRO");
-    else
-        simCtrl->hydrog_results = false; //Default option
-
 	// Ouput pre-processing
 	if (simCtrl->inter_results)
 		outp->CreateAndOpenDynVar();
@@ -124,7 +117,7 @@ void Simulator::initialize_simulation(tEvapoTrans *EvapoTrans, tSnowPack *SnowPa
 	//outp->WritePixelInfo(   timer->getCurrentTime() );
 
 	// Prepare rainfall input
-	if (rainIn->rainfallType == 1 || rainIn->rainfallType == 2) {
+	if (rainIn->rainfallType == 1) {
 		
 		// Check if time for rainfall forecast 
 		if (fmod(timer->getCurrentTime(), timer->getRainDT())==0 &&
@@ -290,8 +283,7 @@ void Simulator::simulation_loop(tHydroModel *Moisture, tKinemat *Flow,
 *****************************************************************************/
 void Simulator::end_simulation(tKinemat *Flow) 
 { 
-	if ( !simCtrl->hydrog_results )
-		Flow->getResultsPtr()->
+	Flow->getResultsPtr()->
 			writeAndUpdate( timer->getCurrentTime(), 0 );
 	
 	Flow->getResultsPtr()->
@@ -355,10 +347,10 @@ void Simulator::UpdatePrecipitationInput()
 		fState = checkForecast();
 	
 	// Options for radar or rain gauges 
-	if (rainIn->rainfallType == 1 || rainIn->rainfallType == 2)
+	if (rainIn->rainfallType == 1)
 		get_next_mrain(simCtrl->mode);
 	
-	else if (rainIn->rainfallType == 3) {
+	else if (rainIn->rainfallType == 2) {
 		if ( timer->isGaugeTime(timer->getRainDT()) ) {
 			get_next_gaugerain();  // updates rain to nodes from station data
 		}
@@ -505,10 +497,6 @@ void Simulator::OutputSimulatedVars(tKinemat *Flow)
 			forenum=0;
 		else 
 			forenum=1;
-        if ((simCtrl->hydrog_results) && (timer->getCurrentTime())) {
-            Flow->getResultsPtr()->
-                    writeAndUpdate( timer->getCurrentTime(), forenum );
-        }
 		
 		// Write selected dynamic variables
 		// if ( simCtrl->inter_results == 'Y' )

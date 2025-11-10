@@ -31,7 +31,7 @@ tPreProcess::tPreProcess()
 
 tPreProcess::tPreProcess(SimulationControl *simCtrPtr, tInputFile &infile) {
 	
-	simCtrl = simCtrPtr;
+simCtrl = simCtrPtr;
 	
 	if (simCtrl->Check_label == 'Y') {
 		CheckInputFile(infile);
@@ -91,8 +91,6 @@ void tPreProcess::CheckInputFile(tInputFile &infile)
     // BEGIN Move tControl Arguments to .in file WR 08282023
     IterReadItem(infile, tempVariable,"OPTGROUNDWATER"); //   Cout<<"\t-G    Run groundwater model"<<endl;
     IterReadItem(infile, tempVariable,"OPTSPATIAL"); //  Cout<<"\t-R    Write intermediate states (spatial output)"<<endl;
-    IterReadItem(infile, tempVariable,"OPTINTERHYDRO"); // Cout<<"\t-H    Write intermediate hydrographs (.mrf)"<<endl;
-    IterReadItem(infile, tempVariable,"OPTHEADER"); //  Cout<<"\t-M    Do NOT Write headers in pixel/hydrograph/voronoi output files"<<endl;
     // END
 	IterReadItem(infile, tempString,"STARTDATE");     //Run and time parameters
 	IterReadItem(infile, tempVariable,"RUNTIME");
@@ -161,7 +159,6 @@ void tPreProcess::CheckInputFile(tInputFile &infile)
 
 	if (optmesh == 1) {
 		IterReadItem(infile, tempString,  "INPUTDATAFILE");
-		IterReadItem(infile, tempVariable,"INPUTTIME");
 	}
 	else if (optmesh == 2) {
 		IterReadItem   (infile, tempString,"POINTFILENAME");
@@ -185,7 +182,7 @@ void tPreProcess::CheckInputFile(tInputFile &infile)
 		CheckFileExists(infile, tempString,"SCGRID");	
 	}
 	
-	/******************** End of modifications by JECR 2015 *********************/
+	/******************** End of modifications by JECR 2015 *********************/ 
 
 	IterReadItem   (infile, tempString,"SOILTABLENAME");    //Watershed grids
 	CheckFileExists(infile, tempString,"SOILTABLENAME"); 
@@ -214,10 +211,12 @@ void tPreProcess::CheckInputFile(tInputFile &infile)
 	if (optrain == 1) {                //Rainfall data
 		IterReadItem(infile, tempString,"RAINFILE");
 		IterReadItem(infile, tempString,"RAINEXTENSION");
+		IterReadItem(infile, tempVariable,"RAINDISTRIBUTION");
 	}
 	else if (optrain == 2) {
 		IterReadItem   (infile, tempString,"GAUGESTATIONS");
 		CheckFileExists(infile, tempString,"GAUGESTATIONS");
+		IterReadItem   (infile, tempVariable,"RAINDISTRIBUTION");
 	}
 	
 	if (optrock == 0) {                                  //Bedrock data
@@ -260,9 +259,6 @@ void tPreProcess::CheckInputFile(tInputFile &infile)
 	CheckPathNameCorrect(infile, tempString, "OUTHYDROFILENAME");
 #endif
 	
-	IterReadItem(infile, tempString,"OUTHYDROEXTENSION");
-	//IterReadItem(infile,tempString,"RIBSHYDOUTPUT");
-	
 	IterReadItem(infile, tempString,"NODEOUTPUTLIST");
 	IterReadItem(infile, tempString,"HYDRONODELIST");
 	IterReadItem(infile, tempString,"OUTLETNODELIST");
@@ -294,15 +290,6 @@ void tPreProcess::CheckInputFile(tInputFile &infile)
      if (optgraph > 0) {
        IterReadItem(infile, tempString, "GRAPHFILE");
      }
-   }
-
-   // Visualization options
-   optv = IterReadItem(infile, optv, "OPTVIZ");
-   if (optv > 0) {
-       IterReadItem(infile, tempString,"OUTVIZFILENAME");
-#ifndef PARALLEL_TRIBS
-       CheckPathNameCorrect(infile, tempString, "OUTVIZFILENAME");
-#endif
    }
 
 	Cout<<"\nInput File Keywords Checked..."<<endl<<flush;
@@ -415,8 +402,8 @@ double tPreProcess::IterReadItem(tInputFile &infile, double datType,
 		
 		if (datType < -999000.) {
 			cerr<<"\nThe input parameter is either not specified"
-			<<"\nor wrong. Correct the .in file and type 'y'"
-			<<"\n\n>>";
+				<<"\nor wrong. Correct the .in file and type 'y'"
+				<<"\n\n>>";
 			cin>>strg;
 			infile.CloseOldAndOpenNew(infile.GetInFileName());
 		}
@@ -446,8 +433,8 @@ int tPreProcess::IterReadItem(tInputFile &infile, int datType,
 		
 		if (datType == -9999) {
 			cout<<"\nThe input parameter is either not specified"
-			<<"\n\tor wrong. Correct the .in file and type 'y'"
-			<<"\n\n>>";
+				<<"\n\tor wrong. Correct the .in file and type 'y'"
+				<<"\n\n>>";
 			cin>>strg;
 			infile.CloseOldAndOpenNew(infile.GetInFileName());
 		}
@@ -478,8 +465,8 @@ void tPreProcess::IterReadItem(tInputFile &infile, char * theString,
 		
 		if (!strcmp(theString, errr)) {
 			cout<<"\nThe input parameter is either not specified"
-			<<"\nor wrong. Correct the .in file and type 'y'"
-			<<"\n\n>>";
+				<<"\nor wrong. Correct the .in file and type 'y'"
+				<<"\n\n>>";
 			cin>>strg;
 			infile.CloseOldAndOpenNew(infile.GetInFileName());
 		}

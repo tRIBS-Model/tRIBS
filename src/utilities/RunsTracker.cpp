@@ -226,6 +226,12 @@ int main(int argc, char *argv[]){
 		theOFStream<<"FORECASTLENGTH:  \t"<<tempo<<endl;
 		tempo = ReadItem(tempo, "CLIMATOLOGY");
 		theOFStream<<"CLIMATOLOGY:     \t"<<tempo<<endl;
+		BRoption = ReadItem(BRoption, "RAINDISTRIBUTION");
+		theOFStream<<"RAINDISTRIBUTION:\t";
+		if (BRoption == 0)
+			theOFStream<<"SPATIAL"<<endl;
+		else if (BRoption == 1)
+			theOFStream<<"MAP"<<endl;
 	}
 	theOFStream<<endl<<endl;
 	return 0;

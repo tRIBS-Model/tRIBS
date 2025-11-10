@@ -56,7 +56,6 @@ public:
 
   void WriteOutput(double);
   void CreateAndOpenFile(ofstream*, char*);
-  void CreateAndOpenVizFile(ofstream*, char*);
   void ReadNodeOutputList();
   void CreateAndOpenPixel();
   void CreateAndOpenDynVar();
@@ -64,11 +63,9 @@ public:
   void SetInteriorNode();
  
   virtual void WriteDynamicVars(double); 
-  virtual void WriteDynamicVarsBinary(double); 
   virtual void WriteDynamicVar(double);
   virtual void WriteNodeData(double);    
   virtual void WriteNodeData(double, tResample*);
-  virtual void WriteGeometry(tResample*);
   virtual void WritePixelInfo(double);
 
 
@@ -83,9 +80,6 @@ protected:
 
   char baseName[kMaxNameSize]; 
   char nodeFile[kMaxNameSize];
-  char vizName[kMaxNameSize]; 
-
-  int vizOption;
    
   ofstream nodeofs;
   ofstream edgofs;
@@ -119,13 +113,11 @@ public:
   char outletName[kMaxNameSize];
 
   void WriteDynamicVars(double);
-  void WriteDynamicVarsBinary(double);
   void WriteDynamicVar(double);
   void WriteIntegrVars(double);
   void WritePixelInfo(double);
   void WriteNodeData(double);
   void WriteNodeData(double, tResample*); 
-  void WriteGeometry(tResample*);
   void UpdateForNewRun(tInputFile &); 
 
   void WriteOutletInfo(double);

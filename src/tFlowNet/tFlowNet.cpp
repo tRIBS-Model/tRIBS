@@ -45,48 +45,38 @@ tFlowNet::tFlowNet(SimulationControl *simCtrPtr, tMesh<tCNode> *gridRef,
 	
 	SetFlowVariables( infile );
     
-	// If the mesh was created by the MeshBuilder read FlowNet info from file
-	int option = infile.ReadItem(option, "OPTMESHINPUT");
-	if (option != 9) {
+	Cout <<"\nCalculating slopes..."<< endl;
+	CalcSlopes();
 
-		Cout <<"\nCalculating slopes..."<< endl;
-		CalcSlopes();
-	
-		Cout <<"\nInitializing flow directions..."<<endl;
-		InitFlowDirs();
-	
-		Cout <<"\nComputing flow directions..."<<endl;
-		FlowDirs();
-	
-		Cout <<"\nCorrecting sinks..."<<endl;
-		FillLakes();
-	
-		Cout <<"\nSorting nodes by network order..."<<endl;
-		SortNodesByNetOrder();
-	
-		Cout <<"\nSetting basin outlet and stream reaches..."<<endl;
-		SetBasinOutlet();
-		WeightedShortestPath();  
-		SortStreamNodes();
-		DrainAreaVoronoi();
-		DeriveCurvature();
-		DeriveStreamReaches( infile );
-	
-		Cout <<"\nInitialize velocities and time..."<<endl;
-		setTravelVelocity(0.0);  
-		initializeTravelTime();
-	
-		Cout <<"\nChecking drainage widths..."<<endl;
-		CheckVDrainageWidths();
-	
-		Cout <<"\nSet reach numbers..."<<endl;
-		SetReachInformation();
-  }
+	Cout <<"\nInitializing flow directions..."<<endl;
+	InitFlowDirs();
 
-  else {
-		Cout <<"\nRead MeshBuilder flownet information..."<<endl;
-		ReadFlowNetFromMeshBuilder();
-	}
+	Cout <<"\nComputing flow directions..."<<endl;
+	FlowDirs();
+
+	Cout <<"\nCorrecting sinks..."<<endl;
+	FillLakes();
+
+	Cout <<"\nSorting nodes by network order..."<<endl;
+	SortNodesByNetOrder();
+
+	Cout <<"\nSetting basin outlet and stream reaches..."<<endl;
+	SetBasinOutlet();
+	WeightedShortestPath();  
+	SortStreamNodes();
+	DrainAreaVoronoi();
+	DeriveCurvature();
+	DeriveStreamReaches( infile );
+
+	Cout <<"\nInitialize velocities and time..."<<endl;
+	setTravelVelocity(0.0);  
+	initializeTravelTime();
+
+	Cout <<"\nChecking drainage widths..."<<endl;
+	CheckVDrainageWidths();
+
+	Cout <<"\nSet reach numbers..."<<endl;
+	SetReachInformation();
 	
 	Cout<<"\nHillslope velocity: \t\t"<<hillvel<<" m/sec"<<endl;
 	Cout<<"Stream velocity: \t\t"<<streamvel<<" m/sec"<<endl;

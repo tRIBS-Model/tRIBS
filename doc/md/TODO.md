@@ -5,7 +5,6 @@
 - [ ] Review/remove remaining user run flags
 - [ ] Check if GAUGEBASENAME: Rain Gauge data BASE name (*.mdf) is needed, this is superseded by the .sdf file.
 - [ ] Update flow for reading in dynamic LU grids--this is a bottleneck in terms of speed
-- [ ] Remove InputTime from .in file and tRIBS processes as it should always be set to zero.
 - [ ] Create parameter input file for snowpack.cpp
 - [ ] Consider flexible approach for specifying outputs, I.E. could we make it so that you could pass in attribute related to a node and have them returned in the dynamic and integrated files. Could also be nice for input parameters, i.e. make list of hard coded parameters and expose as inputs.
 ### Finished
