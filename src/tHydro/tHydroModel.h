@@ -188,6 +188,9 @@ private:
   double Rs_LU{};
   double V_LU{};
   double LAI_LU{};
+  // CJC2025 Stress Thresholds
+  double ST_LU{};
+  double SE_LU{};
 
   // SKY2008Snow from AJR2007
   double snowMeltEx{};
