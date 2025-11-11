@@ -686,6 +686,7 @@ void tEvapoTrans::callEvapoPotential()
 	  }
 	  
 	  // Set Coefficients - override if dynamic land use
+	  setCoeffs(cNode);
 	  if (luOption == 1) {
 	    newLUGridData(cNode);
 	    if (gFluxOption == 1 || gFluxOption == 2) {
@@ -697,10 +698,6 @@ void tEvapoTrans::callEvapoPotential()
 			// Giuseppe 2016 - End changes to allow reading soil properties from grids
 	    }
 	  }
-	  else{
-	    setCoeffs(cNode);
-	  }
-
 
       //updates meteorological variables if not in stochastic mode
       if (!rainPtr->getoptStorm()) {
@@ -1048,16 +1045,14 @@ void tEvapoTrans::ComputeETComponents(tIntercept *Intercept, tCNode *cNode,
 
 	if ( evapotransOption ) {
 		
-		// Set Coefficients
+		// Set Coefficients - override if dynamic land use
+	    setCoeffs(cNode);
 		if (luOption == 1) {
 			newLUGridData(cNode);
 			if (gFluxOption == 1 || gFluxOption == 2) {;
                 coeffKs = cNode->getVolHeatCond();
                 coeffCs = cNode->getSoilHeatCap();
             }
-		}
-		else{
-		  setCoeffs(cNode);
 		}
 		
 		// Call Beta function for transpiration
