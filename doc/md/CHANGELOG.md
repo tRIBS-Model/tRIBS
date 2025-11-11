@@ -1,6 +1,12 @@
 <!--- CHANGELOG.md --->
 # Changelog 
 All notable changes to this project are documented in this file.
+## Version 5.3.1
+### 11/10/2025
+* Fixed a bug introduced in v5.3.0 that resulted in stress thresholds for soil and plant transpiration to not be initialized if `OPTLANDUSE = 1`.
+* Stress thresholds for soil and plant transpiration added to the integrated spatial output file for user validation.
+### 10/14/2025
+* Fixed a bug that caused negative canopy storage from undershoot in Rutter Interception scheme under specific vegetation conditions. 
 
 ## Version 5.3.0
 ### 8/16/2025
