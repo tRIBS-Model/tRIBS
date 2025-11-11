@@ -67,6 +67,7 @@ class tEvapoTrans
   void newLUGridData(tCNode *); // SKYnGM2008LU: added by AJR 2007
   void createVariant();
   void createVariantLU(); // SKYnGM2008LU: added by AJR 2007
+  void createStaticVariantLU(); // CJC2025
   void EvapPenmanMonteith(tCNode *);
   void EvapPan();
   void robustNess(double *, int);

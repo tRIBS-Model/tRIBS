@@ -488,7 +488,7 @@ void tIntercept::SetIntercpParameters(tCNode *cNode)
 		coeffV = landPtr->getLandProp(11);         //Vegetation Fraction 
 	}
 
-	if (luOption == 1) {
+	if (luOption == 1 || luOption == 2) {
 		for (int ct=0;ct<nParmLU;ct++) { 
 			if (strcmp(LUgridParamNames[ct],"CS")==0) {
 				if (interceptOption == 1) {

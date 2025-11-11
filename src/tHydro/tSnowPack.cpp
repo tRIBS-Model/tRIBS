@@ -302,15 +302,6 @@ void tSnowPack::callSnowPack(tIntercept *Intercept, int flag) {
         cNode->setVegFraction(landPtr->getLandProp(11));
         cNode->setLeafAI(landPtr->getLandProp(12));
 
-        if (luOption == 1) {
-            if (luInterpOption == 1) { // LU values linearly interpolated between 'previous' and 'until' values
-                interpolateLUGrids(cNode);
-            }
-            else if (luInterpOption == 0) {// LU values set from 'previous' grid
-                constantLUGrids(cNode);
-            }
-        }
-
         // Elapsed MET steps from the beginning, used for averaging dynamic LU grid values below over time for integ. output
         auto te = (double) timer->getElapsedMETSteps(timer->getCurrentTime());
         integratedLUVars(cNode, te);
@@ -327,10 +318,24 @@ void tSnowPack::callSnowPack(tIntercept *Intercept, int flag) {
         snOnOff = 0.0;
 
         checkShelter(cNode);
-        setCoeffs(cNode);// this sets coeffs from land classification table
 
-        // this overwrites a given parameter if the landuse option is selected and the gridded data exists
-        if (luOption == 1) {
+        // Load the full set of default parameters from the table.
+        // This provides the fallback values for any parameters not supplied as grids.
+        setCoeffs(cNode);
+
+        // If using gridded data (dynamic or static), overwrite the defaults.
+        if (luOption == 1 || luOption == 2) {
+
+            // For DYNAMIC grids (Option 1), update/interpolate node values first.
+            if (luOption == 1) {
+                if (luInterpOption == 1) {
+                    interpolateLUGrids(cNode);
+                } else {
+                    constantLUGrids(cNode);
+                }
+            }
+            // For STATIC grids (Option 2), values are already on the node from initialization, so no action is needed here.
+            // For both gridded options, load the parameters from the node into the local 'coeff' variables.
             newLUGridData(cNode);
         }
 
