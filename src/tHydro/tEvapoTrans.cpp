@@ -36,7 +36,6 @@ tEvapoTrans::tEvapoTrans()
 {
     elevation =  0.0;
 	simCtrl = nullptr;
-    weatherSimul = nullptr;
 	respPtr = nullptr;
 	timer = nullptr;
 	timeCount = 0.0;
@@ -116,7 +115,6 @@ tEvapoTrans::tEvapoTrans(SimulationControl *simCtrPtr, tMesh<tCNode> *gridRef,
 {
 	timeCount = 0;	
 	simCtrl = nullptr;
-        weatherSimul = nullptr;
 	gridPtr = nullptr;
 	respPtr = nullptr;
 	timer = nullptr;
@@ -263,13 +261,8 @@ void tEvapoTrans::CreateHydroMetAndLU(tInputFile &infile)
 {
 	if (evapotransOption != 0) {
 				
-		// If stochastic rainfall is used - simulate meterologic variables
-		if (rainPtr->getoptStorm()) {
-			weatherSimul = new tHydroMetStoch(gridPtr, timer, infile, this, rainPtr);
-			newHydroMetStochData(0);
-		}
 		// Read observed data from files otherwise
-		else if (metdataOption == 1) {
+		if (metdataOption == 1) {
 			infile.ReadItem(stationFile, "HYDROMETSTATIONS");
 			readHydroMetStat(stationFile);
 			for (int ct=0;ct<numStations;ct++) {
@@ -337,11 +330,8 @@ void tEvapoTrans::DeleteEvapoTrans()
 		delete [] assignedStation;
 		delete [] weatherStations;
 		
-		if (rainPtr->getoptStorm())
-			delete weatherSimul;
-		
 		if (metdataOption == 2) {
-			if (evapotransOption != 4) {
+			if (evapotransOption != 2) {
 				delete airpressure;
 				delete dewtemperature;
 				delete skycover;
@@ -472,16 +462,7 @@ void tEvapoTrans::assignStationToNode()
 void tEvapoTrans::setTime(int time)
 {
 	// Get current calendar time
-	if (rainPtr->getoptStorm()) {
-		currentTime[0] = timer->year;
-		currentTime[1] = timer->month;
-		currentTime[2] = timer->day;
-		currentTime[3] = timer->hour;
-		
-		// Obtain current hour
-		nodeHour = timer->hour;
-	}
-	else if (metdataOption == 1) {
+	if (metdataOption == 1) {
 		currentTime[0] = weatherStations[0].getYear(time); 
 		currentTime[1] = weatherStations[0].getMonth(time);
 		currentTime[2] = weatherStations[0].getDay(time);
@@ -523,33 +504,6 @@ void tEvapoTrans::SetEnvironment() {
     // although spatially distributed variables can be easily
     // obtained by re-defining lat/long values for each node)
     SetSunVariables();
-
-    // If stochastic rainfall is used -- use simulated
-    // hydrometeorological variables (spatially uniform)
-    if (rainPtr->getoptStorm()) {
-        tCNode *cNode;
-        tMeshListIter<tCNode> nodeIter(gridPtr->getNodeList());
-
-        newHydroMetStochData(hourlyTimeStep);
-
-        cNode = nodeIter.FirstP();
-        while (nodeIter.IsActive()) {
-            // Set simulated values to the node
-
-            cNode->setAirTemp(airTemp);
-            cNode->setDewTemp(dewTemp);
-            cNode->setRelHumid(rHumidity);
-            cNode->setVapPressure(vPress);
-            cNode->setSkyCover(skyCover);
-            cNode->setWindSpeed(windSpeed);
-            cNode->setAirPressure(atmPress);
-            if (!hourlyTimeStep) {
-                cNode->setSoilTemp(Tlo - 273.15);
-                cNode->setSurfTemp(Tso - 273.15);
-            }
-            cNode = nodeIter.NextP();
-        }
-    }
 }
 
 /***************************************************************************
@@ -699,8 +653,7 @@ void tEvapoTrans::callEvapoPotential()
 	    }
 	  }
 
-      //updates meteorological variables if not in stochastic mode
-      if (!rainPtr->getoptStorm()) {
+      	  //updates meteorological variables
           if (metdataOption == 1) {
               thisStation = assignedStation[count];
               newHydroMetData(hourlyTimeStep); //read in met data from station file -- inherited function
@@ -742,8 +695,6 @@ void tEvapoTrans::callEvapoPotential()
               cNode->setSurfTemp(Tso - 273.15);
           }
 
-      }
-
 	  
 	  if (Ioption == 0) {
 	    cNode->setNetPrecipitation(rain);
@@ -762,12 +713,6 @@ void tEvapoTrans::callEvapoPotential()
 	    EvapPenmanMonteith(cNode);
 	  }
 	  else if (evapotransOption == 2) {
-	    EvapDeardorff(cNode);
-	  }
-	  else if (evapotransOption == 3) {
-	    EvapPriestlyTaylor(cNode);
-	  }
-	  else if (evapotransOption == 4) {
 	    EvapPan();
 	  }
 	  else {
@@ -775,21 +720,12 @@ void tEvapoTrans::callEvapoPotential()
 	    Cout <<" not valid." << endl;
 	    Cout << "\tPlease use :" << endl;
 	    Cout << "\t\t(1) for Penman-Monteith Method" << endl;
-	    Cout << "\t\t(2) for Deardorff Method"<< endl;
-	    Cout << "\t\t(3) for Priestly-Taylor Method" << endl;
-	    Cout << "\t\t(4) for Pan Evaporation Measurements" << endl;
+	    Cout << "\t\t(2) for Pan Evaporation Measurements" << endl;
 	    Cout << "Exiting Program...\n\n"<<endl;
 	    exit(1);
 	  }
 	  // Set computed values to the node variables
 	  setToNode(cNode);
-	  
-	  // Estimate average Ep and cloudiness
-	  if (rainPtr->getoptStorm() && Io > 0.0) {
-	    potEvap = cNode->getPotEvap();
-	    SkyC += skyCover;
-	    cnt++;
-	  }
 	  
 	  cNode = nodeIter.NextP();
 	  count++;
@@ -802,29 +738,6 @@ void tEvapoTrans::callEvapoPotential()
 	
 	// Update hourly time 
 	hourlyTimeStep++;
-	
-	// Submit the basin average value
-	if (rainPtr->getoptStorm()) {
-		// SKY2008Snow -- Following bug corrected to account for SkyC division by cnt again in the next ComputeDailyEpCld call
-		//cnt ? SkyC /= ((double)cnt) : SkyC = skyCover;
-		cnt ? SkyC = SkyC : SkyC = skyCover;
-		
-		// Get approximate EP from Priestley-Taylor method
-		EP = ApproximateEP();
-		
-		// Submit values to climate simulator
-		weatherSimul->ComputeDailyEpCld(EP, SkyC/cnt);
-		
-		// Assign the radiation variables to the 'tHydrometStoch'
-		if (!count) {
-			weatherSimul->setSunH(alphaD);
-			weatherSimul->setSinH(sinAlpha);
-			weatherSimul->setIo(Io);
-			weatherSimul->setIdir(Ics);
-			weatherSimul->setIdif(Ids);
-			weatherSimul->OutputHydrometVars();
-		}
-	}
 	}
 
 /***************************************************************************
@@ -923,11 +836,7 @@ void tEvapoTrans::setCoeffs(tCNode* cNode)
 		coeffRs = landPtr->getLandProp(10);
 		coeffV  = landPtr->getLandProp(11);
 	}
-	else if (evapotransOption == 2 || evapotransOption == 3) {
-		coeffAl = landPtr->getLandProp(7); 
-		coeffV  = landPtr->getLandProp(11);
-	}
-	else if (evapotransOption == 4)
+	else if (evapotransOption == 2)
 		coeffV  = landPtr->getLandProp(11);
 		
 	// CJC2025: Set the values for the stress thresholds from the table.
@@ -1059,17 +968,13 @@ void tEvapoTrans::ComputeETComponents(tIntercept *Intercept, tCNode *cNode,
 		betaFuncT(cNode);
 		betaFunc(cNode);
 	
-		// Assign hydromet vars only if real rainfall data are used
-		// Assign (as spatially uniform) otherwise
-		if (!rainPtr->getoptStorm()) {
-			// Get Met Data
-			if (metdataOption == 1) {
-				thisStation = assignedStation[count];
-				newHydroMetData(hourlyTimeStep);//AJR 2008 -- CHANGED FROM OLDTIMESTEP TO HOURLYTIMESTEP
-			}
-			else if (metdataOption == 2) {
-				newHydroMetGridData(cNode);
-			}
+		// Assign hydromet vars
+		if (metdataOption == 1) {
+			thisStation = assignedStation[count];
+			newHydroMetData(hourlyTimeStep);//AJR 2008 -- CHANGED FROM OLDTIMESTEP TO HOURLYTIMESTEP
+		}
+		else if (metdataOption == 2) {
+			newHydroMetGridData(cNode);
 		}
 
 		// The computed Latent Heat LE -
@@ -1790,7 +1695,7 @@ double tEvapoTrans::inShortWave(tCNode *cNode)
 
 		// If observations (for a horizontal surface) exist -
 		// use them, at least in an approximate manner
-		if (tsOption > 1 && !rainPtr->getoptStorm()) {
+		if (tsOption > 1) {
 			// Moved RadGlobClr declaration inside this block since it's only used here JB 2025
 			double RadGlobClr = (inShortR / (1.0 - 0.65 * pow(N, 2.0))); 
 			Ic = Ic/(Ic*sinAlpha + Id)*RadGlobClr;
@@ -1899,20 +1804,8 @@ double tEvapoTrans::inShortWave(tCNode *cNode)
 	else
 		Ic=Is=N=Iv=Isw=Id=Ids=Ics=Ir=0.0;
 
-	// Assign the radiation variables to the 'tHydrometStoch' for ID = 0
-	if (rainPtr->getoptStorm() && (ID == 0)) {
-		weatherSimul->setSunH(alphaD);
-		weatherSimul->setIdir(Ics);
-		weatherSimul->setIdir_vis(0.5*Ics);
-		weatherSimul->setIdir_nir(0.5*Ics);
-		weatherSimul->setIdif(Ids+Ir);//AJR2008, SKY2008Snow
-		weatherSimul->setIdif_vis(0.5*(Ids+Ir));//AJR2008, SKY2008Snow
-		weatherSimul->setIdif_nir(0.5*(Ids+Ir));//AJR2008, SKY2008Snow
-		weatherSimul->OutputHydrometVars();
-	}
-
 	// Set shortwave variables to the node (partition is approximate)
-	if (tsOption > 1 && !rainPtr->getoptStorm()) {
+	if (tsOption > 1) {
         cNode->setShortRadIn(inShortR); //or set(Is), they must be equal
     }
 	else {
@@ -2531,11 +2424,8 @@ void tEvapoTrans::FunctionAndDerivative(tCNode* cNode,
 	Rn = Rabsb_soi - Lsoi;
 	
 	// 4.) == Sensible heat flux ==
-	if (evapotransOption == 1 || evapotransOption == 3) {
+	if (evapotransOption == 1) {
         H = rho * Cp * (Tg - (airTemp + 273.15)) / Rah;
-    }
-	else if (evapotransOption == 2) {
-        H = rho * Cp * (Tg - (airTemp + 273.15)) * Ch * windSpeedC;
     }
 	Hsoi = H;
 	
@@ -2550,18 +2440,6 @@ void tEvapoTrans::FunctionAndDerivative(tCNode* cNode,
 		Ep  = num/denomrs/lam;
 		LE = soiFct*lam*Eps + vegFct*lam*Ep;
 		Ep *= (denomrs/denom);
-	}
-	else if (evapotransOption == 2) {
-		esat = satVaporPress(Tg-273.15);
-		ccTs = (lam*esat)/(rv*pow(Tg,2.0));  
-		qhSatTs = (0.622/P)*esat;
-		qhTa    = (0.622/P)*es;
-		(qhSatTs > qhTa ? Ep = rho*Ch*(qhSatTs-qhTa)*windSpeedC : Ep = 0.0);
-		LE = Ep*lam*betaS;
-	}
-	else if (evapotransOption == 3) {
-		(Rn > G ? Ep = (alpha/lam)*(Rn-G)*((cc/psy)/denom) : Ep = 0.0);
-		LE = Ep*lam*betaS;
 	}
 	lEsoi = LE;
 	
@@ -2584,14 +2462,6 @@ void tEvapoTrans::FunctionAndDerivative(tCNode* cNode,
 		dHdTg = rho*Cp/Rah;
 		dlEdTg = soiFct*(cc/psy)*(dRndTg-dGdTg)/denom
 			+ vegFct*(cc/psy)*(dRndTg-dGdTg)/denomrs;
-	}
-	else if (evapotransOption == 2) {
-		dHdTg = rho*Cp*Ch*windSpeedC;
-		dlEdTg = lam*rho*Ch*windSpeedC*(0.622/P)*ccTs*betaS;
-	}
-	else if (evapotransOption == 3) {
-		dHdTg = rho*Cp/Rah;
-		dlEdTg = betaS*(alpha)*((cc/psy)/denom)*(dRndTg - dGdTg);
 	}
 	
 	// ----------------------------------------------
@@ -2786,74 +2656,6 @@ void tEvapoTrans::EvapPenmanMonteith(tCNode* cNode)
 {
 	potEvap = 3600.0*energyBalance(cNode);   // Actual rate, including resistances
 	actEvap = 3600.0*(lFlux/(latentHeat()));  
-}
-
-/***************************************************************************
-**
-** tEvapoTrans::EvapDeardorff() Function  
-**
-** Potential Evaporation computed from Deardorff Equation
-**       
-**        Ep(t) = rho(t)*Ch*u(t)*(qhSatTs(t)-qhTa(t))   (kg/m2/s)
-**     
-**        rho(t) Moist Air Density (kg/m3) using densityMoist()
-**        Ch     Heat and Moisture Coefficient Ch = 0.0025
-**        u(t)   Wind Speed (m/s)
-**        qhSatTs(t)  Specific humidity at surface Temperature Ts  []
-**            qhSatTs(t) = (0.622*esat(Ts))/(atmPress)          3.28
-**               esat(Ts) as in vaporPress() (mb)
-**               atmPress from totalPress() (mb)  
-**        qhTa   Specific Humidity at Air Temperature []
-**            qhTa = 0.622*vaporPress/atmPress                     
-**        Ts     Surface Temperature in K
-**
-** EvapDeardorff() requires:
-**       airTemp, windSpeed, dewTemp/rHumidity, atmPress, skyCover
-**       coeffA  for inShortWave()
-**
-** EvapDeardorff() does not require:
-**       netRad, surfTemp (optional)
-**       coeffH  for aeroResist()
-**       coeffRs for stomResist()
-**       coeffKt for inShortWave()  bare-soil evaporation (=1)
-**
-** Multiply by 3600 to convert kg/m2/s to mm/hr due to 1kg/m2 = 1mm water
-**
-***************************************************************************/
-void tEvapoTrans::EvapDeardorff(tCNode* cNode) 
-{
-	potEvap = 3600.0*energyBalance(cNode);
-	actEvap = potEvap*betaS;
-}
-
-/***************************************************************************
-**
-** tEvapoTrans::EvapPriestlyTaylor() Function
-**
-** Calculates evaporation using the Priestly-Taylor formula which is useful
-** under conditions of minimum advection (energy-dominated).
-**
-**       Ep(t) = (alpha/L(t))*(CC(t)/(CC(t)+Psy(t)))*(Rn(t)-G(t))
-**
-**       alpha  Priestly Taylor coefficient = 1.26 Semi-humid, Humid regions
-**
-** EvapPriestlyTaylor() requires (same as Deardorff):
-**       airTemp, windSpeed, dewTemp/rHumidity, atmPress, skyCover
-**       coeffA  for inShortWave()
-**       netRad, surfTemp (calculated as in PM)
-**
-** EvapPriestlyTaylor() does not require:
-**       coeffH  for aeroResist()
-**       coeffRs for stomResist()
-**       coeffKt for inShortWave()  bare-soil evaporation (=1)
-**
-** Multiply by 3600 to convert kg/m2/s to mm/hr due to 1kg/m2 = 1mm water
-**
-***************************************************************************/
-void tEvapoTrans::EvapPriestlyTaylor(tCNode* cNode) 
-{
-	potEvap = 3600.0*energyBalance(cNode);
-	actEvap = potEvap*betaS;
 }
 
 /***************************************************************************
@@ -3308,7 +3110,7 @@ void tEvapoTrans::readHydroMetData(int num)
 	day   = new int[numTimes];
 	hour  = new int[numTimes];
 	
-	if (evapotransOption != 4) {
+	if (evapotransOption != 2) {
 		AtmPressure = new double[numTimes];
 		DewTemperature= new double[numTimes];
 		AirTemperature = new double[numTimes];
@@ -3437,6 +3239,78 @@ void tEvapoTrans::readHydroMetData(int num)
 					readDataFile >> tempo;
 				
 			} // loop through 'numParams' 
+
+			// Begin block for validation of meteorological data input
+			
+			// After reading all parameters for the current line (at index 'count'),
+			// validate its timestamp.
+			if (count == 0) {
+				// Check first timestamp
+				// Assuming getters exist like timer->getStartYear(), etc.
+				// If not, use direct member access like timer->yearS
+				if (year[0] != timer->yearS || month[0] != timer->monthS ||
+					day[0] != timer->dayS   || hour[0] != timer->hourS)
+				{
+					std::cerr << "\n\nFATAL ERROR in " << fileName << std::endl;
+					std::cerr << "The first timestamp in the file does not match the simulation start time." << std::endl;
+					std::cerr << "Simulation Start: " << timer->yearS << "/" << timer->monthS 
+							<< "/" << timer->dayS << " " << timer->hourS << ":00" << std::endl;
+					std::cerr << "Found in File:    " << year[0] << "/" << month[0] << "/" << day[0] 
+							<< " " << hour[0] << ":00" << std::endl;
+					std::cerr << "Exiting Program...\n\n" << std::endl;
+					exit(1);
+				}
+			} else {
+				// Check all subsequent timestamps
+				// Calculate what the expected timestamp should be based on the PREVIOUS line.
+				int expected_yr = year[count-1];
+				int expected_mo = month[count-1];
+				int expected_dy = day[count-1];
+				int expected_hr = hour[count-1];
+				
+				// Add the simulation time step (in hours)
+				expected_hr += timer->getEtIStep();
+
+				// Handle time rollovers using the logic adapted from julianDay()
+				while (expected_hr >= 24) {
+					expected_hr -= 24;
+					expected_dy++;
+
+					// Logic adapted directly from julianDay() function
+					int dayInMonth[12] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+					bool isLeap = (expected_yr % 4 == 0 && expected_yr % 100 != 0) || (expected_yr % 400 == 0);
+					if (isLeap) {
+						dayInMonth[1] = 29; // February
+					}
+					// Note: C++ arrays are 0-indexed, so use expected_mo - 1
+					int days_in_current_month = dayInMonth[expected_mo - 1];
+
+					if (expected_dy > days_in_current_month) {
+						expected_dy = 1;
+						expected_mo++;
+						if (expected_mo > 12) {
+							expected_mo = 1;
+							expected_yr++;
+						}
+					}
+				}
+
+				// Compare the calculated expected time with the time read from the file.
+				if (year[count] != expected_yr || month[count] != expected_mo ||
+					day[count] != expected_dy   || hour[count] != expected_hr)
+				{
+					std::cerr << "\n\nFATAL ERROR in " << fileName << std::endl;
+					std::cerr << "Timestamp gap or duplicate detected in data." << std::endl;
+					std::cerr << "After timestamp: " << year[count-1] << "/" << month[count-1] << "/" << day[count-1] 
+							<< " " << hour[count-1] << ":00" << std::endl;
+					std::cerr << "Expected next timestamp: " << expected_yr << "/" << expected_mo << "/" << expected_dy 
+							<< " " << expected_hr << ":00" << std::endl;
+					std::cerr << "But found in file:       " << year[count] << "/" << month[count] << "/" << day[count] 
+							<< " " << hour[count] << ":00" << std::endl;
+					std::cerr << "Exiting Program...\n\n" << std::endl;
+					exit(1);
+				}
+			} // End block for validation of meteorological data input
 		}   // loop through 'numTimes'
 	}
 	else {
@@ -3467,7 +3341,7 @@ void tEvapoTrans::readHydroMetData(int num)
 	weatherStations[num].setDay(day);
 	weatherStations[num].setHour(hour);
 	
-	if (evapotransOption != 4) {
+	if (evapotransOption != 2) {
 		robustNess(AirTemperature, numTimes);
 		robustNess(DewTemperature, numTimes);
 		robustNess(AtmPressure, numTimes);
@@ -3712,7 +3586,7 @@ void tEvapoTrans::readLUGrid(char *gridFile)
 void tEvapoTrans::createVariant() 
 {
 
-	if (evapotransOption != 4) {
+	if (evapotransOption != 2) {
 		for (int ct=0;ct<nParm;ct++) { 
 			if (strcmp(gridParamNames[ct],"PA")==0) {
 				airpressure = new tVariant(gridPtr,respPtr);
@@ -3914,40 +3788,6 @@ void tEvapoTrans::createVariantLU()
 
 /***************************************************************************
 **
-** tEvapoTrans::newHydroMetStochData() Function
-**
-** Assigns the values of the current meteorological parameters that are
-** simulated by functions of the class 'tHydroMetStoch'
-**
-***************************************************************************/
-void tEvapoTrans::newHydroMetStochData(int time) 
-{
-	weatherSimul->SimulateHydrometVars();
-	
-	// Obtain simulated values from tHydroMetStoch
-	airTemp   = weatherSimul->getAirTemp();
-	windSpeed = weatherSimul->getWindSpeed();
-	skyCover  = weatherSimul->getSkyCover();
-	dewTemp   = weatherSimul->getDewTemp();
-	rHumidity = weatherSimul->getRHumidity();
-	vPress    = weatherSimul->getVaporPress();
-	atmPress  = weatherSimul->getAtmPress();
-	
-	// These are currently assigned 9999.99
-	surfTemp  = weatherSimul->getSurfTemp();
-	netRad    = weatherSimul->getNetRad();
-	
-	if (!time) {
-		latitude =  weatherSimul->getLat(1);
-		longitude = weatherSimul->getLong(1);
-		gmt = weatherSimul->getGmt();
-		Tso = weatherSimul->getAirTemp() + 273.15;
-		Tlo = Tso; //Assumption
-	}
-	}
-
-/***************************************************************************
-**
 ** tEvapoTrans::newHydroMetData() Function
 **
 ** Assigns the values of the current meteorological parameters to the 
@@ -3960,7 +3800,7 @@ void tEvapoTrans::newHydroMetData(int time)
 	// Obtain values from tHydroMet
 	for (int i=0; i<numStations;i++) {
 		if (thisStation == weatherStations[i].getStation()) {
-			if (evapotransOption != 4) {
+			if (evapotransOption != 2) {
 				airTemp = weatherStations[i].getAirTemp(time);
 
 				// SKY2008Snow from AJR2007
@@ -4022,7 +3862,7 @@ void tEvapoTrans::newHydroMetData(int time)
 **
 ***************************************************************************/
 void tEvapoTrans::newHydroMetGridData(tCNode * cNode) {   
-	if (evapotransOption != 4) {
+	if (evapotransOption != 2) {
 		airTemp = cNode->getAirTemp();
 		dewTemp = cNode->getDewTemp();
 		surfTemp = cNode->getSurfTemp();
@@ -4068,9 +3908,7 @@ void tEvapoTrans::newLUGridData(tCNode * cNode)
 { 
 	for (int ct=0;ct<nParmLU;ct++) { 
 		if (strcmp(LUgridParamNames[ct],"AL")==0) {
-			if ( (evapotransOption == 1) ||
-					(evapotransOption == 2) ||
-					(evapotransOption == 3) ){
+			if (evapotransOption == 1) {
 				coeffAl = cNode->getLandUseAlb();
 			}
 		}
@@ -4091,9 +3929,7 @@ void tEvapoTrans::newLUGridData(tCNode * cNode)
 		}		
 		if (strcmp(LUgridParamNames[ct],"VF")==0) {
 			if ( (evapotransOption == 1) ||
-					(evapotransOption == 2) ||
-					(evapotransOption == 3) ||
-					(evapotransOption == 4) ){
+					(evapotransOption == 2) ){
 				coeffV = cNode->getVegFraction();
 
                 if (coeffV >= 1.0) //prevents loss of snow when unloaded from canopy WR 05/12/2024
@@ -4129,7 +3965,7 @@ void tEvapoTrans::newLUGridData(tCNode * cNode)
 ***************************************************************************/
 void tEvapoTrans::resampleGrids(tRunTimer *t) 
 {
-	if (evapotransOption!=4) {
+	if (evapotransOption!=2) {
 		for (int ct=0;ct<nParm;ct++) { 
 			if (strcmp(gridBaseNames[ct],"NO_DATA")!=0) {
 				if (strcmp(gridParamNames[ct],"TA")==0) {
@@ -5609,8 +5445,6 @@ void tEvapoTrans::writeRestart(fstream & rStr) const
   if (evapotransOption != 0) {
     for (int i = 0; i < 3; i++) 
        BinaryWrite(rStr, currentTime[i]);
-    if (rainPtr->getoptStorm())
-      weatherSimul->writeRestart(rStr);
     if (metdataOption == 1)
       for (int i = 0; i < numStations; i++)
         weatherStations[i].writeRestart(rStr);
@@ -5780,8 +5614,6 @@ void tEvapoTrans::readRestart(fstream & rStr)
   if (evapotransOption != 0) {
     for (int i = 0; i < 3; i++) 
        BinaryRead(rStr, currentTime[i]);
-    if (rainPtr->getoptStorm())
-      weatherSimul->readRestart(rStr);
     if (metdataOption == 1)
       for (int i = 0; i < numStations; i++)
         weatherStations[i].readRestart(rStr);

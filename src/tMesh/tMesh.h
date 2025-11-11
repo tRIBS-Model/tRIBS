@@ -71,16 +71,8 @@ public:
  
    SimulationControl *simCtrl;    // Pointer to simulation control 
 
-   void MakeMeshFromScratch( tInputFile & );   		// creates a new mesh
    void MakeMeshFromInputData( tInputFile & ); 		// reads in existing mesh
-   void MakeMeshFromPoints( tInputFile & );    		// creates mesh from pts
-   void MakeRandomPointsFromArcGrid( tInputFile & ); 	// mesh from arc (rand)
-   void MakeHexMeshFromArcGrid( tInputFile & );	        // mesh from arc (hex)
-   void MakeLayersFromInputData( tInputFile & );
-   void MakePointFromFileArcInfo( tInputFile & );       //creates pts from .net 
-   void MakePointFromFileArcInfoGen( tInputFile & );    //creates pts from .pnt and .line
    void MakeMeshFromTriangulator( tInputFile & );    	//creates mesh using Tipper triang
-   void MakeMeshFromMeshBuilder( tInputFile & );	// creates from .meshb
    void Print();
 
    void MakeCCWEdges();

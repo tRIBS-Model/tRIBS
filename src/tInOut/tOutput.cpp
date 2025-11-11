@@ -54,11 +54,6 @@ tOutput<tSubNode>::tOutput(SimulationControl *simCtrPtr,
 	Cout<<"\nOutput Files:"<<endl<<endl;
 	infile.ReadItem(baseName, "OUTFILENAME" );    //basename of output
 	infile.ReadItem(nodeFile, "NODEOUTPUTLIST");  //pathname of node output
-
-	// Binary viz output
-   vizOption = infile.ReadItem(vizOption, "OPTVIZ");
-   if (this->vizOption > 0)
-	    infile.ReadItem(vizName, "OUTVIZFILENAME" );
 	
 #ifdef PARALLEL_TRIBS
   // Nodes, edges, triangles, and Z files are only written
@@ -113,11 +108,6 @@ tOutput<tSubNode>::tOutput( SimulationControl *simCtrPtr,
 	Cout<<"\nOutput Files:"<<endl<<endl;
 	infile.ReadItem( baseName, "OUTFILENAME" );          
 	infile.ReadItem( nodeFile, "NODEOUTPUTLIST");  
-	
-	// Binary viz output
-   vizOption = infile.ReadItem(vizOption, "OPTVIZ");
-   if (this->vizOption > 0)
-	    infile.ReadItem(vizName, "OUTVIZFILENAME" );
 	
 #ifdef PARALLEL_TRIBS
   // Nodes, edges, triangles, and Z files are only written
@@ -214,32 +204,6 @@ void tOutput<tSubNode>::CreateAndOpenFile( ofstream *theOFStream,
 	return;
 }
 
-template< class tSubNode >
-void tOutput<tSubNode>::CreateAndOpenVizFile( ofstream *theOFStream,
-                                           char *extension )
-{ 
-	char procex[10];
-	char fullName[kMaxNameSize+6];
-   
-	strcpy( fullName, vizName );
-	strcat( fullName, extension );
-#ifdef PARALLEL_TRIBS
-	snprintf( procex,sizeof(procex),".%-d", tParallel::getMyProc()); //WR 09192023: converted sprintf to snprintf, needed to add sizeof(procex): warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.
-	strcat(fullName, procex);
-#else
-	snprintf( procex, sizeof(procex), "");
-	strcat(fullName, procex);
-#endif 
-  
-	theOFStream->open( fullName, ios::binary );
-  
-	if ( !theOFStream->good() )
-		cerr << "File "<<fullName<<" not created.";
-  
-	Cout<<"Creating Output File: \t '"<<fullName<<"' "<<endl;
-	return;
-} 
-
 /*************************************************************************
 **
 **  tOutput::ReadNodeOutputList()
@@ -314,93 +278,92 @@ void tOutput<tSubNode>::CreateAndOpenPixel()
 				
 				CreateAndOpenFile( &pixinfo[i], pixelnode );
 				
-				if (simCtrl->Header_label=='Y') {
-                    // first row name
-					pixinfo[i]<<"NodeID "//1
-					<<"Time_hr " //2
-					<<"Nwt_mm " //3
-					<<"Nf_mm " //4
-					<<"Nt_mm " //5
-					<<"Mu_mm " //6
-					<<"Mi_mm " //7
-					<<"QpOut_mm_h " //8
-					<<"QpIn_mm_h " //9
-					<<"Trnsm_m2_h " //10
-					<<"GWflx_m3_h " //11
-					<<"Srf_mm " //12
-					<<"Rain_mm_h " //13
-					<<"SoilMoist_[] " //14
-					<<"RootMoist_[] "  //15
-					<<"AirT_oC " //16
-					<<"DewT_oC " //17
-					<<"SurfT_oC " //18
-					<<"SoilT_oC " //19
-					<<"Press_Pa " //20
-					<<"RelHum_[] " //21
-					<<"SkyCov_[] "  //22
-					<<"Wind_m_s " //23
-					<<"NetRad_W_m2 " //24
-					<<"ShrtRadIn_W_m2 " //25
-                    <<"ShortRadInSlope_W_m2 "    //25.5  JB2025 @ ASU
-					<<"ShrtRadIn_dir_W_m2 " //27
-					<<"ShrtRadIn_dif_W_m2 " //28
-					<<"ShortAbsbVeg_W_m2 " //29
-					<<"ShortAbsbSoi_W_m2 " //30
-					<<"LngRadIn_W_m2 " //31
-					<<"LngRadOut_W_m2A " //32
-					<<"PotEvp_mm_h " //33
-					<<"ActEvp_mm_h " //34
-					<<"EvpTtrs_mm_h " //35
-					<<"EvpWetCan_mm_h " //36
-					<<"EvpDryCan_mm_h " //37
-					<<"EvpSoil_mm_h " //38
-					<<"Gflux_W_m2 " //39
-					<<"HFlux_W_m2 " //40
-					<<"Lflux_W_m2 " //41
-					<<"NetPrecip_mm_hr " //42
-					<<"LiqWE_cm " //43
-					<<"IceWE_cm "	//44
-					<<"SnWE_cm "	//45
-					<<"SnSub_cm "	//46
-					<<"SnEvap_cm "	//47
-					<<"U_kJ_m2 "  //48
-					<<"RouteWE_cm " //49
-					<<"SnTemp_C "	//50
-					<<"SurfAge_h "	//51
-					<<"DU_kJ_m2_etistep " //52
-					<<"snLHF_kJ_m2_etistep " //53
-					<<"snSHF_kJ_m2_etistep " //54
-					<<"snGHF_kJ_m2_etistep " //55
-					<<"snPHF_kJ_m2_etistep " //56
-					<<"snRLout_kJ_m2_etistep " //57
-					<<"snRLin_kJ_m2_etistep " //58
-					<<"snRSin_kJ_m2_etistep " //59
-					<<"Uerror_kJ_m2_etistep " //60
-					<<"IntSWEq_cm "		 //61
-					<<"IntSub_cm "		 //62
-					<<"IntSnUnload_cm "	 //63
-					<<"CanStorage_mm " //64
-					<<"CumIntercept_mm " //65
-					<<"Interception_mm " //66
-					<<"Recharge_mm/hr " //67
-					<<"RunOn_mm " //68
-					<<"Srf_Hour_mm " //69
-					<<"Qstrm_m3_s " //70
-					<<"Hlevel_m " //71
-					<<"CanStorParam_mm " //72
-					<<"IntercepCoeff_[] " //73
-					<<"ThroughFall_[] " //74
-					<<"CanFieldCap_mm " //75
-					<<"DrainCoeff_mm_hr " //76
-					<<"DrainExpPar_1_mm " //77
-					<<"LandUseAlb_[] " //78
-					<<"VegHeight_m " //79
-					<<"OptTransmCoeff_[] " //80
-					<<"StomRes_s_m " //81
-					<<"VegFraction[] " //82
-					<<"LeafAI_[] " //83
-					<<"\n";
-				}
+				// Write Header
+				pixinfo[i]<<"NodeID "//1
+				<<"Time_hr " //2
+				<<"Nwt_mm " //3
+				<<"Nf_mm " //4
+				<<"Nt_mm " //5
+				<<"Mu_mm " //6
+				<<"Mi_mm " //7
+				<<"QpOut_mm_h " //8
+				<<"QpIn_mm_h " //9
+				<<"Trnsm_m2_h " //10
+				<<"GWflx_m3_h " //11
+				<<"Srf_mm " //12
+				<<"Rain_mm_h " //13
+				<<"SoilMoist_[] " //14
+				<<"RootMoist_[] "  //15
+				<<"AirT_oC " //16
+				<<"DewT_oC " //17
+				<<"SurfT_oC " //18
+				<<"SoilT_oC " //19
+				<<"Press_Pa " //20
+				<<"RelHum_[] " //21
+				<<"SkyCov_[] "  //22
+				<<"Wind_m_s " //23
+				<<"NetRad_W_m2 " //24
+				<<"ShrtRadIn_W_m2 " //25
+				<<"ShortRadInSlope_W_m2 "    //25.5  JB2025 @ ASU
+				<<"ShrtRadIn_dir_W_m2 " //27
+				<<"ShrtRadIn_dif_W_m2 " //28
+				<<"ShortAbsbVeg_W_m2 " //29
+				<<"ShortAbsbSoi_W_m2 " //30
+				<<"LngRadIn_W_m2 " //31
+				<<"LngRadOut_W_m2A " //32
+				<<"PotEvp_mm_h " //33
+				<<"ActEvp_mm_h " //34
+				<<"EvpTtrs_mm_h " //35
+				<<"EvpWetCan_mm_h " //36
+				<<"EvpDryCan_mm_h " //37
+				<<"EvpSoil_mm_h " //38
+				<<"Gflux_W_m2 " //39
+				<<"HFlux_W_m2 " //40
+				<<"Lflux_W_m2 " //41
+				<<"NetPrecip_mm_hr " //42
+				<<"LiqWE_cm " //43
+				<<"IceWE_cm "	//44
+				<<"SnWE_cm "	//45
+				<<"SnSub_cm "	//46
+				<<"SnEvap_cm "	//47
+				<<"U_kJ_m2 "  //48
+				<<"RouteWE_cm " //49
+				<<"SnTemp_C "	//50
+				<<"SurfAge_h "	//51
+				<<"DU_kJ_m2_etistep " //52
+				<<"snLHF_kJ_m2_etistep " //53
+				<<"snSHF_kJ_m2_etistep " //54
+				<<"snGHF_kJ_m2_etistep " //55
+				<<"snPHF_kJ_m2_etistep " //56
+				<<"snRLout_kJ_m2_etistep " //57
+				<<"snRLin_kJ_m2_etistep " //58
+				<<"snRSin_kJ_m2_etistep " //59
+				<<"Uerror_kJ_m2_etistep " //60
+				<<"IntSWEq_cm "		 //61
+				<<"IntSub_cm "		 //62
+				<<"IntSnUnload_cm "	 //63
+				<<"CanStorage_mm " //64
+				<<"CumIntercept_mm " //65
+				<<"Interception_mm " //66
+				<<"Recharge_mm/hr " //67
+				<<"RunOn_mm " //68
+				<<"Srf_Hour_mm " //69
+				<<"Qstrm_m3_s " //70
+				<<"Hlevel_m " //71
+				<<"CanStorParam_mm " //72
+				<<"IntercepCoeff_[] " //73
+				<<"ThroughFall_[] " //74
+				<<"CanFieldCap_mm " //75
+				<<"DrainCoeff_mm_hr " //76
+				<<"DrainExpPar_1_mm " //77
+				<<"LandUseAlb_[] " //78
+				<<"VegHeight_m " //79
+				<<"OptTransmCoeff_[] " //80
+				<<"StomRes_s_m " //81
+				<<"VegFraction[] " //82
+				<<"LeafAI_[] " //83
+				<<"\n";
+				
 				pixinfo[i].setf( ios::right, ios::adjustfield );
 				pixinfo[i].setf( ios::fixed, ios::floatfield);  
 			}
@@ -732,21 +695,9 @@ void tOutput<tSubNode>::WriteNodeData( double , tResample *)
 }
 
 template< class tSubNode >
-void tOutput<tSubNode>::WriteGeometry( tResample *)
-{
-	cout<<"tOutput:WriteNodeData VOID function!"<<endl; 
-}
-
-template< class tSubNode >
 void tOutput<tSubNode>::WriteDynamicVars( double )
 {
 	cout<<"tOutput:WriteDynamicVars VOID function!"<<endl; 
-}
-
-template< class tSubNode >
-void tOutput<tSubNode>::WriteDynamicVarsBinary( double )
-{
-	cout<<"tOutput:WriteDynamicVarsBinary VOID function!"<<endl; 
 }
 
 template< class tSubNode >
@@ -952,10 +903,6 @@ void tCOutput<tSubNode>::WriteNodeData( double time, tResample *tresamp )
 			cn = ni.NextP();
 		} 
 
-		// Write geometry and static information for visualizer
-		if (this->vizOption == 1)
-			WriteGeometry(tresamp);
-
 #ifdef PARALLEL_TRIBS
     // If the last reach is on this processor, report the final
     // outlet node
@@ -976,96 +923,6 @@ void tCOutput<tSubNode>::WriteNodeData( double time, tResample *tresamp )
 	drareaofs.close();
 	widthsofs.close();
 	return;
-}
-
-/*************************************************************************
-**
-**  tCOutput::WriteGeometry()
-**
-**  Writes the voronoi polygon information and static data suitable for
-**  the tRIBS reader for EnSight or ParaView
-**  After variables giving the number of polygons and number of points
-**  making up those polygons comes all points in order by polygon
-**  Next is the number of points per polygon which will all the polygons
-**  to be created from the points array.  Finally the data is written for
-**  each cell or polygon organized by data item across all cells.
-**
-*************************************************************************/
-template< class tSubNode >
-void tCOutput<tSubNode>::WriteGeometry(tResample* tresamp)
-{
-	tSubNode *cn;
-	tMeshListIter<tSubNode> ni( this->g->getNodeList() );
-
-	// Write the geometry data for visualizer using tResample because
-	// boundary polygons have been clipped
-	// Visualizer data is written in binary and organized by variable
-	// across all cells rather than all data for a single cell
-	ofstream geomofs;
-	char geomext[16] = ".tribs";
-	this->CreateAndOpenVizFile( &geomofs, geomext );
-
-	// Count the total number of voronoi vertices making up the polygons
-	int nActiveNodes = this->g->getNodeList()->getActiveSize();
-	int nPoints = 0;
-	for (int i = 0; i < nActiveNodes; i++)
-		nPoints += tresamp->nPoints[i];
-
-	// Write the counts of nodes (polygons) and points forming the polygons
-	BinaryWrite(geomofs, nActiveNodes);
-	BinaryWrite(geomofs, nPoints);
-
-	// Write all the voronoi vertices which are points in the unstructured grid
-	for (int i = 0; i < nActiveNodes; i++) {
-		for (int k = 0; k < tresamp->nPoints[i]; k++) {
-			BinaryWrite(geomofs, (float) tresamp->vXs[i][k]);
-			BinaryWrite(geomofs, (float) tresamp->vYs[i][k]);
-		}
-	}
-
-	// Write the edges per cell (polygon)
-	for (int i = 0; i < nActiveNodes; i++)
-		BinaryWrite(geomofs, tresamp->nPoints[i]);
-
-	// Write the centroid points per cell
-	for (cn = ni.FirstP(); ni.IsActive(); cn = ni.NextP())
-		BinaryWrite(geomofs, (float) cn->getX());
-	for (cn = ni.FirstP(); ni.IsActive(); cn = ni.NextP())
-		BinaryWrite(geomofs, (float) cn->getY());
-
-	// Centroid z is the elevation
-	for (cn = ni.FirstP(); ni.IsActive(); cn = ni.NextP())
-		BinaryWrite(geomofs, (float) cn->getZ());
-
-	// Write the boundary flag per cell
-	for (cn = ni.FirstP(); ni.IsActive(); cn = ni.NextP())
-		BinaryWrite(geomofs, (float) cn->getBoundaryFlag());
-
-	// WRite the reach number per cell
-	for (cn = ni.FirstP(); ni.IsActive(); cn = ni.NextP())
-		BinaryWrite(geomofs, (float) cn->getReach());
-
-	// Write the flood status per cell
-	for (cn = ni.FirstP(); ni.IsActive(); cn = ni.NextP())
-		BinaryWrite(geomofs, (float) cn->getFloodStatus());
-
-	// Write the flow width per cell
-	for (cn = ni.FirstP(); ni.IsActive(); cn = ni.NextP())
-		BinaryWrite(geomofs, (float) cn->getFlowEdg()->getVEdgLen());
-
-	// Write the flow length per cell
-	for (cn = ni.FirstP(); ni.IsActive(); cn = ni.NextP())
-		BinaryWrite(geomofs, (float) cn->getFlowEdg()->getLength());
-
-	// Write the contributing area per cell
-	for (cn = ni.FirstP(); ni.IsActive(); cn = ni.NextP())
-		BinaryWrite(geomofs, (float) cn->getContrArea());
-
-	// Write the slope per cell
-	for (cn = ni.FirstP(); ni.IsActive(); cn = ni.NextP())
-		BinaryWrite(geomofs, (float) cn->getFlowEdg()->getSlope());
-
-	geomofs.close();
 }
 
 /*************************************************************************
@@ -1253,76 +1110,71 @@ void tCOutput<tSubNode>::WriteDynamicVars( double time )
 	hour   = (int)floor(time);
 	minute = (int)floor((time-hour)*60);
 
-	// SKY2008Snow from AJR2007
-	if(simCtrl->Header_label=='Y'){
-		cout<<"\n\tHOUR = "<<hour<<"\tMINUTE = "<<minute<<"\n";
-		//cout<<"\ttCOutput:     Time to write vars; nActiveNodes = "
-		//   <<nActiveNodes<<";  nTotalNodes = "<<nnodes<<"\n";
-	}
+	// Write Header
+	cout<<"\n\tHOUR = "<<hour<<"\tMINUTE = "<<minute<<"\n";
 
     snprintf(extension,sizeof(extension),".%04d_%02dd", hour, minute);
 	this->CreateAndOpenFile( &arcofs, extension);  //Opens file for writing
 
-    if (simCtrl->Header_label == 'Y') {
-        arcofs
-                << "ID" << ',' // 1
-                << "Nwt" << ',' // 2
-                << "Mu" << ',' // 3
-                << "Mi" << ',' // 4
-                << "Nf" << ',' // 5
-                << "Nt" << ',' // 6
-                << "Qpout" << ',' // 7
-                << "Qpin" << ',' // 8
-                << "Srf" << ',' // 9
-                << "Rain" << ',' // 10
-                << "ST" << ',' // 11
-                << "IWE" << ',' // 12
-                << "LWE" << ',' // 13
-                << "SnSub" << ',' // 14 note snow states and fluxes are in cm
-                << "SnEvap" << ',' // 15
-                << "SnMelt" << ',' // 16
-                << "Upack" << ',' // 17
-                << "sLHF" << ',' // 18
-                << "sSHF" << ',' // 19
-                << "sGHF" << ',' // 20
-                << "sPHF" << ',' // 21
-                << "sRLo" << ',' // 22
-                << "sRLi" << ',' // 23
-                << "sRSi" << ',' // 24
-                << "Uerr" << ',' // 25
-                << "IntSWE" << ',' // 26
-                << "IntSub" << ',' // 27
-                << "IntUnl" << ',' // 28
-                << "SoilMoist" << ',' // 29
-                << "RootMoist" << ',' // 30
-                << "CanStorage" << ',' // 31
-                << "ActEvp" << ',' // 32
-                << "EvpSoil" << ',' // 33 //
-                << "ET" << ',' // 34 //
-                << "GFlux" << ',' // 35
-                << "HFlux" << ',' // 36
-                << "LFlux" << ',' // 37
-                << "Qstrm" << ',' // 38
-                << "Hlev" << ',' // 39
-                << "FlwVlc" << ',' // 40
-                << "CanStorParam" << ',' // 41
-                << "IntercepCoeff" << ',' // 42
-                << "ThroughFall" << ',' // 43
-                << "CanFieldCap" << ',' // 44
-                << "DrainCoeff" << ',' // 45
-                << "DrainExpPar" << ',' // 46
-                << "LandUseAlb" << ',' // 47
-                << "VegHeight" << ',' // 48
-                << "OptTransmCoeff" << ',' // 49
-                << "StomRes" << ',' // 50
-                << "VegFraction" << ',' // 51
-                << "LeafAI"; // 52
+    // Write Header
+	arcofs
+			<< "ID" << ',' // 1
+			<< "Nwt" << ',' // 2
+			<< "Mu" << ',' // 3
+			<< "Mi" << ',' // 4
+			<< "Nf" << ',' // 5
+			<< "Nt" << ',' // 6
+			<< "Qpout" << ',' // 7
+			<< "Qpin" << ',' // 8
+			<< "Srf" << ',' // 9
+			<< "Rain" << ',' // 10
+			<< "ST" << ',' // 11
+			<< "IWE" << ',' // 12
+			<< "LWE" << ',' // 13
+			<< "SnSub" << ',' // 14 note snow states and fluxes are in cm
+			<< "SnEvap" << ',' // 15
+			<< "SnMelt" << ',' // 16
+			<< "Upack" << ',' // 17
+			<< "sLHF" << ',' // 18
+			<< "sSHF" << ',' // 19
+			<< "sGHF" << ',' // 20
+			<< "sPHF" << ',' // 21
+			<< "sRLo" << ',' // 22
+			<< "sRLi" << ',' // 23
+			<< "sRSi" << ',' // 24
+			<< "Uerr" << ',' // 25
+			<< "IntSWE" << ',' // 26
+			<< "IntSub" << ',' // 27
+			<< "IntUnl" << ',' // 28
+			<< "SoilMoist" << ',' // 29
+			<< "RootMoist" << ',' // 30
+			<< "CanStorage" << ',' // 31
+			<< "ActEvp" << ',' // 32
+			<< "EvpSoil" << ',' // 33 //
+			<< "ET" << ',' // 34 //
+			<< "GFlux" << ',' // 35
+			<< "HFlux" << ',' // 36
+			<< "LFlux" << ',' // 37
+			<< "Qstrm" << ',' // 38
+			<< "Hlev" << ',' // 39
+			<< "FlwVlc" << ',' // 40
+			<< "CanStorParam" << ',' // 41
+			<< "IntercepCoeff" << ',' // 42
+			<< "ThroughFall" << ',' // 43
+			<< "CanFieldCap" << ',' // 44
+			<< "DrainCoeff" << ',' // 45
+			<< "DrainExpPar" << ',' // 46
+			<< "LandUseAlb" << ',' // 47
+			<< "VegHeight" << ',' // 48
+			<< "OptTransmCoeff" << ',' // 49
+			<< "StomRes" << ',' // 50
+			<< "VegFraction" << ',' // 51
+			<< "LeafAI"; // 52
 
-        if (time == 0)
-            arcofs << ',' << "SoilID" << ',' << "LUseID" << endl << flush;
-        else
-            arcofs << "\n";
-    }
+	if (time == 0)
+		arcofs << ',' << "SoilID" << ',' << "LUseID" << endl << flush;
+	else
+		arcofs << "\n";
 
 	
 	cn = ni.FirstP();
@@ -1403,122 +1255,10 @@ void tCOutput<tSubNode>::WriteDynamicVars( double time )
 	// and end of simulation
 	if ( time == 0.0 || this->timer->IsFinished() )
 		WriteIntegrVars( time );
-
-	// Write binary information that varies with time step for visualizer
-	if (this->vizOption == 1)
-		WriteDynamicVarsBinary(time);
 	
 	return;
 }
 
-template< class tSubNode >
-void tCOutput<tSubNode>::WriteDynamicVarsBinary( double time )
-{
-	tSubNode* cn;
-	tMeshListIter<tCNode> niter(this->g->getNodeList());
-	int hour = (int)floor(time);
-    int nActiveNodes = this->g->getNodeList()->getActiveSize(); // Get number of nodes for array sizing
-
-    // Create temporary arrays to hold the corrected vertical depths for all nodes.
-    float* nwt_vert = new float[nActiveNodes];
-    float* nf_vert = new float[nActiveNodes];
-    float* nt_vert = new float[nActiveNodes];
-    float* mu_vert = new float[nActiveNodes];
-
-    // Loop through the nodes once to populate all temporary arrays.
-    int i = 0;
-    for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP(), i++) {
-        // Calculate cos_slope just once per node in this single loop.
-        tEdge *flowEdge = cn->getFlowEdg();
-        double slope_rad = atan(flowEdge->getSlope());
-        double cos_slope = cos(slope_rad);
-        if (cos_slope < 1E-9) cos_slope = 1.E-9;
-
-        // Apply correction and store in the corresponding temporary array.
-        nwt_vert[i] = (float)(cn->getNwtNew() / cos_slope);
-        nf_vert[i]  = (float)(cn->getNfNew()  / cos_slope);
-        nt_vert[i]  = (float)(cn->getNtNew()  / cos_slope);
-        mu_vert[i]  = (float)(cn->getMuNew()  / cos_slope);
-    }
-
-	char extension[20];
-	snprintf(extension,sizeof(extension), "_dyn.%04d", hour);
-
-	ofstream ostr;
-	this->CreateAndOpenVizFile(&ostr, extension);
-
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) nwt_vert[i]);
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) nf_vert[i]);
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) nt_vert[i]);
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) mu_vert[i]);
-
-    // 4. Clean up the memory allocated for the temporary arrays.
-    delete[] nwt_vert;
-    delete[] nf_vert;
-    delete[] nt_vert;
-    delete[] mu_vert;
-
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getQpout());
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getQpin());
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getGwaterChng());
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getSrf());
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getRain());
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getSoilMoistureSC());
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getRootMoistureSC());
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getAirTemp());
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getDewTemp());
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getSurfTemp());
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getSoilTemp());
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getAirPressure());
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getRelHumid());
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getSkyCover());
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getWindSpeed());
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getNetRad());
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getActEvap());
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getEvapoTrans());
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getEvapSoil());
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getGFlux());
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getHFlux());
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getLFlux());
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getNetPrecipitation());
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getRecharge());
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getQstrm());
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getHlevel());
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getCanStorage());
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getFlowVelocity());
-}
 
 /*************************************************************************
 **
@@ -2045,12 +1785,11 @@ void tCOutput<tSubNode>::CreateAndOpenOutlet()
 						Cout<<"Creating Output File: \t '"<<fullName<<"' "<<endl;
 */
 					
-					if (simCtrl->Header_label=='Y') {
-						outletinfo[i]<<"1-Time,hr\t "
-						<<"2-Qstrm,m3/s\t"
-						<<"3-Hlev,m"
-						<<"\n";
-					}
+					// Write Header
+					outletinfo[i]<<"1-Time,hr\t "
+					<<"2-Qstrm,m3/s\t"
+					<<"3-Hlev,m"
+					<<"\n";
 				}
 			}
 		}

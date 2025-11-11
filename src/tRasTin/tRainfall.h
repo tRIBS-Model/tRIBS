@@ -19,7 +19,6 @@
 #define TRAINFALL_H
 
 #include "src/Headers/Inclusions.h"
-#include "src/tStorm/tStorm.h"
 
 using namespace std;
 
@@ -33,7 +32,7 @@ class tRunTimer;
 //
 //=========================================================================
 
-class tRainfall : public tStorm 
+class tRainfall
 {
 public:
   tRainfall();
@@ -47,7 +46,7 @@ public:
   void NewRain(double);
 
   void NewRain(tRunTimer *);
-  void NewRainData(int);
+  void NewRainData(int time, tRunTimer *timer); // CJC2025 Add tRunTimer to function elcaration for data validation
   void InitializeGauge();
   void readGaugeStat(char *);
   void readGaugeData(int);

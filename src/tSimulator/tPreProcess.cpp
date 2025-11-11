@@ -31,47 +31,10 @@ tPreProcess::tPreProcess()
 
 tPreProcess::tPreProcess(SimulationControl *simCtrPtr, tInputFile &infile) {
 	
-	simCtrl = simCtrPtr;
+simCtrl = simCtrPtr;
 	
 	if (simCtrl->Check_label == 'Y') {
 		CheckInputFile(infile);
-	}
-	
-	convertData = infile.ReadItem(convertData, "CONVERTDATA");
-	
-	if (convertData == 1) {
-		tHydroMetConvert hydroMetInput(infile);
-		hydroMetInput.callConvertRFC();
-		hydroMetInput.callMerge();
-		cout<<"\n-----------------------------------------------"<<endl;
-		cout<<"tRIBS HydroMet Pre-Processor completed"<<endl;
-		cout<<"Use tRIBS with Convert Data = 0 for Model Runs"<<endl;
-		cout<<"Exiting Program..."<<endl;
-		cout<<"-----------------------------------------------"<<endl;
-		exit(1);
-	}
-	else if (convertData == 2) {
-		tHydroMetConvert rainGaugeInput(infile);
-		rainGaugeInput.callConvertRFC();
-		rainGaugeInput.callGaugeMerge();
-		cout<<"\n-----------------------------------------------"<<endl;
-		cout<<"tRIBS RainGauge Pre-Processor completed"<<endl;
-		cout<<"Use tRIBS with Convert Data = 0 for Model Runs"<<endl;
-		cout<<"Exiting Program..."<<endl;
-		cout<<"-----------------------------------------------"<<endl;
-		exit(2);
-	}
-	else if (convertData == 3) {
-		tHydroMetConvert hydroMetInput(infile);
-		hydroMetInput.callConvertDMIP();
-		cout<<"\n-----------------------------------------------"<<endl;
-		cout<<"tRIBS HydroMet Pre-Processor completed... "<<endl;
-		cout<<"MDF Files Created for Met and Rain Gauge Data..."<<endl;
-		cout<<"Use tRIBS with Convert Data = 0 for Model Runs"<<endl;
-		cout<<"Must create SDF file based on Station Data for use in tRIBS"<<endl;
-		cout<<"Exiting Program..."<<endl;
-		cout<<"-----------------------------------------------"<<endl;
-		exit(3);
 	}
 }
 
@@ -105,7 +68,7 @@ tPreProcess::~tPreProcess()
 void tPreProcess::CheckInputFile(tInputFile &infile) 
 {
 	double tempVariable = 0.0;
-	int optmesh, optrain, optrock, optconv, optmet;
+	int optmesh, optrain, optrock, optmet;
 
 	int optres;// JECR 2015
 	int optsoil;// JorgeGiuseppe 2015
@@ -113,7 +76,7 @@ void tPreProcess::CheckInputFile(tInputFile &infile)
 	// SKY2008Snow from AJR2007
 	int optradshelt; //, optwindshelt;
 
-	int optfrcst, optstoch, optgw;
+	int optfrcst, optgw;
    int optpar, optgraph, optrest, optv;
 	char tempString[kName];
 
@@ -128,8 +91,6 @@ void tPreProcess::CheckInputFile(tInputFile &infile)
     // BEGIN Move tControl Arguments to .in file WR 08282023
     IterReadItem(infile, tempVariable,"OPTGROUNDWATER"); //   Cout<<"\t-G    Run groundwater model"<<endl;
     IterReadItem(infile, tempVariable,"OPTSPATIAL"); //  Cout<<"\t-R    Write intermediate states (spatial output)"<<endl;
-    IterReadItem(infile, tempVariable,"OPTINTERHYDRO"); // Cout<<"\t-H    Write intermediate hydrographs (.mrf)"<<endl;
-    IterReadItem(infile, tempVariable,"OPTHEADER"); //  Cout<<"\t-M    Do NOT Write headers in pixel/hydrograph/voronoi output files"<<endl;
     // END
 	IterReadItem(infile, tempString,"STARTDATE");     //Run and time parameters
 	IterReadItem(infile, tempVariable,"RUNTIME");
@@ -171,7 +132,7 @@ void tPreProcess::CheckInputFile(tInputFile &infile)
 	IterReadItem(infile, tempVariable,"OPTRADSHELT");
 
 
-	optmesh=optrain=optrock=optconv=optmet=optfrcst=optstoch=optgw=0; //Int
+	optmesh=optrain=optrock=optmet=optfrcst=optgw=0; //Int
   	optpar=optgraph=optrest=0;
 
 	optres=0; // JECR 2015
@@ -189,11 +150,8 @@ void tPreProcess::CheckInputFile(tInputFile &infile)
 		optluinterp = IterReadItem(infile,optluinterp, "OPTLUINTERP");
 	}
 
-	optconv  = IterReadItem(infile, optconv, "CONVERTDATA");
-
 	optrock  = IterReadItem(infile, optrock ,"OPTBEDROCK");
 	optfrcst = IterReadItem(infile, optfrcst,"FORECASTMODE");
-	optstoch = IterReadItem(infile, optstoch,"STOCHASTICMODE");
 	//optgw    = IterReadItem(infile, optgw,   "OPTGWFILE");
 	
 	optres = IterReadItem(infile, tempVariable,"OPTRESERVOIR"); // JECR 2015
@@ -201,7 +159,6 @@ void tPreProcess::CheckInputFile(tInputFile &infile)
 
 	if (optmesh == 1) {
 		IterReadItem(infile, tempString,  "INPUTDATAFILE");
-		IterReadItem(infile, tempVariable,"INPUTTIME");
 	}
 	else if (optmesh == 2) {
 		IterReadItem   (infile, tempString,"POINTFILENAME");
@@ -225,7 +182,7 @@ void tPreProcess::CheckInputFile(tInputFile &infile)
 		CheckFileExists(infile, tempString,"SCGRID");	
 	}
 	
-	/******************** End of modifications by JECR 2015 *********************/
+	/******************** End of modifications by JECR 2015 *********************/ 
 
 	IterReadItem   (infile, tempString,"SOILTABLENAME");    //Watershed grids
 	CheckFileExists(infile, tempString,"SOILTABLENAME"); 
@@ -251,12 +208,12 @@ void tPreProcess::CheckInputFile(tInputFile &infile)
 		CheckFileExists(infile,tempString,"DEMFILE");
 	}
 
-	if (optrain == 1 || optrain == 2) {                //Rainfall data
+	if (optrain == 1) {                //Rainfall data
 		IterReadItem(infile, tempString,"RAINFILE");
 		IterReadItem(infile, tempString,"RAINEXTENSION");
 		IterReadItem(infile, tempVariable,"RAINDISTRIBUTION");
 	}
-	else if (optrain == 3) {
+	else if (optrain == 2) {
 		IterReadItem   (infile, tempString,"GAUGESTATIONS");
 		CheckFileExists(infile, tempString,"GAUGESTATIONS");
 		IterReadItem   (infile, tempVariable,"RAINDISTRIBUTION");
@@ -270,18 +227,7 @@ void tPreProcess::CheckInputFile(tInputFile &infile)
 		CheckFileExists(infile, tempString,"BEDROCKFILE");
 	}
 	
-	if (optconv == 1) {
-		IterReadItem   (infile, tempString,"HYDROMETCONVERT");   //Hydromet data
-		CheckFileExists(infile, tempString,"HYDROMETCONVERT");
-		IterReadItem   (infile, tempString,"HYDROMETBASENAME");
-	}
-	else if (optconv == 2) {
-		IterReadItem   (infile, tempString,"GAUGECONVERT");
-		CheckFileExists(infile, tempString,"GAUGECONVERT");
-		IterReadItem   (infile, tempString,"GAUGEBASENAME");
-	}
-	
-	if (optmet == 1) {
+	if (optmet == 1) {                                          //Meteorological data
 		IterReadItem   (infile, tempString,"HYDROMETSTATIONS");
 		CheckFileExists(infile, tempString,"HYDROMETSTATIONS");
 	}
@@ -313,9 +259,6 @@ void tPreProcess::CheckInputFile(tInputFile &infile)
 	CheckPathNameCorrect(infile, tempString, "OUTHYDROFILENAME");
 #endif
 	
-	IterReadItem(infile, tempString,"OUTHYDROEXTENSION");
-	//IterReadItem(infile,tempString,"RIBSHYDOUTPUT");
-	
 	IterReadItem(infile, tempString,"NODEOUTPUTLIST");
 	IterReadItem(infile, tempString,"HYDRONODELIST");
 	IterReadItem(infile, tempString,"OUTLETNODELIST");
@@ -329,25 +272,6 @@ void tPreProcess::CheckInputFile(tInputFile &infile)
 		IterReadItem(infile, tempString,  "FORECASTFILE");
 	else if (optfrcst == 3)
 		IterReadItem(infile, tempVariable,"CLIMATOLOGY");
-	
-	if (optstoch != 0 && optstoch != 6) {         //Stochastic Rainfall
-		IterReadItem(infile, tempVariable,"PMEAN");
-		IterReadItem(infile, tempVariable,"STDUR");
-		IterReadItem(infile, tempVariable,"ISTDUR");
-		if (optstoch != 1)
-			IterReadItem(infile,tempVariable, "SEED");
-		if (optstoch == 3 ||  optstoch == 4 || optstoch == 5) {
-			IterReadItem(infile, tempVariable,"PERIOD");
-			IterReadItem(infile, tempVariable,"MAXPMEAN");
-			IterReadItem(infile, tempVariable,"MAXSTDURMN");
-			IterReadItem(infile, tempVariable,"MAXISTDURMN");
-		}
-	}
-	
-	if (optstoch == 6) {
-		IterReadItem   (infile, tempString,"WEATHERTABLENAME");
-		CheckFileExists(infile, tempString,"WEATHERTABLENAME");
-	}
 	
    // Restart options
    optrest = IterReadItem(infile, optrest, "RESTARTMODE");
@@ -366,15 +290,6 @@ void tPreProcess::CheckInputFile(tInputFile &infile)
      if (optgraph > 0) {
        IterReadItem(infile, tempString, "GRAPHFILE");
      }
-   }
-
-   // Visualization options
-   optv = IterReadItem(infile, optv, "OPTVIZ");
-   if (optv > 0) {
-       IterReadItem(infile, tempString,"OUTVIZFILENAME");
-#ifndef PARALLEL_TRIBS
-       CheckPathNameCorrect(infile, tempString, "OUTVIZFILENAME");
-#endif
    }
 
 	Cout<<"\nInput File Keywords Checked..."<<endl<<flush;
@@ -487,8 +402,8 @@ double tPreProcess::IterReadItem(tInputFile &infile, double datType,
 		
 		if (datType < -999000.) {
 			cerr<<"\nThe input parameter is either not specified"
-			<<"\nor wrong. Correct the .in file and type 'y'"
-			<<"\n\n>>";
+				<<"\nor wrong. Correct the .in file and type 'y'"
+				<<"\n\n>>";
 			cin>>strg;
 			infile.CloseOldAndOpenNew(infile.GetInFileName());
 		}
@@ -518,8 +433,8 @@ int tPreProcess::IterReadItem(tInputFile &infile, int datType,
 		
 		if (datType == -9999) {
 			cout<<"\nThe input parameter is either not specified"
-			<<"\n\tor wrong. Correct the .in file and type 'y'"
-			<<"\n\n>>";
+				<<"\n\tor wrong. Correct the .in file and type 'y'"
+				<<"\n\n>>";
 			cin>>strg;
 			infile.CloseOldAndOpenNew(infile.GetInFileName());
 		}
@@ -550,8 +465,8 @@ void tPreProcess::IterReadItem(tInputFile &infile, char * theString,
 		
 		if (!strcmp(theString, errr)) {
 			cout<<"\nThe input parameter is either not specified"
-			<<"\nor wrong. Correct the .in file and type 'y'"
-			<<"\n\n>>";
+				<<"\nor wrong. Correct the .in file and type 'y'"
+				<<"\n\n>>";
 			cin>>strg;
 			infile.CloseOldAndOpenNew(infile.GetInFileName());
 		}

@@ -335,52 +335,46 @@ void tSnowPack::callSnowPack(tIntercept *Intercept, int flag) {
         }
 
         //updates meteorological variables if not in stochastic mode
-        if (!rainPtr->getoptStorm()) {
-            if (metdataOption == 1) {
-                thisStation = assignedStation[count];
-                newHydroMetData(hourlyTimeStep); //read in met data from station file -- inherited function
+        if (metdataOption == 1) {
+            thisStation = assignedStation[count];
+            newHydroMetData(hourlyTimeStep); //read in met data from station file -- inherited function
 
-                if (fabs(skyCover-9999.99)<1.0E-3){ // assumed if first value is 9999.99 the rest are
-                    skycover_flag =1;
-                }
-
-            } else if (metdataOption == 2) {
-                newHydroMetGridData(cNode); // set up and get appropriate data -- inherited function
-
-                if (fabs(skyCover-9999.99)<1.0E-3){ // work around since nodata from grids only set to 9999.99 once in tvariannt
-                    skycover_flag =1;
-                }
+            if (fabs(skyCover-9999.99)<1.0E-3){ // assumed if first value is 9999.99 the rest are
+                skycover_flag =1;
             }
 
-            // Set the observed values to the node:
-            // they will be required by other function calls
-            vPress = vaporPress();
+        } else if (metdataOption == 2) {
+            newHydroMetGridData(cNode); // set up and get appropriate data -- inherited function
 
-
-            // Check/modify cloud cover values
-            if (skycover_flag == 1) {
-                skyCover = compSkyCover();
+            if (fabs(skyCover-9999.99)<1.0E-3){ // work around since nodata from grids only set to 9999.99 once in tvariannt
+                skycover_flag =1;
             }
-
-
-
-            cNode->setAirTemp(airTemp); // celsius
-            cNode->setDewTemp(dewTemp);
-            cNode->setRelHumid(rHumidity);
-            cNode->setVapPressure(vPress);
-            cNode->setWindSpeed(windSpeed);
-            cNode->setAirPressure(atmPress);
-            cNode->setSkyCover(skyCover);
-            cNode->setShortRadIn(inShortR);
-
-            //Set Soil/Surface Temperature
-            if (hourlyTimeStep == 0) {
-                cNode->setSoilTemp(Tlo - 273.15);
-                cNode->setSurfTemp(Tso - 273.15);
-            }
-
         }
 
+        // Set the observed values to the node:
+        // they will be required by other function calls
+        vPress = vaporPress();
+
+
+        // Check/modify cloud cover values
+        if (skycover_flag == 1) {
+            skyCover = compSkyCover();
+        }
+
+        cNode->setAirTemp(airTemp); // celsius
+        cNode->setDewTemp(dewTemp);
+        cNode->setRelHumid(rHumidity);
+        cNode->setVapPressure(vPress);
+        cNode->setWindSpeed(windSpeed);
+        cNode->setAirPressure(atmPress);
+        cNode->setSkyCover(skyCover);
+        cNode->setShortRadIn(inShortR);
+
+        //Set Soil/Surface Temperature
+        if (hourlyTimeStep == 0) {
+            cNode->setSoilTemp(Tlo - 273.15);
+            cNode->setSurfTemp(Tso - 273.15);
+        }
 
         if (Ioption == 0) {
             cNode->setNetPrecipitation(rain);
@@ -413,19 +407,13 @@ void tSnowPack::callSnowPack(tIntercept *Intercept, int flag) {
             if (evapotransOption == 1) {
                 EvapPenmanMonteith(cNode); // SKY2008Snow
             } else if (evapotransOption == 2) {
-                EvapDeardorff(cNode); // SKY2008Snow
-            } else if (evapotransOption == 3) {
-                EvapPriestlyTaylor(cNode); // SKY2008Snow
-            } else if (evapotransOption == 4) {
                 EvapPan();
             } else {
                 cout << "\nEvapotranspiration Option " << evapotransOption;
                 cout << " not valid." << endl;
                 cout << "\tPlease use :" << endl;
                 cout << "\t\t(1) for Penman-Monteith Method" << endl;
-                cout << "\t\t(2) for Deardorff Method" << endl;
-                cout << "\t\t(3) for Priestly-Taylor Method" << endl;
-                cout << "\t\t(4) for Pan Evaporation Measurements" << endl;
+                cout << "\t\t(2) for Pan Evaporation Measurements" << endl;
                 cout << "Exiting Program...\n\n" << endl;
                 exit(1);
             }
@@ -715,14 +703,6 @@ void tSnowPack::callSnowPack(tIntercept *Intercept, int flag) {
 
         }//end yes-snow
 
-
-        // Estimate average Ep and cloudiness
-        if (rainPtr->getoptStorm() && Io > 0.0) {
-            potEvap = cNode->getPotEvap();
-            SkyC += skyCover;
-            cnt++;
-        }
-
         //get the next node information for while loop
         cNode = nodeIter.NextP();
         count++;
@@ -731,29 +711,6 @@ void tSnowPack::callSnowPack(tIntercept *Intercept, int flag) {
     timeCount++;
     oldTimeStep = hourlyTimeStep;
     hourlyTimeStep++;
-
-    // AJR2008, SKY2008Snow
-    // Submit the basin average value
-    if (rainPtr->getoptStorm()) {
-        // SKY2008Snow -- Following bug corrected to account for SkyC division by cnt again in the next ComputeDailyEpCld call
-        cnt ? SkyC = SkyC : SkyC = skyCover;
-
-        // Get approximate EP from Priestley-Taylor method
-        EP = ApproximateEP();
-
-        // Submit values to climate simulator
-        weatherSimul->ComputeDailyEpCld(EP, SkyC / static_cast<double>(cnt));
-
-        // Assign the radiation variables to the 'tHydrometStoch'
-        if (!count) {
-            weatherSimul->setSunH(alphaD);
-            weatherSimul->setSinH(sinAlpha);
-            weatherSimul->setIo(Io);
-            weatherSimul->setIdir(Ics);
-            weatherSimul->setIdif(Ids);
-            weatherSimul->OutputHydrometVars();
-        }
-    }
 }
 
 //---------------------------------------------------------------------------
@@ -804,19 +761,13 @@ void tSnowPack::callSnowIntercept(tCNode *node, tIntercept *interceptModel, int 
         if (evapotransOption == 1) {
             EvapPenmanMonteith(node); // call to get EvapPot, but energy balance for soil es
         } else if (evapotransOption == 2) {
-            EvapDeardorff(node); // SKY2008Snow
-        } else if (evapotransOption == 3) {
-            EvapPriestlyTaylor(node); // SKY2008Snow
-        } else if (evapotransOption == 4) {
             EvapPan();
         } else {
             cout << "\nEvapotranspiration Option " << evapotransOption;
             cout << " not valid." << endl;
             cout << "\tPlease use :" << endl;
             cout << "\t\t(1) for Penman-Monteith Method" << endl;
-            cout << "\t\t(2) for Deardorff Method" << endl;
-            cout << "\t\t(3) for Priestly-Taylor Method" << endl;
-            cout << "\t\t(4) for Pan Evaporation Measurements" << endl;
+            cout << "\t\t(2) for Pan Evaporation Measurements" << endl;
             cout << "Exiting Program...\n\n" << endl;
             exit(1);
         }
@@ -1609,7 +1560,7 @@ double tSnowPack::inShortWaveSn(tCNode *cNode) {
 
         // If observations (for a horizontal surface) exist -
         // use them, at least in an approximate manner
-        if (tsOption > 1 && !rainPtr->getoptStorm()) {
+        if (tsOption > 1) {
             RadGlobClr = (inShortR / (1.0 - 0.65 * pow(N, 2.0)));
             Ic = Ic / (Ic * sinAlpha + Id) * RadGlobClr;
             Id = RadGlobClr - Ic * sinAlpha;
@@ -1728,21 +1679,8 @@ double tSnowPack::inShortWaveSn(tCNode *cNode) {
         Ic = Is = N = Iv = Isw = Id = Ids = Ics = Ir = 0.0;
     } // end -- alphaD <= 0
 
-
-    // Assign the radiation variables to the 'tHydrometStoch' for ID = 0
-    if (rainPtr->getoptStorm() && (ID == 0)) {
-        weatherSimul->setSunH(alphaD);
-        weatherSimul->setIdir(Ics);
-        weatherSimul->setIdir_vis(0.5 * Ics);
-        weatherSimul->setIdir_nir(0.5 * Ics);
-        weatherSimul->setIdif(Ids + Ir);//AJR2008, SKY2008Snow
-        weatherSimul->setIdif_vis(0.5 * (Ids + Ir));//AJR2008, SKY2008Snow
-        weatherSimul->setIdif_nir(0.5 * (Ids + Ir));//AJR2008, SKY2008Snow
-        weatherSimul->OutputHydrometVars();
-    }
-
     // Set shortwave variables to the node (partition is approximate)
-    if (tsOption > 1 && !rainPtr->getoptStorm()) {
+    if (tsOption > 1) {
         cNode->setShortRadIn(inShortR); //or set(Is), they must be equal
     } else {
         cNode->setShortRadIn(Isw);
@@ -1790,7 +1728,7 @@ double tSnowPack::inShortWaveCan() {
 
         // If observations (for a horizontal surface) exist -
         // use them, at least in an approximate manner
-        if (tsOption > 1 && !rainPtr->getoptStorm()) {
+        if (tsOption > 1) {
             RadGlobClr = (inShortR / (1.0 - 0.65 * pow(N, 2.0)));
             Ic = Ic / (Ic * sinAlpha + Id) * RadGlobClr;
             Id = RadGlobClr - Ic * sinAlpha;

@@ -205,9 +205,6 @@ void tRunTimer::InitializeTimer( tInputFile &infile )
 	//Initialize met time as tstep to get first hour
 	MetTime = EtITime = tstep;
 	
-	//Initialize storm time for stochastic rainfall
-	StormTime_1 = StormTime = 0;
-	
 }
 
 //=========================================================================
@@ -552,29 +549,6 @@ int tRunTimer::getoptForecast() { return optForecast; }
 
 /***************************************************************************
 **
-** tRunTimer::Stochastic Storm Functions
-**
-**
-***************************************************************************/
-void tRunTimer::UpdateStorm( double update ) 
-{
-	StormTime_1 = StormTime;
-	StormTime = StormTime + update;
-	return;
-}
-
-double tRunTimer::getStormTime() 
-{
-	return StormTime;
-}
-
-double tRunTimer::getPrevStormTime() 
-{
-	return StormTime_1;
-}
-
-/***************************************************************************
-**
 ** tWaterBalance::writeRestart() Function
 ** 
 ** Called from tSimulator during simulation loop
@@ -620,8 +594,6 @@ void tRunTimer::writeRestart(fstream & rStr) const
   BinaryWrite(rStr, etistep);
   BinaryWrite(rStr, MetTime);
   BinaryWrite(rStr, EtITime);
-  BinaryWrite(rStr, StormTime);
-  BinaryWrite(rStr, StormTime_1);
 }
 
 /***************************************************************************
@@ -669,8 +641,6 @@ void tRunTimer::readRestart(fstream & rStr)
   BinaryRead(rStr, etistep);
   BinaryRead(rStr, MetTime);
   BinaryRead(rStr, EtITime);
-  BinaryRead(rStr, StormTime);
-  BinaryRead(rStr, StormTime_1);
 }
 
 //=========================================================================
