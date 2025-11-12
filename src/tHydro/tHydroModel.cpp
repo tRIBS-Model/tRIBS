@@ -602,7 +602,7 @@ void tHydroModel::InitIntegralVars()
 
 		CheckMoistureContent( cn );
 	}
-	}
+}
 
 /*************************************************************************
 **

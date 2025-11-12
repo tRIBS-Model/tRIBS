@@ -52,7 +52,7 @@ void tIntercept::SetIntercpVariables(tInputFile &inFile, tHydroModel *hydro)
 		landPtr = hydro->landPtr;  
 
 		// SKYnGM2008LU 
-		if (luOption == 1) {
+		if (luOption == 1 || luOption == 2) {
 			inFile.ReadItem(luFile, "LUGRID"); 
 			readLUGrid(luFile);
 		}
@@ -62,8 +62,11 @@ void tIntercept::SetIntercpVariables(tInputFile &inFile, tHydroModel *hydro)
 
 tIntercept::~tIntercept()
 {
-	if (luOption ==1) { 
-		DeleteIntercept();
+    // Only attempt to delete grid info if interception was active in the first place
+	if (interceptOption != 0) { 
+		if (luOption == 1 || luOption == 2) { 
+			DeleteIntercept();
+		}
 	}
 
 	Cout<<"tIntercept Object has been destroyed..."<<endl;
@@ -488,7 +491,7 @@ void tIntercept::SetIntercpParameters(tCNode *cNode)
 		coeffV = landPtr->getLandProp(11);         //Vegetation Fraction 
 	}
 
-	if (luOption == 1) {
+	if (luOption == 1 || luOption == 2) {
 		for (int ct=0;ct<nParmLU;ct++) { 
 			if (strcmp(LUgridParamNames[ct],"CS")==0) {
 				if (interceptOption == 1) {

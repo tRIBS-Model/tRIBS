@@ -223,6 +223,10 @@ void tEvapoTrans::SetEvapTVariables(tInputFile &infile, tHydroModel *hydro)
 	if (luOption == 1) {
 		luInterpOption = infile.ReadItem(luInterpOption, "OPTLUINTERP"); // SKYnGM2008LU
 	}
+    // For static grids, interpolation is not applicable. CJC2025
+    else if (luOption == 2) {
+        luInterpOption = 0; // Default to constant values
+    }
 
 	snowOption = infile.ReadItem(snowOption, "OPTSNOW"); //read in snow options -- AJR 2007 @ NMT
 	shelterOption = infile.ReadItem(shelterOption, "OPTRADSHELT"); //read in shading option -- AJR 2007 @ NMT
@@ -288,16 +292,16 @@ void tEvapoTrans::CreateHydroMetAndLU(tInputFile &infile)
 
 		// Read observed data from files otherwise
 		if (luOption == 0) {
-			Cout << "\nUsing ID Land-Use Map" << endl;
+			Cout << "\nUsing ID Land-Use Map (OPTLANDUSE: 0)" << endl;
 		}
 		else if (luOption == 1) {
-			cout << "\nUsing dynamic Land-Use Data Grids" << endl;
-			infile.ReadItem(luFile, "LUGRID"); // corrected by SY, TM: 11/19/07
+			cout << "\nUsing Dynamic (Time-Varying) Land-Use Data Grids (OPTLANDUSE: 1)" << endl;
+			infile.ReadItem(luFile, "LUGRID");
 			readLUGrid(luFile);
 			createVariantLU(); 
 			AtFirstTimeStepLUFlag=1;
 			if  ((luInterpOption != 0) && (luInterpOption != 1) ) {
-				Cout <<"\nLand Use Grid Interpolation Data Option "<< luOption <<" not valid."<<endl;
+				Cout <<"\nLand Use Grid Interpolation Data Option "<< luInterpOption <<" not valid."<<endl;
 				Cout << "\tPlease use :" << endl;
 				Cout << "\t\t(0) for using current/past values till next incoming grid" << endl;
 				Cout << "\t\t(1) for interpolating between curent/past and next incoming grids"<< endl;  
@@ -305,11 +309,20 @@ void tEvapoTrans::CreateHydroMetAndLU(tInputFile &infile)
 				exit(1);
 			}	
 		}
+        else if (luOption == 2) {
+            cout << "\nUsing Static (Spatially-Variable) Land-Use Data Grids (OPTLANDUSE: 2)" << endl;
+            infile.ReadItem(luFile, "LUGRID");
+            readLUGrid(luFile);
+            // We will call a new function to handle this simple case
+            createStaticVariantLU();
+            AtFirstTimeStepLUFlag = 0; // Not needed for this option
+        }
 		else {
 			Cout <<"\nLand Use Data Option "<< luOption<<" not valid."<<endl;
 			Cout << "\tPlease use :" << endl;
 			Cout << "\t\t(0) for ID Base Map" << endl;
-			Cout << "\t\t(1) for Gridded Land Use Data"<< endl;  
+			Cout << "\t\t(1) for Dynamic Gridded Land Use Data"<< endl;
+            Cout << "\t\t(2) for Static Gridded Land Use Data"<< endl;
 			Cout << "\nExiting Program..."<<endl<<endl;
 			exit(1);
 		}
@@ -641,7 +654,7 @@ void tEvapoTrans::callEvapoPotential()
 	  
 	  // Set Coefficients - override if dynamic land use
 	  setCoeffs(cNode);
-	  if (luOption == 1) {
+	  if (luOption == 1 || luOption == 2) {
 	    newLUGridData(cNode);
 	    if (gFluxOption == 1 || gFluxOption == 2) {
 			// Giuseppe 2016 - Begin changes to allow reading soil properties from grids
@@ -956,7 +969,7 @@ void tEvapoTrans::ComputeETComponents(tIntercept *Intercept, tCNode *cNode,
 		
 		// Set Coefficients - override if dynamic land use
 	    setCoeffs(cNode);
-		if (luOption == 1) {
+		if (luOption == 1 || luOption == 2) {
 			newLUGridData(cNode);
 			if (gFluxOption == 1 || gFluxOption == 2) {;
                 coeffKs = cNode->getVolHeatCond();
@@ -3784,6 +3797,84 @@ void tEvapoTrans::createVariantLU()
 			TransThreshGrid->newVariable(LUgridParamNames[ct]);
 		}
 	}
+}
+
+/***************************************************************************
+**
+** tEvapoTrans::createStaticVariantLU() Function
+**
+** Initializes tVariant objects for STATIC land use parameters.
+** Reads a single grid for each parameter and loads it once.
+** This function does not search for time-stamped files.
+**
+***************************************************************************/
+void tEvapoTrans::createStaticVariantLU()
+{
+    char staticFileName[kName];
+
+    for (int ct = 0; ct < nParmLU; ct++) {
+        // Construct the full, non-timestamped filename
+        snprintf(staticFileName, sizeof(staticFileName), "%s.%s", LUgridBaseNames[ct], LUgridExtNames[ct]);
+
+        cout << "\tReading static grid for " << LUgridParamNames[ct] << " from " << staticFileName << endl;
+
+        // Use a switch statement for cleaner code
+        const std::string paramName = LUgridParamNames[ct];
+        
+        if (paramName == "AL") {
+            LandUseAlbGrid = new tVariant(gridPtr, respPtr);
+            LandUseAlbGrid->updateLUVarOfPrevGrid("AL", staticFileName);
+        } else if (paramName == "TF") {
+            ThroughFallGrid = new tVariant(gridPtr, respPtr);
+            ThroughFallGrid->updateLUVarOfPrevGrid("TF", staticFileName);
+        } else if (paramName == "VH") {
+            VegHeightGrid = new tVariant(gridPtr, respPtr);
+            VegHeightGrid->updateLUVarOfPrevGrid("VH", staticFileName);
+        } else if (paramName == "SR") {
+            StomResGrid = new tVariant(gridPtr, respPtr);
+            StomResGrid->updateLUVarOfPrevGrid("SR", staticFileName);
+        } else if (paramName == "VF") {
+            VegFractGrid = new tVariant(gridPtr, respPtr);
+            VegFractGrid->updateLUVarOfPrevGrid("VF", staticFileName);
+        } else if (paramName == "CS") {
+            CanStorParamGrid = new tVariant(gridPtr, respPtr);
+            CanStorParamGrid->updateLUVarOfPrevGrid("CS", staticFileName);
+        } else if (paramName == "IC") {
+            IntercepCoeffGrid = new tVariant(gridPtr, respPtr);
+            IntercepCoeffGrid->updateLUVarOfPrevGrid("IC", staticFileName);
+        } else if (paramName == "CC") {
+            CanFieldCapGrid = new tVariant(gridPtr, respPtr);
+            CanFieldCapGrid->updateLUVarOfPrevGrid("CC", staticFileName);
+        } else if (paramName == "DC") {
+            DrainCoeffGrid = new tVariant(gridPtr, respPtr);
+            DrainCoeffGrid->updateLUVarOfPrevGrid("DC", staticFileName);
+        } else if (paramName == "DE") {
+            DrainExpParGrid = new tVariant(gridPtr, respPtr);
+            DrainExpParGrid->updateLUVarOfPrevGrid("DE", staticFileName);
+        } else if (paramName == "OT") {
+            OptTransmCoeffGrid = new tVariant(gridPtr, respPtr);
+            OptTransmCoeffGrid->updateLUVarOfPrevGrid("OT", staticFileName);
+        } else if (paramName == "LA") {
+            LeafAIGrid = new tVariant(gridPtr, respPtr);
+            LeafAIGrid->updateLUVarOfPrevGrid("LA", staticFileName);
+        } else if (paramName == "SE") {
+            EvapThreshGrid = new tVariant(gridPtr, respPtr);
+            EvapThreshGrid->updateLUVarOfPrevGrid("SE", staticFileName);
+        } else if (paramName == "ST") {
+            TransThreshGrid = new tVariant(gridPtr, respPtr);
+            TransThreshGrid->updateLUVarOfPrevGrid("ST", staticFileName);
+        }
+    }
+
+    // After loading, we must immediately populate the node values from the 'PrevGrid'
+    // storage. This avoids running this logic in every time step.
+    tCNode* cNode;
+    tMeshListIter<tCNode> nodeIter(gridPtr->getNodeList());
+    cNode = nodeIter.FirstP();
+    while (nodeIter.IsActive()) {
+        constantLUGrids(cNode); // This copies data from "...InPrevGrid" to the active variable
+        cNode = nodeIter.NextP();
+    }
 }
 
 /***************************************************************************
