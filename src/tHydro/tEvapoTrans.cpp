@@ -291,7 +291,7 @@ void tEvapoTrans::CreateHydroMetAndLU(tInputFile &infile)
 		}
 
 		// Read observed data from files otherwise
-			if (luOption == 0) {
+		if (luOption == 0) {
 			Cout << "\nUsing ID Land-Use Map (OPTLANDUSE: 0)" << endl;
 		}
 		else if (luOption == 1) {
