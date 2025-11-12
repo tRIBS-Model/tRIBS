@@ -654,7 +654,7 @@ void tEvapoTrans::callEvapoPotential()
 	  
 	  // Set Coefficients - override if dynamic land use
 	  setCoeffs(cNode);
-	  if (luOption == 1) {
+	  if (luOption == 1 || luOption == 2) {
 	    newLUGridData(cNode);
 	    if (gFluxOption == 1 || gFluxOption == 2) {
 			// Giuseppe 2016 - Begin changes to allow reading soil properties from grids
@@ -969,7 +969,7 @@ void tEvapoTrans::ComputeETComponents(tIntercept *Intercept, tCNode *cNode,
 		
 		// Set Coefficients - override if dynamic land use
 	    setCoeffs(cNode);
-		if (luOption == 1) {
+		if (luOption == 1 || luOption == 2) {
 			newLUGridData(cNode);
 			if (gFluxOption == 1 || gFluxOption == 2) {;
                 coeffKs = cNode->getVolHeatCond();
@@ -3816,17 +3816,6 @@ void tEvapoTrans::createStaticVariantLU()
         // Construct the full, non-timestamped filename
         snprintf(staticFileName, sizeof(staticFileName), "%s.%s", LUgridBaseNames[ct], LUgridExtNames[ct]);
 
-        // Check if the file actually exists before proceeding
-        ifstream fileCheck(staticFileName);
-        if (!fileCheck.good()) {
-            cerr << "\nFATAL ERROR: Static land use grid not found for parameter '"
-                 << LUgridParamNames[ct] << "'." << endl;
-            cerr << "Expected file at: " << staticFileName << endl;
-            cerr << "Exiting Program...\n\n" << endl;
-            exit(1);
-        }
-        fileCheck.close();
-
         cout << "\tReading static grid for " << LUgridParamNames[ct] << " from " << staticFileName << endl;
 
         // Use a switch statement for cleaner code
@@ -3883,7 +3872,7 @@ void tEvapoTrans::createStaticVariantLU()
     tMeshListIter<tCNode> nodeIter(gridPtr->getNodeList());
     cNode = nodeIter.FirstP();
     while (nodeIter.IsActive()) {
-        constantLUGrids(cNode);
+        constantLUGrids(cNode); // This copies data from "...InPrevGrid" to the active variable
         cNode = nodeIter.NextP();
     }
 }
