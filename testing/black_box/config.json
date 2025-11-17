@@ -1,0 +1,4 @@
+{"bin_parallel": "../../../../cmake-build-parallel/tRIBSpar",
+  "bin_serial": "../../../../cmake-build-serial/tRIBS",
+  "hj_path": ".",
+  "bs_path": "."}

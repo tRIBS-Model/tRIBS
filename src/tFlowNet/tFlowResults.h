@@ -1,9 +1,8 @@
 /*******************************************************************************
  * TIN-based Real-time Integrated Basin Simulator (tRIBS)
  * Distributed Hydrologic Model
- * VERSION 5.2
  *
- * Copyright (c) 2024. tRIBS Developers
+ * Copyright (c) 2025. tRIBS Developers
  *
  * See LICENSE file in the project root for full license information.
  ******************************************************************************/
@@ -133,6 +132,7 @@ public:
   double *intunl;		// Mean int unloading in space
   double *sca;			// Fraction snow covered area
   double *Perc; 	// Percolation from the channel bottom ASM percolation option
+  double *qunsat;		// Mean net flow froom unsaturated zone CJC2025
 
   int *fState;                  // Forecast state
 

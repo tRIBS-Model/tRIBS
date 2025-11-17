@@ -1,9 +1,8 @@
 /*******************************************************************************
  * TIN-based Real-time Integrated Basin Simulator (tRIBS)
  * Distributed Hydrologic Model
- * VERSION 5.2
  *
- * Copyright (c) 2024. tRIBS Developers
+ * Copyright (c) 2025. tRIBS Developers
  *
  * See LICENSE file in the project root for full license information.
  ******************************************************************************/
@@ -789,7 +788,14 @@ void tFlowNet::SurfaceFlow()
 				res->store_volume_Type( ttime, vRunoff, 4 ); 
 			}
 		}
-		
+		 // Fix for converting MDGW sloped depth to vertical depth CJC2025
+		// Get the slope correction factor for the current node.
+		tEdge *flowEdge = cn->getFlowEdg();
+		double cos_slope = cos(atan(flowEdge->getSlope()));
+		if (cos_slope < 1E-9) cos_slope = 1.E-9;
+		// Convert Nwt to a vertical depth.
+		double nwt_vertical = cn->getNwtNew() / cos_slope;
+
 		// Rainfall and Saturation Storage in tFlowResults
 		res->store_rain(0.0, AreaF*cn->getRain());
 		
@@ -806,7 +812,7 @@ void tFlowNet::SurfaceFlow()
 		if (cn->getSoilMoistureSC() >= 1)
 			res->store_saturation(0.0, AreaF, 3);
 		// Mean groundwater level
-		res->store_saturation(0.0, AreaF*cn->getNwtNew(), 4);
+		res->store_saturation(0.0, AreaF*nwt_vertical, 4);
 		//Mean Evapotranspiration
 		res->store_saturation(0.0, AreaF*cn->getEvapoTrans(), 5);
 
@@ -849,6 +855,8 @@ void tFlowNet::SurfaceFlow()
 		res->store_saturation(0.0, AreaF*cn->getSnSub(),21);// Calculated mean snowpack sublimation CJC2020 
 			//Mean SnSub
 		res->store_saturation(0.0, AreaF*cn->getSnEvap(),22);// Calculated mean snowpack sublimation CJC2020
+		//Mean Qunsat
+		res->store_saturation(0.0, AreaF*(cn->getQpout() - cn->getQpin()) * 1.E-6 / cn->getVArea(),24); // CJC 2025
 
         //ASM Percolation option
         if (percolationOption != 0)

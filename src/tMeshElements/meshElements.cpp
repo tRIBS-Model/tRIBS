@@ -1,9 +1,8 @@
 /*******************************************************************************
  * TIN-based Real-time Integrated Basin Simulator (tRIBS)
  * Distributed Hydrologic Model
- * VERSION 5.2
  *
- * Copyright (c) 2024. tRIBS Developers
+ * Copyright (c) 2025. tRIBS Developers
  *
  * See LICENSE file in the project root for full license information.
  ******************************************************************************/
@@ -452,7 +451,8 @@ double tNode::ComputeVoronoiArea()
 			xy1 = ne->getRVtx();
 			//checking polygon edge is on boundary and ccw edge's RVtx is on
 			//wrong side of bndy edge...
-			if( ce->getBoundaryFlag() && ne->getBoundaryFlag() )
+			// CJC 2025 debug if statement wouldn't execute for voronoi connected to outlet point causing area to be equal to last node
+			if( ce->getDestinationPtrNC()->getBoundaryFlag() != kNonBoundary && ne->getDestinationPtrNC()->getBoundaryFlag() != kNonBoundary )
 			{
 				bn0 = ce->getDestinationPtrNC();
 				bn1 = ne->getDestinationPtrNC();

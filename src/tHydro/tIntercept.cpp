@@ -1,9 +1,8 @@
 /*******************************************************************************
  * TIN-based Real-time Integrated Basin Simulator (tRIBS)
  * Distributed Hydrologic Model
- * VERSION 5.2
  *
- * Copyright (c) 2024. tRIBS Developers
+ * Copyright (c) 2025. tRIBS Developers
  *
  * See LICENSE file in the project root for full license information.
  ******************************************************************************/
@@ -287,6 +286,7 @@ void tIntercept::InterceptRutter(tCNode *cNode, double evaporation)
 	double throughfall, drainage, netPrecipitation, interception;
 	double interStormLength, cumIntercept, ctos;
 	double minRainAmount = 1.0;                   //Minimum rainfall rate (mm/hr)
+	double dt = timer->getEtIStep(); 			  // Timestep in hours
 	
 	rainfall     = cNode->getRain();
 
@@ -310,22 +310,71 @@ void tIntercept::InterceptRutter(tCNode *cNode, double evaporation)
 		drainage = 0.0;                       
 		currentStorage = storageRungeKutta(prevStorage, rainfall, 
 										   evaporation, &drainage);
+
+		double rain_on_canopy_vol = (1 - coeffP) * rainfall * dt;
+
+		// The total water available to evaporate is the initial storage plus rainfall.
+        double total_available_water = prevStorage + rain_on_canopy_vol;
+        if (currentStorage > total_available_water) {
+             // This can happen due to RK4 overshoot. If so, cap it.
+             currentStorage = total_available_water;
+        }
+
+		// The RK4 solver can undershoot and produce a non-physical negative storage.
+		// Correct this at the source before it propagates.
+		if (currentStorage < 0.0) {
+			currentStorage = 0.0;
+		}
 		
-		// =========================================================
+		// Calculate the physically possible evaporation RATE
+		double avg_storage = (prevStorage + currentStorage) / 2.0;
+		double avg_drain_rate_prop = (avg_storage > 0) ? coeffK * exp(coeffb * (avg_storage - coeffS)) : 0.0;
+		double evapWetCanopy_rate; // mm/hr;
+		if (avg_storage < coeffS) {
+			evapWetCanopy_rate = (avg_storage / coeffS) * evaporation; // 'evaporation' is Ep
+		} else {
+			evapWetCanopy_rate = evaporation;
+		}
+		if (evapWetCanopy_rate < 0) evapWetCanopy_rate = 0.0;
+
+		// Calculate the total water lost from the canopy.
+        double storage_change_vol = currentStorage - prevStorage;      // [mm]
+		double total_loss_vol = rain_on_canopy_vol - storage_change_vol; // [mm]
+        if (total_loss_vol < 0.0) total_loss_vol = 0.0; // Loss cannot be negative
+
+		// Calculate the evaporation VOLUME for the timestep
+		double evapWetCanopy_vol = evapWetCanopy_rate * dt; // [mm]
+
+		// The actual evaporated volume cannot be more than the total water lost.
+        if (evapWetCanopy_vol > total_loss_vol) evapWetCanopy_vol = total_loss_vol;
+        if (evapWetCanopy_vol < 0.0) evapWetCanopy_vol = 0.0;
+
+		// Calculate drainage volume as the residual of the water balance
+		double drainage_vol = total_loss_vol - evapWetCanopy_vol; // [mm]
+        if (drainage_vol < 0.0) drainage_vol = 0.0;
+
+		double residual = 0.0;
+
 		// To avoid Inf time to C = 0 -> dump it if lower threshold
-		if (currentStorage*100/coeffS <= 3) //3% of capacity
-			currentStorage = 0.0;
-		// =========================================================
-		
-		if(currentStorage < 0.0)
-			currentStorage = 0.0;
+		if (currentStorage * 100 / coeffS <= 3) { // dump if less than 3% of coeffS
+			// Check if adding the residual to evaporation would violate the energy budget.
+			double potential_evap_vol = evaporation * dt;
+			if ((evapWetCanopy_vol + currentStorage) <= potential_evap_vol) {
+				// Energetically possible to evaporate the residual 
+				evapWetCanopy_vol += currentStorage;
+			} else {
+				// Not enough energy. Send residual to drainage instead. 
+				drainage_vol += currentStorage;
+			}
+			currentStorage = 0.0; // Empty the canopy in either case.
+		}
 		
 		// Rainfall is constant during the dt interval
 		throughfall = coeffP*rainfall; 
 		
 		// Drainage represents an average value over the interval
 		// For the _VEGETATED_ fraction of a cell:
-		netPrecipitation = drainage + throughfall;
+		netPrecipitation = (drainage_vol/dt) + throughfall;
 		
 		if (netPrecipitation <= rainfall)
 			interception = rainfall - netPrecipitation;
@@ -335,18 +384,15 @@ void tIntercept::InterceptRutter(tCNode *cNode, double evaporation)
 		// Rate for the _ENTIRE_ cell:
 		netPrecipitation = coeffV*netPrecipitation + (1-coeffV)*rainfall;
 		
-		// Check numerical integration errors: absorb the imbalance
-		can_flx = rainfall -  
-			coeffV*(currentStorage-prevStorage+evaporation) - netPrecipitation;
-		if (rainfall) {
-			if (fabs(can_flx)/rainfall*100.0 > 0.5)
-				netPrecipitation += can_flx;
-		}
-		
+		if(currentStorage < 0.0)
+			currentStorage = 0.0;
+			
 		// Set the dynamic variables to tCNode
 		cNode->setNetPrecipitation(netPrecipitation); //For the _ENTIRE_ fract
 		cNode->setInterceptLoss(interception);        //For the _VEGETATED_ fract
 		cNode->setCanStorage(currentStorage);         //For the _VEGETATED_ fract
+		cNode->setEvapWetCanopy(evapWetCanopy_vol/dt);    //For the _VEGETATED_ fract
+
 		interStormLength = cNode->getStormLength();
 		if(interStormLength < maxInterStormPeriod)
 			cNode->setCumIntercept(cumIntercept + interception*timer->getEtIStep());
@@ -359,6 +405,7 @@ void tIntercept::InterceptRutter(tCNode *cNode, double evaporation)
 		cNode->setInterceptLoss(0.0);
 		cNode->setCanStorage(0.0);
 		cNode->setCumIntercept(0.0);
+		cNode->setEvapWetCanopy(0.0);
 
 	}
 	return;
@@ -387,7 +434,6 @@ double tIntercept::RutterFn(double t, double C, double R, double Ep)
 		diffC = ((1-coeffP)*R - Ep - coeffK*exp(coeffb*(C-coeffS)));
 	return diffC;
 }
-
 double tIntercept::storageRungeKutta(double prevStore, double R, double Ep,
 									 double *drainage)
 {

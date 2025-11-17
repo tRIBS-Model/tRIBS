@@ -4,5 +4,13 @@
 cmake-build-debug*
 cmake-build-parallel
 cmake-build-serial
-build
+build*/
 _CPack_Packages
+__pycache__
+/cmake-build-serial_debug/
+/cmake-build-parallel_debug/
+/testing/black_box/happy_jack_pytest/logs/
+/testing/black_box/benchmarks/
+/testing/black_box/happy_jack_pytest/happy_jack/
+.vscode
+CMakePresets.json

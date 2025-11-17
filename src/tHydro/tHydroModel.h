@@ -1,9 +1,8 @@
 /*******************************************************************************
  * TIN-based Real-time Integrated Basin Simulator (tRIBS)
  * Distributed Hydrologic Model
- * VERSION 5.2
  *
- * Copyright (c) 2024. tRIBS Developers
+ * Copyright (c) 2025. tRIBS Developers
  *
  * See LICENSE file in the project root for full license information.
  ******************************************************************************/
@@ -189,6 +188,9 @@ private:
   double Rs_LU{};
   double V_LU{};
   double LAI_LU{};
+  // CJC2025 Stress Thresholds
+  double ST_LU{};
+  double SE_LU{};
 
   // SKY2008Snow from AJR2007
   double snowMeltEx{};
@@ -197,6 +199,8 @@ private:
   double TotGWchange{}; 			// Cumulative GW storage change M^3
   double TotMoist{}; 			// Cumulative change in moisture storage
   double DtoBedrock{}; 			// Depth to bedrock
+  double surfaceSoilDepth; // Depth for surface soil moisture [mm]
+  double rootZoneDepth;    // Depth for root zone moisture [mm]
   
   ofstream fctout;
   double fSoi100{}, fTop100{}, fClm100{}, fGW100{}, dM100{}, dMRt{}, mTh100{}, mThRt{};

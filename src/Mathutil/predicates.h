@@ -1,9 +1,8 @@
 /*******************************************************************************
  * TIN-based Real-time Integrated Basin Simulator (tRIBS)
  * Distributed Hydrologic Model
- * VERSION 5.2
  *
- * Copyright (c) 2024. tRIBS Developers
+ * Copyright (c) 2025. tRIBS Developers
  *
  * See LICENSE file in the project root for full license information.
  ******************************************************************************/
@@ -42,10 +41,10 @@
   #include <stdio.h> 
   #include <math.h> 
   #include <sys/time.h> 
-#else 
-  #include <stdio.h> 
-  #include <math.h> 
-  #include <sys/time.h> 
+#else
+    #include <cstdio>    // Replaces <stdio.h>
+    #include <cmath>     // Replaces <math.h>
+    #include <ctime>
 #endif
  
 #define INEXACT                         

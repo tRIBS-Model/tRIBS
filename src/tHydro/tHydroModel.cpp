@@ -1,9 +1,8 @@
 /*******************************************************************************
  * TIN-based Real-time Integrated Basin Simulator (tRIBS)
  * Distributed Hydrologic Model
- * VERSION 5.2
  *
- * Copyright (c) 2024. tRIBS Developers
+ * Copyright (c) 2025. tRIBS Developers
  *
  * See LICENSE file in the project root for full license information.
  ******************************************************************************/
@@ -111,6 +110,18 @@ void tHydroModel::SetHydroMVariables(tInputFile &infile,
 		cout<<"Your option is "<<BRoption<<"\tAssumed UNIFORM case..."<<endl;
 		DtoBedrock = infile.ReadItem(DtoBedrock, "DEPTHTOBEDROCK");
 		DtoBedrock = DtoBedrock*1000.0; //convert to mm
+	}
+	
+	// Read the soil depths. If not in the file, use the original defaults.
+	if (infile.IsItemIn( "SURFACESOILDEPTH" )) {
+		surfaceSoilDepth = infile.ReadItem(surfaceSoilDepth, "SURFACESOILDEPTH");
+	} else {
+		surfaceSoilDepth = 100.0; // Default to 100mm
+	}
+	if (infile.IsItemIn( "ROOTZONEDEPTH" )) {
+		rootZoneDepth = infile.ReadItem(rootZoneDepth, "ROOTZONEDEPTH");
+	} else {
+		rootZoneDepth = 1000.0; // Default to 1000mm
 	}
 
 	// If a decision made to keep the state vars don't change anything,
@@ -429,6 +440,9 @@ void tHydroModel::InitSet(tResample *resamp)
 		Rs_LU   = landPtr->getLandProp(10);
 		V_LU    = landPtr->getLandProp(11);
 		LAI_LU  = landPtr->getLandProp(12);
+		// CJC2025 Stress Thresholds
+		SE_LU   = landPtr->getLandProp(13);
+		ST_LU   = landPtr->getLandProp(14);
 		cn->setLandUseAlb(Al_LU);
 		cn->setLandUseAlbInPrevGrid(Al_LU);
 		cn->setLandUseAlbInUntilGrid(Al_LU);
@@ -465,6 +479,13 @@ void tHydroModel::InitSet(tResample *resamp)
 		cn->setLeafAI(LAI_LU);
 		cn->setLeafAIInPrevGrid(LAI_LU);
 		cn->setLeafAIInUntilGrid(LAI_LU);
+		// CJC2025 Stress Thresholds
+		cn->setEvapThresh(SE_LU);
+		cn->setEvapThreshInPrevGrid(SE_LU);
+		cn->setEvapThreshInUntilGrid(SE_LU);
+		cn->setTransThresh(ST_LU);
+		cn->setTransThreshInPrevGrid(ST_LU);
+		cn->setTransThreshInUntilGrid(ST_LU);
 
 		// SKY2008Snow
 		cn->setLandFact(0.0);
@@ -477,10 +498,16 @@ void tHydroModel::InitSet(tResample *resamp)
 		cn->setQstrm(0.0);
 		cn->setFlowVelocity(0.0);
 
-		cn->setSoilMoisture(ComputeSurfSoilMoist(100.0));
-		cn->setRootMoisture(ComputeSurfSoilMoist(1000.0));
+		cn->setSoilMoisture(ComputeSurfSoilMoist(surfaceSoilDepth));
+		cn->setRootMoisture(ComputeSurfSoilMoist(rootZoneDepth));
 		cn->setSoilMoistureSC(cn->getSoilMoisture()/Ths);
 		cn->setRootMoistureSC(cn->getRootMoisture()/Ths);
+
+        // beta debug, set soil and root cutoff// TODO replace 100.0 and 1000.0 w/ variables for root zone and bedrock
+        cn->setSoilCutoff(get_Upper_Moist(surfaceSoilDepth,bedRock)/surfaceSoilDepth); // volumetric soil moisture content of soil zone if water table reaches bedrock
+        cn->setRootCutoff(get_Upper_Moist(rootZoneDepth,bedRock)/rootZoneDepth);// volumetric soil moisture content of root zone if water table reaches bedrock
+
+
 
 		if (NwtNew)
 			cn->setSoilMoistureUNSC(cn->getMuNew()/NwtNew/Ths);
@@ -555,6 +582,9 @@ void tHydroModel::InitIntegralVars()
 		Rs_LU   = landPtr->getLandProp(10);
 		V_LU    = landPtr->getLandProp(11);
 		LAI_LU  = landPtr->getLandProp(12);
+		// CJC2025 Stress Thresholds
+		SE_LU  = landPtr->getLandProp(13);
+		ST_LU  = landPtr->getLandProp(14);
 		cn->setAvCanStorParam(a_LU);
 		cn->setAvIntercepCoeff(b1_LU);
 		cn->setAvThroughFall(P_LU);
@@ -567,6 +597,8 @@ void tHydroModel::InitIntegralVars()
 		cn->setAvStomRes(Rs_LU);
 		cn->setAvVegFraction(V_LU);
 		cn->setAvLeafAI(LAI_LU);
+		cn->setAvEvapThresh(SE_LU);
+		cn->setAvTransThresh(ST_LU);
 
 		CheckMoistureContent( cn );
 	}
@@ -1090,26 +1122,6 @@ void tHydroModel::UnSaturatedZone(double dt)
                 Mdelt = Ths*NwtOld - (MuOld + R1*dt); // Pixel moisture deficit
 				NwtNew = Newton(Mdelt, NwtOld);
 
-                // account for case where no more moisture is available for evaporation -WR 7/28/23
-                if(NwtNew == DtoBedrock){
-                    double fevap = EvapSoi/(EvapSoi+EvapVeg);
-
-                    EvapSoi = (DtoBedrock-NwtOld)*Ths*fevap; //set remaining moisture in saturated zone to evapsoil proportional to initial estimates of evapsoil
-                    EvapVeg = (DtoBedrock-NwtOld)*Ths*(1-fevap); //same as above but for evap from veg
-
-                    if(EvapSoi!=EvapSoi){
-                        EvapSoi = 0;
-                    }
-
-                    if(EvapVeg!=EvapVeg){
-                        EvapVeg = 0;
-                    }
-
-                    cn->setEvapSoil(EvapSoi);//set remaining moisture in saturated zone to evapsoil proportional to initial estimates of evapsoil
-                    cn->setEvapDryCanopy(EvapVeg);// same as above but for evap from veg
-                    cn->setEvapoTrans(cn->getEvapWetCanopy()+EvapVeg+EvapSoi);
-
-                }
 
 				RiNew = 0.0;
 				RuNew = 0.0;
@@ -2034,7 +2046,7 @@ void tHydroModel::UnSaturatedZone(double dt)
 		cn->setesrf(esrf*dt);
 
 		// Soil moisture in the top 10 cm
-		ThSurf = ComputeSurfSoilMoist(100.0);
+		ThSurf = ComputeSurfSoilMoist(surfaceSoilDepth);
 		cn->setSoilMoisture( ThSurf );
 		cn->setSoilMoistureSC( ThSurf/Ths );
 
@@ -2054,7 +2066,7 @@ void tHydroModel::UnSaturatedZone(double dt)
 		cn->setAvSoilMoisture(floor((BB*AA + ThSurf/Ths)/(AA+1)*1.0E+4));
 
 		// Estimate average root soil moisture
-		ThSurf = ComputeSurfSoilMoist(1000.0);
+		ThSurf = ComputeSurfSoilMoist(rootZoneDepth);
 		cn->setRootMoisture( ThSurf );
 		cn->setRootMoistureSC( ThSurf/Ths );
 		cn->addAvSoilMoisture((Mdelt*AA + ThSurf/Ths)/(AA+1.0)*1.0E-1);
@@ -3476,7 +3488,7 @@ void tHydroModel::SaturatedZone(double dtGW)
 		cn->RechDisch=cn->RechDisch+((NwtOld-NwtNew)+satsrf*dtGW*Cos/Ths)*1.0E-3;
 
 		// Soil moisture in the top 10 cm
-		ThSurf = ComputeSurfSoilMoist(100.0);
+		ThSurf = ComputeSurfSoilMoist(surfaceSoilDepth);
 		cn->setSoilMoisture( ThSurf );
 		cn->setSoilMoistureSC( ThSurf/Ths );
 
@@ -3498,7 +3510,7 @@ void tHydroModel::SaturatedZone(double dtGW)
 		cn->setAvSoilMoisture(floor((BB*AA + ThSurf/Ths)/(AA+1)*1.0E+4));
 
 		// Estimate average root soil moisture
-		ThSurf = ComputeSurfSoilMoist(1000.0);
+		ThSurf = ComputeSurfSoilMoist(rootZoneDepth);
 		cn->setRootMoisture( ThSurf );
 		cn->setRootMoistureSC( ThSurf/Ths );
 		cn->addAvSoilMoisture((Mdelt*AA + ThSurf/Ths)/(AA+1.0)*1.0E-1);
@@ -4467,6 +4479,8 @@ void tHydroModel::writeRestart(fstream & rStr) const
   BinaryWrite(rStr, Rs_LU);
   BinaryWrite(rStr, V_LU);
   BinaryWrite(rStr, LAI_LU);
+  BinaryWrite(rStr, SE_LU);
+  BinaryWrite(rStr, ST_LU);
 
 }
 
@@ -4563,6 +4577,8 @@ void tHydroModel::readRestart(fstream & rStr)
   BinaryRead(rStr, Rs_LU);
   BinaryRead(rStr, V_LU);
   BinaryRead(rStr, LAI_LU);
+  BinaryRead(rStr, SE_LU);
+  BinaryRead(rStr, ST_LU);
 }
 
 //=========================================================================

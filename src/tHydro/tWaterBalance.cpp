@@ -1,9 +1,8 @@
 /*******************************************************************************
  * TIN-based Real-time Integrated Basin Simulator (tRIBS)
  * Distributed Hydrologic Model
- * VERSION 5.2
  *
- * Copyright (c) 2024. tRIBS Developers
+ * Copyright (c) 2025. tRIBS Developers
  *
  * See LICENSE file in the project root for full license information.
  ******************************************************************************/
@@ -182,7 +181,7 @@ void tWaterBalance::UnSaturatedBalance()
 		Run = cNode->getSrf()/unsStep;
 		A = cNode->getVArea();
 		Inf = cNode->getNetPrecipitation();
-        Melt = cNode->getLiqRouted()*10;//WR 12192023: to mm, but implicitly mm/hr as thats total amount melted in 1 hr
+        Melt = cNode->getLiqRouted()*10.0;//WR 12192023: to mm, but implicitly mm/hr as thats total amount melted in 1 hr
 
         if(cNode->getLiqWE() + cNode->getIceWE() > 1e-4){
             Inf = Melt; //WR 12192023: snow on the ground Inf set to Melt

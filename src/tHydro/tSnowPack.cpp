@@ -1,9 +1,8 @@
 /*******************************************************************************
  * TIN-based Real-time Integrated Basin Simulator (tRIBS)
  * Distributed Hydrologic Model
- * VERSION 5.2
  *
- * Copyright (c) 2024. tRIBS Developers
+ * Copyright (c) 2025. tRIBS Developers
  *
  * See LICENSE file in the project root for full license information.
  ******************************************************************************/
@@ -79,7 +78,7 @@ void tSnowPack::SetSnowPackVariables(tInputFile &infile) {
     densityAge = 0.0;
     ETAge = 0.0;
     compactParam = 0.3;
-    rhoSnFreshkg = 100;
+    rhoSnFreshkg = 100.0;
     snOnOff = 0.0;
 }
 
@@ -91,8 +90,8 @@ void tSnowPack::SetSnowInterceptVariables() {
     kc = 0.010; //-
     iceRad = 500e-6; //m
     Mwater = 18.01; //kg/kmol
-    R = 8313; //J/kmol K
-    RdryAir = 287; //J/kg K
+    R = 8313.0; //J/kmol K
+    RdryAir = 287.0; //J/kg K
     nu = 1.3e-5; //m^2/s
     KtAtm = 0.024; //J/msK WR updated value from Liston and Elder
     esatIce = 0.0;
@@ -106,8 +105,8 @@ void tSnowPack::SetSnowVariables(tInputFile &infile) {
 
     //time steps
     timeStepm = infile.ReadItem(timeStepm, "METSTEP");
-    timeSteph = timeStepm / 60;
-    timeSteps = 60 * timeStepm;
+    timeSteph = timeStepm / 60.0;
+    timeSteps = 60.0 * timeStepm;
     minutelyTimeStep = 0.0;
 
     //state variables
@@ -144,8 +143,8 @@ void tSnowPack::SetSnowVariables(tInputFile &infile) {
     cpicekJ = 2.1;
     cpwaterkJ = 4.190;
     cpairkJ = 1.006;
-    latFreezekJ = 334;
-    latVapkJ = 2470;
+    latFreezekJ = 334.0;
+    latVapkJ = 2470.0;
     latSubkJ = latFreezekJ + latVapkJ;
 
     //output variables
@@ -160,9 +159,9 @@ void tSnowPack::SetSnowVariables(tInputFile &infile) {
     kilotonaught = 1e3;
     cgsRHOtomks = 1e3;
     mksRHOtocgs = 1e-3;
-    naughttocm = 100; // Used convert m to cm
+    naughttocm = 100.0; // Used convert m to cm
     cmtonaught = 0.01; // Used convert cm to m
-    ctom = 10;
+    ctom = 10.0;
     mtoc = 0.1;
 
 }
@@ -392,8 +391,8 @@ void tSnowPack::callSnowPack(tIntercept *Intercept, int flag) {
         betaFuncT(cNode); // inherited
 
         // Get Soil/Surface Temperature --WR debug 01032024 same setup as callEvapPotential.
-        // Tso = cNode->getSurfTemp() + 273.15;
-        // Tlo = cNode->getSoilTemp() + 273.15;
+         Tso = cNode->getSurfTemp() + 273.15;
+         Tlo = cNode->getSoilTemp() + 273.15;
 
         //get the necessary information from tCNode for snow model
         getFrNodeSnP(cNode);
@@ -454,7 +453,7 @@ void tSnowPack::callSnowPack(tIntercept *Intercept, int flag) {
             setToNodeSnP(cNode);
         }//end no-snow
 
-        else //condtions include some combination of snowpack and snow in canopy, and snowing, raining, or no precip
+        else //condtions include some combination of snowpack and snow in canopy, and snowing, rain on snow, or no precip
         {
 
             // Implement interception schemes for snow, refactored WR 6/21/23
@@ -584,7 +583,7 @@ void tSnowPack::callSnowPack(tIntercept *Intercept, int flag) {
 
                 //if there is no snow left at this point, then bail out of
                 //energy balance.
-                if ((snWE <= 5e-6) || (snTempC < -800)) {
+                if ((snWE <= 5e-6) || (snTempC < -800.0)) {
                     liqRoute = 0.0;
                     snWE = 0.0;
                     iceWE = 0.0;
@@ -704,7 +703,12 @@ void tSnowPack::callSnowPack(tIntercept *Intercept, int flag) {
             // ET variables are set to zero for canopy when snow in canopy, see tSnowIntercept
             cNode->setEvapSoil(0.0);
             cNode->setActEvap(0.0);
-            cNode->setEvapoTrans(cNode->getEvapWetCanopy() + cNode->getEvapDryCanopy()); //should be set to zero in most cases when snow is present, as its set to zero in callSnowIntercept except for rain on snow events.
+            // This maybe redundant.This setEvapoTrans is called in ComputeETComponets, which
+            // is only called when no snow is in the system or in CallSnowIntercept, if there is
+            // no snow in the canopy.
+            cNode->setEvapoTrans(cNode->getEvapWetCanopy() + cNode->getEvapDryCanopy());
+
+
 
             setToNodeSnP(cNode);
             //setToNode(cNode); // WR 01032024this also being set in callSnowIntercept, may be source of variation in AtmPress?
@@ -738,7 +742,7 @@ void tSnowPack::callSnowPack(tIntercept *Intercept, int flag) {
         EP = ApproximateEP();
 
         // Submit values to climate simulator
-        weatherSimul->ComputeDailyEpCld(EP, SkyC / cnt);
+        weatherSimul->ComputeDailyEpCld(EP, SkyC / static_cast<double>(cnt));
 
         // Assign the radiation variables to the 'tHydrometStoch'
         if (!count) {
@@ -779,7 +783,8 @@ void tSnowPack::callSnowIntercept(tCNode *node, tIntercept *interceptModel, int 
     airTemp = node->getAirTemp();
     airTempK = CtoK(airTemp);
 
-    precip = node->getRain() * coeffV; //precip scaled by veg fraction
+    precip = node->getRain(); // precip should not be scaled by vegfrac CJC 2025
+    // VF scaling here does not match tIntercept logic
     LAI = coeffLAI;
 
     //reinitialize snow interception model
@@ -823,8 +828,7 @@ void tSnowPack::callSnowIntercept(tCNode *node, tIntercept *interceptModel, int 
         node->setHFlux(0.0);
         node->setLFlux(0.0);
         node->setLongRadOut(0.0);
-        node->setSurfTemp(
-                node->getSnTempC()); //assume surface temp == snow temp, note if snWE < 1e-4 snow intercept should not be called
+        node->setSurfTemp(node->getSnTempC()); //assume surface temp == snow temp, note if snWE < 1e-4 snow intercept should not be called
         node->setSoilTemp(node->getSnTempC()); //this should be updated with n-layer snow model
 
         // follows structure of
@@ -903,16 +907,19 @@ void tSnowPack::callSnowIntercept(tCNode *node, tIntercept *interceptModel, int 
         Iold = I; //WR debug moved to below catch for I<0
 
         // SKY2008Snow based on AJR2008's recommendation ends here
-        //set adjusted fluxes and states to node
-        // because precip is now scaled by coeffV these values now only reflect fluxes and stores in the canopy
+
+        // Set adjusted fluxes and states to node
+        // Flux variables represent the flux averaged over the entire voronoi cell (scaled by veg fraction)
+        // State variables represent teh state of the canopy itself (un-scaled by veg fraction)
         node->setIntSWE(naughttocm * (1 / rholiqkg) * I); //length units in cm
-        node->setIntSnUnload(naughttocm * (1 / rholiqkg) * Lm);
-        node->setIntSub(naughttocm * (1 / rholiqkg) * Qcs);
-        node->addIntSub(naughttocm * (1 / rholiqkg) * Qcs);
-        node->addIntUnl(naughttocm * (1 / rholiqkg) * Lm);
+        node->setIntSnUnload(naughttocm * (1 / rholiqkg) * Lm * coeffV);
+        node->setIntSub(naughttocm * (1 / rholiqkg) * Qcs * coeffV);
+        node->addIntSub(naughttocm * (1 / rholiqkg) * Qcs * coeffV);
+        node->addIntUnl(naughttocm * (1 / rholiqkg) * Lm * coeffV);
         node->setIntPrec(Isnow * (1 / rholiqkg) * naughttocm);
-        // Rate for the _ENTIRE_ cell:
-        node->setNetPrecipitation(throughfall + (1 - coeffV) * node->getRain());
+        // Rain rate for the _ENTIRE_ cell:
+        double total_net_precip = (throughfall * coeffV) + (node->getRain() * (1 - coeffV));
+        node->setNetPrecipitation(total_net_precip);
         // note mm and kg/m^2 requires no conversion
 
         //set wet and dry evap to 0 when snow in canopy
@@ -1170,11 +1177,25 @@ double tSnowPack::densityFromAge() {
 double tSnowPack::latentHFCalc(double Kaero) {
 
     double lhf;
-    if (snTempC == 0.0)
+    double snTemp_corr = snTempC;
+
+    // If snowpack has liquid then make sure temp isn't below 0C
+    if (liqWE > 1e-5) {
+        snTemp_corr = 0.0;
+    }
+
+    // If the snow surface is at or above the melting point, the process is evaporation.
+    if (snTemp_corr == 0.0) {
+        // Use latent heat of vaporization.
         lhf = (latVapkJ * 0.622 * rhoAir * Kaero * (vPress - 6.111) / atmPress); //evaporation by THM 2012
-    else
-        lhf = (latSubkJ * 0.622 * rhoAir * Kaero * (vPress - 6.112 * exp((17.67 * snTempC) / (snTempC + 243.5))) /
+    // If the snow surface is frozen, the process is sublimation.
+    } else {
+        // Use latent heat of sublimation.
+        // Should we be using Clausius-Clapeyron here for the vapor pressure (liquid water) or should it be for ice?
+        // Could use Magnus-Tetens formula for ice vapor pressure.
+        lhf = (latSubkJ * 0.622 * rhoAir * Kaero * (vPress - 6.112 * exp((17.67 * snTemp_corr) / (snTemp_corr + 243.5))) /
                atmPress); //sublimation by THM 2012
+    }
     return lhf;
 }
 
@@ -1195,8 +1216,14 @@ double tSnowPack::latentHFCalc(double Kaero) {
 double tSnowPack::sensibleHFCalc(double Kaero) {
 
     double shf;
+    double snTemp_corr = snTempC;
 
-    shf = (rhoAir * cpairkJ * Kaero * ((airTemp + 273.15) - (snTempC + 273.15)));
+    // If snowpack has liquid then make sure temp isn't below 0C
+    if (liqWE > 1e-5) {
+        snTemp_corr = 0.0;
+    }
+
+    shf = (rhoAir * cpairkJ * Kaero * ((airTemp + 273.15) - (snTemp_corr + 273.15)));
     return shf;
 }
 
@@ -1309,10 +1336,25 @@ double tSnowPack::precipitationHFCalc() {
 double tSnowPack::agingAlbedo() {
     double alb;
 
-    if (liqWE < 1e-5)
-        alb = 0.85 * pow(0.94, pow(crustAge / 24, 0.58)); // dry snow
-    else
-        alb = 0.85 * pow(0.82, pow(crustAge / 24, 0.46)); // wet snow
+    // Albedo Parameters for Central Arizona
+    // Based on Sun et al. (2019) and general values for dusty, ephemeral snowpacks.
+    const double snInitialAlbedo = 0.85; // Albedo of fresh, new snow.
+    const double snLambdaDry     = 0.96; // Decay factor for dry snow aging.
+    const double snLambdaWet     = 0.87; // Faster decay factor for wet/melting snow.
+    const double snMinAlbedo     = 0.45; // Minimum albedo for old, "dirty" snow.
+
+    if (liqWE < 1.0E-5) {
+        // Dry snow aging
+        alb = snInitialAlbedo * pow(snLambdaDry, pow(crustAge / 24.0, 0.58));
+    } else {
+        // Wet snow aging
+        alb = snInitialAlbedo * pow(snLambdaWet, pow(crustAge / 24.0, 0.46));
+    }
+
+    // Enforce the minimum albedo floor
+    if (alb < snMinAlbedo) {
+        alb = snMinAlbedo;
+    }
 
     return alb;
 }
@@ -1329,62 +1371,99 @@ double tSnowPack::agingAlbedo() {
 //-----------------------------------------------------------------------------------
 
 double tSnowPack::resFactCalc() {
-
+    const double vonKarm = 0.41;
+    const double g = 9.81;
+    double windSpeedC, windSpeedS; // windspeed 2 meters above canopy & snow/surface JB2025 @ASU
     double rf, ra;
-    double vonKarm = 0.41;
-    double vegHeight, vegFrac, vegBare, windSpeedBare;
+    double vegHeight, vegFrac, vegBare;
     double zm, zom, zov, d, rav, ras;
+	double Ri_cr = 0.1;  // Critical Richardson number, 0.2 is the most aggresive
 
-    if (coeffH == 0)
-        vegHeight = 0.1;
-    else
-        vegHeight = coeffH; // vegHeight in meters
+    windSpeedC = (windSpeed == 0.0 || fabs(windSpeed - 9999.99) < 1e-3) ? 0.01 : windSpeed;
 
-    //THM 2012 added for grassland
-    if (coeffH < 1) {
-        vegHeight = coeffH / 250;
-        coeffV = 0.1;
-    } else {
-        vegHeight = coeffH;
-    }
-    if (vegHeight > snDepthm) {
-        vegHeight = vegHeight - snDepthm;
-    } else {
-        vegHeight = 0.1; // aka height of snow
-    }
+    // Vegetation height adjusted for snow
+    vegHeight = (coeffH <= 0) ? 0.1 : coeffH;
+    vegHeight = (vegHeight > snDepthm) ? vegHeight - snDepthm : 0.1;
 
-    vegBare = 0.1; // height of bare soilc
-
+    vegBare = 0.1;
     vegFrac = coeffV;
-
-    if (windSpeed == 0.0 || fabs(windSpeed - 9999.99) < 1e-3) {
-        windSpeedC = 0.01;    //Minimum wind speed (m/s)
-    } else {
-        windSpeedC = windSpeed;
-    }
 
     // Compute below canopy windspeed at snow surface following equation Moreno et al. (2016) CJC 2020
     if (snDepthm < coeffH) {
-        windSpeedC = windSpeedC * exp(-0.5 * coeffLAI * (1 - (snDepthm / coeffH)));
+        windSpeedS = windSpeedC * exp(-0.5 * coeffLAI * (1.0 - (snDepthm / coeffH)));
+    } else {
+        windSpeedS = windSpeedC;  // No canopy attenuation
     }
 
-    // Compute aerodynamic resistance for vegetation
+    // --- Aerodynamic resistance for vegetation ---
     zm = 2.0 + vegHeight;
-    zom = 0.13 * vegHeight;
-    zov = 0.013 * vegHeight;
+    zom = 0.123 * vegHeight;
+    zov = 0.0123 * vegHeight;
     d = 0.67 * vegHeight;
-    rav = log((zm - d) / zom) * log((zm - d) / zov) / (windSpeedC * pow(vonKarm, 2));
 
-    // Compute aerodynamic resistance for bare soil
+    rav = log((zm - d) / zom) * log((zm - d) / zov) / (windSpeedC * pow(vonKarm, 2)); //Uses canopy level wind speed
+
+    // --- Aerodynamic resistance for bare soil ---
     zm = 2.0 + vegBare;
-    zom = 0.13 * vegBare;
-    zov = 0.013 * vegBare;
+    zom = 0.123 * vegBare;
+    zov = 0.0123 * vegBare;
     d = 0.67 * vegBare;
 
-    ras = log((zm - d) / zom) * log((zm - d) / zov) / (windSpeedC * pow(vonKarm, 2));
+    ras = log((zm - d) / zom) * log((zm - d) / zov) / (windSpeedS * pow(vonKarm, 2)); // Uses snow/surface level wind
 
+    // Weighted resistance
     ra = (1 - vegFrac) * ras + vegFrac * rav;
-    rf = 1 / ra; // Otherwise known as kaero
+
+    // If snowpack has liquid then make sure snow temp isn't below 0C
+    double Ts; // Snow temperature in K
+    if (liqWE > 1e-5) {
+        Ts = 273.15;
+    } else {
+        Ts = snTempC + 273.15; 
+    }
+
+    double Ta = airTemp + 273.15;    // Air temp in K
+    double T_avg = 0.5 * (Ta + Ts);  // Mean temp
+    // Effective vertical distance between reference air temperature (2 m AGL) and snow surface.
+    // If snow depth exceeds 2 m, zm_eff becomes negative or zero, which is non-physical.
+    // Clamp to minimum of 0.1 m to preserve numerical stability in RiB calculation.
+    double zm_eff = std::max(0.1, 2.0 - snDepthm);
+    double z0 = 0.123 * vegHeight;    // Roughness length, same as zom above
+
+    // Considering atmospheric stability, Andreadis et al. (2009), JB2025 @ASU
+    // https://doi.org/10.1029/2008WR007042
+
+    // Bulk Richardson Number (Eq. 17)
+    // Use windSpeedS (attenuated wind at snow surface) in RiB calc.
+    // Though Ta is from 2m AGL, we prioritize the snow–air interface.
+    // This matches the aerodynamic resistance formulation and maintains internal consistency.
+    double RiB = (g * zm_eff * (Ta - Ts)) / (T_avg * windSpeedS* windSpeedS);
+
+    // Compute upper limit Ri_u (Eq. 24)
+    double Ri_u = 1.0 / (log(zm_eff / z0) + 5.0);
+
+    // Stability correction factor
+    double C_stab;
+    if (RiB < 0.0) {
+        // Unstable conditions (Eq. 19)
+        C_stab = pow(1.0 - 16.0 * RiB, 0.5);
+    } else if (RiB <= Ri_u) {
+        // Stable but not extreme (Eq. 25)
+        C_stab = 1.0 / pow(1.0 - (RiB / Ri_cr), 2.0);
+    } else {
+        // Very stable, capped (Eq. 26)
+        C_stab = 1.0 / pow(1.0 - (Ri_u / Ri_cr), 2.0);
+    }
+
+	// Clamp the stability correction factor to a reasonable range
+	// As RiB approaches Ri_cr, C_stab approaches infinity, so we limit it
+	if (C_stab > 15.0) { C_stab = 15.0; } // kaero can at most be 15 times the original value
+
+    // Apply correction to aerodynamic resistance
+    ra *= C_stab;
+
+    // Convert resistance to conductance
+    rf = 1.0 / ra; // Otherwise known as kaero
 
     return rf;
 }
@@ -1413,7 +1492,11 @@ double tSnowPack::resFactCalc() {
 void tSnowPack::computeSub() {
 
     //compute incoming shortwave radiation
-    inShortR = inShortWaveCan();// W
+    // inShortR = inShortWaveCan();// Currently commented out since inShortWaveCan is non-functional.
+    // InshortR was being set to zero here, because Isw = Iv * (1.0 - albedo), and Iv was zero. Also not clear if InShortR
+    // was properly being reset as it's replaced by Isw which is consists of multiple components that need to be further evaluated.
+    // Lastly it appears that albedo is already called below, making this redundant  Isw = Iv * (1.0 - albedo). This function
+    // needs to be refactored or maybe deprecated.
 
     //compute effective incident shortwave radiation on snow crystal
     Sp = PI * pow(iceRad, 2.0) * (1 - albedo) * inShortR;//check units--check (W)//WR debug change 0.8 to albedo
@@ -1675,9 +1758,11 @@ double tSnowPack::inShortWaveCan() {
     double v, cosi, scover;
     double RadGlobClr;
 
-    // WR refactor 8-31-2023, this is a almost the same as inShortWave, but returns Isw before
+    // WR refactor 8-31-2023 this is a almost the same as inShortWave, but returns Isw before
     // accounting for the effects of optical transmission through the canopy. There is
-    // certainly a cleaner way to do this, but for now this will have to do.
+    // certainly a cleaner way to do this, but for now this will have to do. Note this was originally in tSnowIntercept
+    // which was removed because it was mostly redundant. See original tSnowIntercept code/documentation for information
+    // on the original intent of this function.
 
     Ic = Is = Id = Ir = Ids = Ics = Isw = Iv = 0.0;
 
@@ -1801,6 +1886,8 @@ double tSnowPack::inShortWaveCan() {
             Ir = 0.0;
             Is = Is;
         }
+        Iv = Is; // added 6/3/2024 otherwise function returns zero, but still not fixed since it called in computeSub which
+        // then also factors for albedo. So maybe line below needs to be commented out?
 
         // Account for albedo
         Isw = Iv * (1.0 - albedo);

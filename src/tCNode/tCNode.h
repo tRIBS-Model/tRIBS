@@ -1,9 +1,8 @@
 /*******************************************************************************
  * TIN-based Real-time Integrated Basin Simulator (tRIBS)
  * Distributed Hydrologic Model
- * VERSION 5.2
  *
- * Copyright (c) 2024. tRIBS Developers
+ * Copyright (c) 2025. tRIBS Developers
  *
  * See LICENSE file in the project root for full license information.
  ******************************************************************************/
@@ -147,6 +146,7 @@ public:
   double getShortRadIn_dif();
   double getShortAbsbVeg();
   double getShortAbsbSoi();
+  double getShortRadSlope();    /// Get back the raw slope‐corrected irradiance, JB2025
 
   double getLongRadIn();
   double getLongRadOut();
@@ -206,6 +206,7 @@ public:
   double getInitPackTime();//integratedoutput
   double getInitPackTimeTemp();
   double getPeakPackTime();//integratedoutput
+
   //snowintercept
   double getIntSWE();//state
   double getIntPrec();//flux
@@ -275,6 +276,9 @@ public:
   double getOptTransmCoeff();
   double getLeafAI();
   double getCanStorParam();
+  // CJC2025: New Parameters
+  double getEvapThresh();
+  double getTransThresh();
 
   // SKYnGM2008LU
   double getLandUseAlbInPrevGrid();
@@ -301,6 +305,13 @@ public:
   double getOptTransmCoeffInUntilGrid();
   double getLeafAIInPrevGrid();
   double getLeafAIInUntilGrid();
+  // CJC2025: New Parameters
+  double getEvapThreshInPrevGrid();
+  double getEvapThreshInUntilGrid();
+  double getTransThreshInPrevGrid();
+  double getTransThreshInUntilGrid();
+
+
 
   // SKYnGM2008LU
   double getAvCanStorParam();
@@ -315,6 +326,9 @@ public:
   double getAvStomRes();
   double getAvVegFraction();
   double getAvLeafAI();
+  // CJC2025: New Parameters
+  double getAvEvapThresh();
+  double getAvTransThresh();
 
   double getAvSoilMoisture();         // Integral characteristics
   double getAvEvapFract();
@@ -390,7 +404,7 @@ public:
   void setPorosity(double);
   void setVolHeatCond(double);
   void setSoilHeatCap(double);
-
+  
   void setTTime(double);               //Routing Members
   void setHillPath(double);   
   void setStreamPath(double); 
@@ -428,6 +442,7 @@ public:
   void setShortRadIn_dif(double);
   void setShortAbsbVeg(double);
   void setShortAbsbSoi(double);
+  void setShortRadSlope(double); /// Set the slope‐corrected incoming shortwave (before canopy/albedo), JB2025
 
   void setLongRadIn(double);
   void setLongRadOut(double);
@@ -463,6 +478,9 @@ public:
   void setOptTransmCoeff(double);
   void setLeafAI(double);
   void setCanStorParam(double);
+  // CJC2025: New Parameters
+  void setEvapThresh(double);
+  void setTransThresh(double);
 
   void setLandUseAlbInPrevGrid(double);
   void setLandUseAlbInUntilGrid(double);
@@ -488,6 +506,11 @@ public:
   void setOptTransmCoeffInUntilGrid(double);
   void setLeafAIInPrevGrid(double);
   void setLeafAIInUntilGrid(double);
+  // CJC2025: New Parameters
+  void setEvapThreshInPrevGrid(double);
+  void setEvapThreshInUntilGrid(double);
+  void setTransThreshInPrevGrid(double);
+  void setTransThreshInUntilGrid(double);
 
   // SKYnGM2008LU
   void setAvCanStorParam(double);
@@ -502,6 +525,9 @@ public:
   void setAvStomRes(double);
   void setAvVegFraction(double);
   void setAvLeafAI(double);
+  // CJC2025: New Parameters
+  void setAvEvapThresh(double);
+  void setAvTransThresh(double);
 
   void setAvSoilMoisture(double);     // Integral characteristics
   void setAvEvapFract(double);
@@ -645,6 +671,14 @@ public:
   double percOccur;		// ASM Channel Percolation Occurence
   double avPerc;		// ASM Channel Percolation Occurence
 
+  // for beta cutoff statements
+  void setSoilCutoff(double);
+  void setRootCutoff(double);
+
+  double getSoilCutoff();
+  double getRootCutoff();
+
+
 protected:
   double ContrArea;             // Surface contributing area for the node 
   double Curvature;             // Topographic curvature of the element 
@@ -706,6 +740,7 @@ protected:
   double BedrockDepth;
   double ShortRadIn, ShortRadIn_dir, ShortRadIn_dif;
   double ShortAbsbVeg, ShortAbsbSoi;
+  double ShortRadSlope;   // raw incoming shortwave on the slope (pre‐canopy/albedo), JB2025 @ ASU
   double LongRadIn;
   double LongRadOut;
   double gFlux;
@@ -789,6 +824,9 @@ protected:
   double OptTransmCoeff;
   double LeafAI;
   double CanStorParam;
+  // CJC2025: New Parameters
+  double EvapThresh;
+  double TransThresh;
 
   // SKYnGM2008LU
   double LandUseAlbInPrevGrid, LandUseAlbInUntilGrid, ThroughFallInPrevGrid, ThroughFallInUntilGrid;
@@ -797,11 +835,13 @@ protected:
   double IntercepCoeffInPrevGrid,IntercepCoeffInUntilGrid, CanFieldCapInPrevGrid, CanFieldCapInUntilGrid;
   double DrainCoeffInPrevGrid, DrainCoeffInUntilGrid, DrainExpParInPrevGrid, DrainExpParInUntilGrid;
   double OptTransmCoeffInPrevGrid, OptTransmCoeffInUntilGrid, LeafAIInPrevGrid, LeafAIInUntilGrid;
+  double EvapThreshInPrevGrid, EvapThreshInUntilGrid, TransThreshInPrevGrid, TransThreshInUntilGrid; // CJC2025: New Parameters
 
   // SKYnGM2008LU
   double AvCanStorParam, AvIntercepCoeff, AvThroughFall, AvCanFieldCap;
   double AvDrainCoeff, AvDrainExpPar, AvLandUseAlb, AvVegHeight;
   double AvOptTransmCoeff, AvStomRes, AvVegFraction, AvLeafAI;
+  double AvEvapThresh, AvTransThresh; // CJC2025: New Parameters
 
   double AvSoilMoisture;        // Integral characteristics
   double AvEvapFract;
@@ -872,6 +912,12 @@ protected:
 
   double xC;
   double yC;
+
+
+  // update to beta functions, variable store cutoff of soil and dry canopy evap once Nwt = Bedrock
+  double soil_cutoff;
+  double root_cutoff;
+
 
 };
 
