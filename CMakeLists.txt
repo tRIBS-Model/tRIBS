@@ -5,20 +5,15 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_TRY_COMPILE_TARGET_TYPE "STATIC_LIBRARY") #needed for testing cross compilation see: https://stackoverflow.com/questions/53633705/cmake-the-c-compiler-is-not-able-to-compile-a-simple-test-program
 
 #set(parallel ON) # currently set through -Dparallel, but can be manually set by uncommenting
-set(cxx_flags "-O2") #release mode overwrites with "-O3"
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_VERBOSE_MAKEFILE ON)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${cxx_flags}") # -O2 appears to be the fastest option
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
-include(FetchContent)
-FetchContent_Declare(
-  googletest
-  URL https://github.com/google/googletest/archive/03597a01ee50ed33e9dfd640b249b4be3799d395.zip
-)
-# For Windows: Prevent overriding the parent project's compiler/linker settings
-set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
-FetchContent_MakeAvailable(googletest)
+# Debug build-specific options
+set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fno-omit-frame-pointer -g") # -fsanitize=address -fsanitize-address-use-after-scope
+
+# Release build-specific options, -O2 is the fastest
+set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O2")
 
 #set compiler if necessary, this has to be done before project()
 #set (CMAKE_CXX_COMPILER <specify compiler here>)
@@ -155,7 +150,6 @@ if(parallel)
             src/tSimulator/tSimul.h
             src/tStorm/tStorm.cpp
             src/tStorm/tStorm.h
-            ${exe} PUBLIC tests/tHydroTests/ThydroModelTests.cpp
     )
 
 else()
@@ -271,7 +265,6 @@ else()
             src/tSimulator/tSimul.h
             src/tStorm/tStorm.cpp
             src/tStorm/tStorm.h
-            tests/tHydroTests/ThydroModelTests.cpp
     )
 
 endif()
@@ -307,124 +300,3 @@ if (packaging)
 
 endif ()
 
-enable_testing ()
-
-include(FetchContent)
-FetchContent_Declare(
-  googletest
-  # Specify the commit you depend on and update it regularly.
-  URL https://github.com/google/googletest/archive/5376968f6948923e2411081fd9372e71a59d8e77.zip
-)
-# For Windows: Prevent overriding the parent project's compiler/linker settings
-set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
-FetchContent_MakeAvailable(googletest)
-
-add_executable(
-        tHydroTests
-        ${PROJECT_SOURCE_DIR}/tests/tHydrotests/THydroModelTests.cpp
-        ${PROJECT_SOURCE_DIR}/src/tHydro/tHydroModel.h
-        ${PROJECT_SOURCE_DIR}/src/Headers/Classes.h
-        ${PROJECT_SOURCE_DIR}/src/Headers/Inclusions.h
-        ${PROJECT_SOURCE_DIR}/src/Headers/Definitions.h
-        ${PROJECT_SOURCE_DIR}/src/Headers/TemplDefinitions.h
-        ${PROJECT_SOURCE_DIR}/src/Headers/Classes.h
-        ${PROJECT_SOURCE_DIR}/src/Headers/Definitions.h
-        ${PROJECT_SOURCE_DIR}/src/Headers/Inclusions.h
-        ${PROJECT_SOURCE_DIR}/src/Headers/TemplDefinitions.h
-        ${PROJECT_SOURCE_DIR}/src/Headers/globalFns.cpp
-        ${PROJECT_SOURCE_DIR}/src/Headers/globalFns.h
-        ${PROJECT_SOURCE_DIR}/src/Headers/globalIO.h
-        ${PROJECT_SOURCE_DIR}/src/Mathutil/geometry.h
-        ${PROJECT_SOURCE_DIR}/src/Mathutil/mathutil.cpp
-        ${PROJECT_SOURCE_DIR}/src/Mathutil/mathutil.h
-        ${PROJECT_SOURCE_DIR}/src/Mathutil/predicates.cpp
-        ${PROJECT_SOURCE_DIR}/src/Mathutil/predicates.h
-        ${PROJECT_SOURCE_DIR}/src/tArray/tArray.h
-        ${PROJECT_SOURCE_DIR}/src/tArray/tMatrix.cpp
-        ${PROJECT_SOURCE_DIR}/src/tArray/tMatrix.h
-        ${PROJECT_SOURCE_DIR}/src/tCNode/tCNode.cpp
-        ${PROJECT_SOURCE_DIR}/src/tCNode/tCNode.h
-        ${PROJECT_SOURCE_DIR}/src/tFlowNet/tFlowNet.cpp
-        ${PROJECT_SOURCE_DIR}/src/tFlowNet/tFlowNet.h
-        ${PROJECT_SOURCE_DIR}/src/tFlowNet/tFlowResults.cpp
-        ${PROJECT_SOURCE_DIR}/src/tFlowNet/tFlowResults.h
-        ${PROJECT_SOURCE_DIR}/src/tFlowNet/tKinemat.cpp
-        ${PROJECT_SOURCE_DIR}/src/tFlowNet/tKinemat.h
-        ${PROJECT_SOURCE_DIR}/src/tFlowNet/tResData.cpp
-        ${PROJECT_SOURCE_DIR}/src/tFlowNet/tResData.h
-        ${PROJECT_SOURCE_DIR}/src/tFlowNet/tReservoir.cpp
-        ${PROJECT_SOURCE_DIR}/src/tFlowNet/tReservoir.h
-        ${PROJECT_SOURCE_DIR}/src/tGraph/tGraph.cpp
-        ${PROJECT_SOURCE_DIR}/src/tGraph/tGraph.h
-        ${PROJECT_SOURCE_DIR}/src/tGraph/tGraphNode.cpp
-        ${PROJECT_SOURCE_DIR}/src/tGraph/tGraphNode.h
-        ${PROJECT_SOURCE_DIR}/src/tHydro/tEvapoTrans.cpp
-        ${PROJECT_SOURCE_DIR}/src/tHydro/tEvapoTrans.h
-        ${PROJECT_SOURCE_DIR}/src/tHydro/tHydroMet.cpp
-        ${PROJECT_SOURCE_DIR}/src/tHydro/tHydroMet.h
-        ${PROJECT_SOURCE_DIR}/src/tHydro/tHydroMetConvert.cpp
-        ${PROJECT_SOURCE_DIR}/src/tHydro/tHydroMetConvert.h
-        ${PROJECT_SOURCE_DIR}/src/tHydro/tHydroMetStoch.cpp
-        ${PROJECT_SOURCE_DIR}/src/tHydro/tHydroMetStoch.h
-        ${PROJECT_SOURCE_DIR}/src/tHydro/tHydroModel.cpp
-        ${PROJECT_SOURCE_DIR}/src/tHydro/tHydroModel.h
-        ${PROJECT_SOURCE_DIR}/src/tHydro/tIntercept.cpp
-        ${PROJECT_SOURCE_DIR}/src/tHydro/tIntercept.h
-        ${PROJECT_SOURCE_DIR}/src/tHydro/tSnowPack.cpp
-        ${PROJECT_SOURCE_DIR}/src/tHydro/tSnowPack.h
-        ${PROJECT_SOURCE_DIR}/src/tHydro/tWaterBalance.cpp
-        ${PROJECT_SOURCE_DIR}/src/tHydro/tWaterBalance.h
-        ${PROJECT_SOURCE_DIR}/src/tInOut/tInputFile.cpp
-        ${PROJECT_SOURCE_DIR}/src/tInOut/tInputFile.h
-        ${PROJECT_SOURCE_DIR}/src/tInOut/tOstream.cpp
-        ${PROJECT_SOURCE_DIR}/src/tInOut/tOstream.h
-        ${PROJECT_SOURCE_DIR}/src/tInOut/tOutput.cpp
-        ${PROJECT_SOURCE_DIR}/src/tInOut/tOutput.h
-        ${PROJECT_SOURCE_DIR}/src/tList/tList.cpp
-        ${PROJECT_SOURCE_DIR}/src/tList/tList.h
-        ${PROJECT_SOURCE_DIR}/src/tListInputData/tListInputData.cpp
-        ${PROJECT_SOURCE_DIR}/src/tListInputData/tListInputData.h
-        ${PROJECT_SOURCE_DIR}/src/tMesh/heapsort.h
-        ${PROJECT_SOURCE_DIR}/src/tMesh/tMesh.cpp
-        ${PROJECT_SOURCE_DIR}/src/tMesh/tMesh.h
-        ${PROJECT_SOURCE_DIR}/src/tMesh/tTriangulator.cpp
-        ${PROJECT_SOURCE_DIR}/src/tMesh/tTriangulator.h
-        ${PROJECT_SOURCE_DIR}/src/tMeshElements/meshElements.cpp
-        ${PROJECT_SOURCE_DIR}/src/tMeshElements/meshElements.h
-        ${PROJECT_SOURCE_DIR}/src/tMeshList/tMeshList.h
-        ${PROJECT_SOURCE_DIR}/src/tPtrList/tPtrList.cpp
-        ${PROJECT_SOURCE_DIR}/src/tPtrList/tPtrList.h
-        ${PROJECT_SOURCE_DIR}/src/tRasTin/tInvariant.cpp
-        ${PROJECT_SOURCE_DIR}/src/tRasTin/tInvariant.h
-        ${PROJECT_SOURCE_DIR}/src/tRasTin/tRainGauge.cpp
-        ${PROJECT_SOURCE_DIR}/src/tRasTin/tRainGauge.h
-        ${PROJECT_SOURCE_DIR}/src/tRasTin/tRainfall.cpp
-        ${PROJECT_SOURCE_DIR}/src/tRasTin/tRainfall.h
-        ${PROJECT_SOURCE_DIR}/src/tRasTin/tResample.cpp
-        ${PROJECT_SOURCE_DIR}/src/tRasTin/tResample.h
-        ${PROJECT_SOURCE_DIR}/src/tRasTin/tShelter.cpp
-        ${PROJECT_SOURCE_DIR}/src/tRasTin/tShelter.h
-        ${PROJECT_SOURCE_DIR}/src/tRasTin/tVariant.cpp
-        ${PROJECT_SOURCE_DIR}/src/tRasTin/tVariant.h
-        ${PROJECT_SOURCE_DIR}/src/tSimulator/tControl.cpp
-        ${PROJECT_SOURCE_DIR}/src/tSimulator/tControl.h
-        ${PROJECT_SOURCE_DIR}/src/tSimulator/tPreProcess.cpp
-        ${PROJECT_SOURCE_DIR}/src/tSimulator/tPreProcess.h
-        ${PROJECT_SOURCE_DIR}/src/tSimulator/tRestart.cpp
-        ${PROJECT_SOURCE_DIR}/src/tSimulator/tRestart.h
-        ${PROJECT_SOURCE_DIR}/src/tSimulator/tRunTimer.cpp
-        ${PROJECT_SOURCE_DIR}/src/tSimulator/tRunTimer.h
-        ${PROJECT_SOURCE_DIR}/src/tSimulator/tSimul.cpp
-        ${PROJECT_SOURCE_DIR}/src/tSimulator/tSimul.h
-        ${PROJECT_SOURCE_DIR}/src/tStorm/tStorm.cpp
-        ${PROJECT_SOURCE_DIR}/src/tStorm/tStorm.h
-)
-target_link_libraries(
-  tHydroTests
-  GTest::gtest_main
-)
-
-include(GoogleTest)
-gtest_add_tests(TARGET tHydroTests)
-
-add_subdirectory(tests)

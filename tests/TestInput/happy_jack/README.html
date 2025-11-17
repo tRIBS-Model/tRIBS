@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>README</title>
+  <style>
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+  <link rel="stylesheet" href="doc/documentation/github.css" />
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">README</h1>
+</header>
+<h1
+id="tin-based-real-time-integrated-basin-simulator-point-scale-benchmark">TIN-Based
+Real-Time Integrated Basin Simulator point-scale benchmark</h1>
+<p>This repository hosts the setup for executing a point-scale model of
+the <a href="https://wcc.sc.egov.usda.gov/nwcc/site?sitenum=969">Happy
+Jack SNOTEL Site</a> in Northern Arizona, USA, using the TIN-Based
+Real-Time Integrated Basin Simulator (<a
+href="https://tribshms.readthedocs.io/en/latest/">tRIBS</a>). tRIBS v5.2
+(or later) uses CMake as a build system, instructions on downloading and
+building tRIBS can be found <a
+href="https://tribshms.readthedocs.io/en/latest/man/Model_Execution.html#compilation-instructions">here</a>.
+Or alternatively one may use the tRIBS docker image, more information on
+this can be found <a
+href="https://tribshms.readthedocs.io/en/latest/man/Docker.html#docker">here</a>.</p>
+<h2 id="model-execution">Model Execution</h2>
+<p>From the command line tRIBS can be executed as follows, assuming the
+executable is stored in the sub-directory <code>bin</code>:</p>
+<pre><code>bin/tRIBS &lt;path/to/infile&gt;</code></pre>
+<p>In this case the happy jack input files can be found in
+<code>src/in_files/happy_jack.in</code> and can be further modified to
+explore tRIBS functionality. Note: the current input file is setup with
+relative paths and results will be saved to <code>results/test</code>.
+Also, any modification in <code>data/model</code> may require an update
+of the .in file.</p>
+<h2 id="benchmark">Benchmark</h2>
+<p>The benchmark case results are stored as a zip file under
+<code>results/reference</code>. These results can be visualized in
+comparison to SNOTEL<a href="#fn1" class="footnote-ref" id="fnref1"
+role="doc-noteref"><sup>1</sup></a><sup>,</sup><a href="#fn2"
+class="footnote-ref" id="fnref2" role="doc-noteref"><sup>2</sup></a>
+data for the Happy Jack site as demonstrated in the jupyter notebook in
+<code>src/tRIBS_snotel_comparison.ipynb</code>.</p>
+<h2 id="directory-structure">Directory Structure:</h2>
+<h3 id="data">data</h3>
+<p>Contains all the necessary data to run tRIBS at Happy Jack and
+includes Snotel and SWANN data as a calibration/validation set.</p>
+<h3 id="doc">doc</h3>
+<p>Contains notebooks for running and analyzing this specific benchmark
+case, along side additional documentation.</p>
+<h3 id="src">src</h3>
+<p>Is designed to contain source code for for the tRIBS executable,
+which can be obtained <a
+href="https://github.com/tribshms/tRIBS">here</a>.</p>
+<h3 id="bin">bin</h3>
+<p>Directory for building and storing tRIBS executable, with
+instructions <a
+href="https://tribshms.readthedocs.io/en/latest/man/Model_Execution.html#compilation-instructions">here</a>.</p>
+<h3 id="results">results</h3>
+<p>Directory for results, with a <em>reference</em> and <em>test</em>
+sub-directories. The former contains reference outputs from the Happy
+Jack point tRIBS simulation, while the later is empty and intended to
+store additional model simulations. Note the main results also contains
+a zip of the <em>reference</em> sub-directory.</p>
+<h2 id="references">References</h2>
+<section id="footnotes" class="footnotes footnotes-end-of-document"
+role="doc-endnotes">
+<hr />
+<ol>
+<li id="fn1"><p>Sun N, H Yan, M Wigmosta, R Skaggs, R Leung, and Z Hou.
+2019. “Regional snow parameters estimation for large-domain hydrological
+applications in the western United States.” Journal of Geophysical
+Research: Atmospheres. doi: 10.1029/2018JD030140<a href="#fnref1"
+class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+<li id="fn2"><p>Yan H, N Sun, M Wigmosta, R Skaggs, Z Hou, and R Leung.
+2018. “Next-generation intensity-duration-frequency curves for
+hydrologic design in snow-dominated environments.” Water Resources
+Research, 54(2), 1093–1108. BCQC Data Format<a href="#fnref2"
+class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+</ol>
+</section>
+</body>
+</html>
