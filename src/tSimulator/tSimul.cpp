@@ -54,10 +54,8 @@ Simulator::Simulator(SimulationControl *simctrlptr, tRainfall *rainptr,
 	outp->WriteOutput( 0 );
 	
 	// Get rainsearch if rainfall used
-	if (rainIn->getoptStorm() == 0) {
-		if (rainIn->rainfallType == 1 || rainIn->rainfallType == 2) {
-			searchRain = rainIn->searchRain;     // Rainfall search threshold
-		}
+	if (rainIn->rainfallType == 1) {
+		searchRain = rainIn->searchRain;     // Rainfall search threshold
 	}
 	count = 0;
 }
@@ -97,8 +95,6 @@ void Simulator::initialize_simulation(tEvapoTrans *EvapoTrans, tSnowPack *SnowPa
     /*  removed command line arguments that should be specified in input file
     "OPTGROUNDWATER" -G    Run groundwater model: GW_model_label
     "OPTSPATIAL" -R    Write intermediate states (spatial output): inter_results
-    "OPTINTERHYDRO")-H    Write intermediate hydrographs (.mrf): hydrog_results
-    "OPTHEADER"); -M    Do NOT Write headers in pixel/hydrograph/voronoi output files: : Header_label
     */
 
     if (InFl.IsItemIn( "OPTGROUNDWATER" ))
@@ -111,11 +107,6 @@ void Simulator::initialize_simulation(tEvapoTrans *EvapoTrans, tSnowPack *SnowPa
     else
         simCtrl->inter_results = false; //Default option
 
-    if (InFl.IsItemIn( "OPTINTERHYDRO" ))
-        simCtrl->hydrog_results = InFl.ReadItem(simCtrl->hydrog_results, "OPTINTERHYDRO");
-    else
-        simCtrl->hydrog_results = false; //Default option
-
 	// Ouput pre-processing
 	if (simCtrl->inter_results)
 		outp->CreateAndOpenDynVar();
@@ -125,65 +116,55 @@ void Simulator::initialize_simulation(tEvapoTrans *EvapoTrans, tSnowPack *SnowPa
 	//outp->WriteDynamicVars( timer->getCurrentTime() );
 	//outp->WritePixelInfo(   timer->getCurrentTime() );
 
-	// Prepare rainfall input if stochastic rainfall Off
-	if ( !rainIn->getoptStorm()) {
-		if (rainIn->rainfallType == 1 || rainIn->rainfallType == 2) {
-			
-			// Check if time for rainfall forecast 
-			if (fmod(timer->getCurrentTime(), timer->getRainDT())==0 &&
-				timer->getoptForecast()!=0)
-				fState = checkForecast();
-			
-			// Compose rainfall file name
-			while ( !(rainIn->Compose_In_Mrain_Name(timer)) ) { 
-				if (count == 0) {
-					Cout<<"\nWarning: Next rainfall file "<<rainIn->mrainfileIn
-					<<" is missing..."<<endl;
-				}
-				Cout<<"File "<<rainIn->mrainfileIn<<" was not found..."<<endl;
-				
-				timer->addRainTime();
-				
-				if ( timer->getRainTime()-timer->getEndTime() > searchRain ) {
-					Cout<<"\nRainfall search threshold exceeded... "<<endl;
-					Cout<<count+1<<" rainfall input files are missing..."<<endl; 
-					Cout<<"Exiting Program..."<<endl<<endl<<endl;
-					exit(2);
-				}
-				count++;
+	// Prepare rainfall input
+	if (rainIn->rainfallType == 1) {
+		
+		// Check if time for rainfall forecast 
+		if (fmod(timer->getCurrentTime(), timer->getRainDT())==0 &&
+			timer->getoptForecast()!=0)
+			fState = checkForecast();
+		
+		// Compose rainfall file name
+		while ( !(rainIn->Compose_In_Mrain_Name(timer)) ) { 
+			if (count == 0) {
+				Cout<<"\nWarning: Next rainfall file "<<rainIn->mrainfileIn
+				<<" is missing..."<<endl;
 			}
+			Cout<<"File "<<rainIn->mrainfileIn<<" was not found..."<<endl;
 			
-			lmr_hour = timer->getRainTime();     //Time tag of LAST measured rain hour
-			dt_rain  = timer->getRainDT();   
+			timer->addRainTime();
 			
-			//rainIn->NewRain(timer); //WR debug 01032024: this was effectively truncating the rainfall vector, shifting all values by one hour toward the initial runtime
-			
-			if (simCtrl->Verbose_label == 'Y') {
-				Cout<<"\nNext rainfall input: "<<lmr_hour<<" hours in simulation."<<endl;
-				Cout<<"Unsaturated zone time steps for interval: ";
-				Cout<<timer->getElapsedSteps(lmr_hour)<<endl;
-			}
-			
-			if ( dt_rain < timer->getTimeStep() ) {
-				Cout <<"\nComputation DT for unsaturated zone must be ";
-				Cout <<"less/equal to DT of Rainfall input data"<<endl;
-				Cout <<"Exiting Program..."<<endl;
+			if ( timer->getRainTime()-timer->getEndTime() > searchRain ) {
+				Cout<<"\nRainfall search threshold exceeded... "<<endl;
+				Cout<<count+1<<" rainfall input files are missing..."<<endl; 
+				Cout<<"Exiting Program..."<<endl<<endl<<endl;
 				exit(2);
 			}
-			count = 0;
-		} else {
-			// rainIn->callRainGauge(); 
-			// rainIn->callRainGauge(timer); // SKY2008Snow//WR debug 01032024: this was effectively truncating the rainfall vector, shifting all values by one hour toward the initial runtime
+			count++;
 		}
+		
+		lmr_hour = timer->getRainTime();     //Time tag of LAST measured rain hour
+		dt_rain  = timer->getRainDT();   
+		
+		//rainIn->NewRain(timer); //WR debug 01032024: this was effectively truncating the rainfall vector, shifting all values by one hour toward the initial runtime
+		
+		if (simCtrl->Verbose_label == 'Y') {
+			Cout<<"\nNext rainfall input: "<<lmr_hour<<" hours in simulation."<<endl;
+			Cout<<"Unsaturated zone time steps for interval: ";
+			Cout<<timer->getElapsedSteps(lmr_hour)<<endl;
+		}
+		
+		if ( dt_rain < timer->getTimeStep() ) {
+			Cout <<"\nComputation DT for unsaturated zone must be ";
+			Cout <<"less/equal to DT of Rainfall input data"<<endl;
+			Cout <<"Exiting Program..."<<endl;
+			exit(2);
+		}
+		count = 0;
+	} else {
+		// rainIn->callRainGauge(); 
+		// rainIn->callRainGauge(timer); // SKY2008Snow//WR debug 01032024: this was effectively truncating the rainfall vector, shifting all values by one hour toward the initial runtime
 	}
-	
-	// Stochastic Rainfall Initialization
-	else {
-		// Call storm generator, update time, and set rainfall
-		rainIn->GenerateStorm( timer->getCurrentTime() );
-		timer->UpdateStorm( rainIn->getStormDuration() + rainIn->interstormDur() );
-		rainIn->NewRain(rainIn->getRainrate());
-	} 
 	
 	met_hour = timer->getMetTime(1);
 	eti_hour = timer->getMetTime(2);
@@ -254,7 +235,7 @@ void Simulator::simulation_loop(tHydroModel *Moisture, tKinemat *Flow,
         }
 	
 		// Check if precipitation variables have to be updated
-		UpdatePrecipitationInput( rainIn->getoptStorm() );
+		UpdatePrecipitationInput();
 
 		// Simulate Interception, ET processes
 		SurfaceHydroProcesses( EvapoTrans, Intercept, SnowPack); // SKY2008Snow from AJR2007
@@ -280,9 +261,8 @@ void Simulator::simulation_loop(tHydroModel *Moisture, tKinemat *Flow,
 #endif
 
 		// End simulation beyond forecast interval
-		if ( !rainIn->getoptStorm() ) {
-			if (timer->getoptForecast() != 0 && fState == 3)
-				break; 
+		if (timer->getoptForecast() != 0 && fState == 3) {
+			break; 
 		}
 
       // Write restart files
@@ -303,8 +283,7 @@ void Simulator::simulation_loop(tHydroModel *Moisture, tKinemat *Flow,
 *****************************************************************************/
 void Simulator::end_simulation(tKinemat *Flow) 
 { 
-	if ( !simCtrl->hydrog_results )
-		Flow->getResultsPtr()->
+	Flow->getResultsPtr()->
 			writeAndUpdate( timer->getCurrentTime(), 0 );
 	
 	Flow->getResultsPtr()->
@@ -360,49 +339,20 @@ void Simulator::PrintRunTimeVars(tHydroModel *Moisture, int opt)
 **  or stochastically created values
 **
 *****************************************************************************/
-void Simulator::UpdatePrecipitationInput(int opt)
+void Simulator::UpdatePrecipitationInput()
 {
-	// ==============================================
-	// For measured radar or raingauge rainfall input
-	if ( !opt ) { 
-		
-		// Check if time for rainfall forecast
-		if (fmod(timer->getCurrentTime(), timer->getRainDT())==0 && 
-			timer->getoptForecast()!=0)
-			fState = checkForecast();
-		
-		// Options for radar or rain gauges 
-		if (rainIn->rainfallType == 1 || rainIn->rainfallType == 2)
-			get_next_mrain(simCtrl->mode);
-		
-		else if (rainIn->rainfallType == 3) {
-			if ( timer->isGaugeTime(timer->getRainDT()) ) {
-				get_next_gaugerain();  // updates rain to nodes from station data
-			}
-		}
-	}
-	// ==============================================
-	// For stochastic rainfall input
-	else {  
-		
-		// Within Storm period
-		if (timer->getCurrentTime() <= 
-			(timer->getStormTime()-rainIn->interstormDur()))
-			rainIn->NewRain(rainIn->getRainrate());        //Set Rainfall to value
-		
-		// Within Intestorm period
-		else if (timer->getCurrentTime() > 
-				 (timer->getStormTime()-rainIn->interstormDur()) && 
-				 timer->getCurrentTime() <= timer->getStormTime()) {
-			rainIn->NewRain();                            //Set Rainfall to zero
-			rainIn->setRainrate(0.0);
-		}
-		
-		// After interstorm period: call storm generator, update time, set rainfall
-		else if (timer->getCurrentTime() >= timer->getStormTime()) {
-			rainIn->GenerateStorm( timer->getCurrentTime() );	
-			timer->UpdateStorm( rainIn->getStormDuration() + rainIn->interstormDur() );
-			rainIn->NewRain(rainIn->getRainrate());
+	// Check if time for rainfall forecast
+	if (fmod(timer->getCurrentTime(), timer->getRainDT())==0 && 
+		timer->getoptForecast()!=0)
+		fState = checkForecast();
+	
+	// Options for radar or rain gauges 
+	if (rainIn->rainfallType == 1)
+		get_next_mrain(simCtrl->mode);
+	
+	else if (rainIn->rainfallType == 2) {
+		if ( timer->isGaugeTime(timer->getRainDT()) ) {
+			get_next_gaugerain();  // updates rain to nodes from station data
 		}
 	}
 	return;
@@ -547,10 +497,6 @@ void Simulator::OutputSimulatedVars(tKinemat *Flow)
 			forenum=0;
 		else 
 			forenum=1;
-        if ((simCtrl->hydrog_results) && (timer->getCurrentTime())) {
-            Flow->getResultsPtr()->
-                    writeAndUpdate( timer->getCurrentTime(), forenum );
-        }
 		
 		// Write selected dynamic variables
 		// if ( simCtrl->inter_results == 'Y' )
@@ -891,9 +837,7 @@ void Simulator::RunItAgain( tInputFile &InFl, tHydroModel *Moisture,
 	Moisture->SetHydroMVariables( InFl, rainIn->getRsmplPtr(), keep );
 	
 	// Re-initializing tRainfall 
-	rainIn->SetStormVariables( InFl );
-	if ( !rainIn->getoptStorm() )
-		rainIn->SetRainVariables( InFl );
+	rainIn->SetRainVariables( InFl );
 	
 	// Re-initializing tEvapoTrans 
 	EvapoTrans->DeleteEvapoTrans();

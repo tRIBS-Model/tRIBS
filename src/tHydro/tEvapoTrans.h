@@ -63,14 +63,12 @@ class tEvapoTrans
   void readHydroMetGrid(char*);
   void readLUGrid(char*); // SKYnGM2008LU: added by AJR 2007
   void newHydroMetData(int);
-  void newHydroMetStochData(int);
   void newHydroMetGridData(tCNode *);
   void newLUGridData(tCNode *); // SKYnGM2008LU: added by AJR 2007
   void createVariant();
   void createVariantLU(); // SKYnGM2008LU: added by AJR 2007
+  void createStaticVariantLU(); // CJC2025
   void EvapPenmanMonteith(tCNode *);
-  void EvapDeardorff(tCNode *);
-  void EvapPriestlyTaylor(tCNode *);
   void EvapPan();
   void robustNess(double *, int);
   void setToNode(tCNode *);
@@ -125,8 +123,6 @@ class tEvapoTrans
 
   void writeRestart(fstream &) const;
   void readRestart(fstream &);
-
-  tHydroMetStoch *weatherSimul;
 
   // SKYnGM2008LU
   void SetGridTimeInfoVariables(tVariant *, char *);

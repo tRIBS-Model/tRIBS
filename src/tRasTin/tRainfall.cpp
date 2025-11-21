@@ -25,15 +25,14 @@
 //=========================================================================
 
 // Default Constructor
-tRainfall::tRainfall() 
+tRainfall::tRainfall()
 {
     gridPtr = 0;
 }
 
 // Constructor
 tRainfall::tRainfall(SimulationControl *simCtrPtr, tMesh<tCNode> *gridRef, 
-					 tInputFile &inFile, tResample *resamp) 
-: tStorm( simCtrPtr, inFile )
+					 tInputFile &inFile, tResample *resamp)
 {
 	gridPtr = gridRef;
 	respPtr = resamp;
@@ -60,56 +59,50 @@ void tRainfall::SetRainVariables(tInputFile &inFile)
 	optForecast = 0;  
 	
 	// If data are used as the model forcing
-	if (!getoptStorm()) {
+	if (rainfallType == 1)
+		Cout<<"Rainfall Source: \t\tGridded Rainfall [mm/hr]\n";
+	
+	if (rainfallType == 1) { 
+		inFile.ReadItem(inputname, "RAINFILE");
+		inFile.ReadItem(extension, "RAINEXTENSION");
 		
-		if (rainfallType == 1)
-			Cout<<"Rainfall Source: \t\tNEXRAD StageIII/P1 Product [cm/hr]\n";
-		else if (rainfallType == 2)
-			Cout<<"Rainfall Source: \t\tWSI Product [mm/hr]\n";
-		
-		if (rainfallType == 1 || rainfallType == 2) { 
-			inFile.ReadItem(inputname, "RAINFILE");
-			inFile.ReadItem(extension, "RAINEXTENSION");
-			
-			// To make compatible with existing model setups
-			if (inFile.IsItemIn( "RAINSEARCH" ))
-				searchRain = inFile.ReadItem(searchRain, "RAINSEARCH");
-			else 
-				searchRain = 24; //Default value
-			optMAP = inFile.ReadItem(optMAP, "RAINDISTRIBUTION");
-			Cout<<"Rainfall Input Path: \t\t'"<<inputname<<"'"<<endl;
-			Cout<<"Rainfall File Extension: \t"<<extension<<endl;
-			NewRain();  
+		// To make compatible with existing model setups
+		if (inFile.IsItemIn( "RAINSEARCH" ))
+			searchRain = inFile.ReadItem(searchRain, "RAINSEARCH");
+		else 
+			searchRain = 24; //Default value
+		optMAP = inFile.ReadItem(optMAP, "RAINDISTRIBUTION");
+		Cout<<"Rainfall Input Path: \t\t'"<<inputname<<"'"<<endl;
+		Cout<<"Rainfall File Extension: \t"<<extension<<endl;
+		NewRain();
+	}
+	else if (rainfallType == 2) {
+		Cout<<"Rainfall Source: \t\tRaingauge Stations"<<endl;
+		inFile.ReadItem(stationFile, "GAUGESTATIONS");
+
+		// SKY2008Snow from AJR2007
+		if (inFile.IsItemIn("PRECLAPSE"))
+			precLapseRate = inFile.ReadItem(precLapseRate, "PRECLAPSE"); //AJR @ NMT 2007
+		else
+			precLapseRate = 0.0;
+
+		readGaugeStat(stationFile);
+		for (int ct=0;ct<numStations;ct++) {
+			readGaugeData(ct);
 		}
-		else if (rainfallType == 3) {
-			Cout<<"Rainfall Source: \t\tRaingauge Stations"<<endl;
-			inFile.ReadItem(stationFile, "GAUGESTATIONS");
 
-			// SKY2008Snow from AJR2007
-			if (inFile.IsItemIn("PRECLAPSE"))
-				precLapseRate = inFile.ReadItem(precLapseRate, "PRECLAPSE"); //AJR @ NMT 2007
-			else
-				precLapseRate = 0.0;
+		assignStationToNode();
+		InitializeGauge();
 
-			readGaugeStat(stationFile);
-			for (int ct=0;ct<numStations;ct++) {
-				readGaugeData(ct);
-			}
-
-			assignStationToNode();
-			InitializeGauge();
-
-		}
-		else {
-			Cout<<"\nRainfall Source Option " << rainfallType;
-			Cout<<" not valid." <<endl;
-			Cout<<"\tPlease use: "<<endl;
-			Cout<<"\t\t(1) NEXRAD Stage III Radar"<<endl;
-			Cout<<"\t\t(2) WSI Radar Rainfall"<<endl;
-			Cout<<"\t\t(3) Rain Gauge Station Rainfall"<<endl;
-			Cout << "Exiting Program...\n\n"<<endl;
-			exit(1);
-		}
+	}
+	else {
+		Cout<<"\nRainfall Source Option " << rainfallType;
+		Cout<<" not valid." <<endl;
+		Cout<<"\tPlease use: "<<endl;
+		Cout<<"\t\t(1) Gridded Rainfall"<<endl;
+		Cout<<"\t\t(2) Rain Gauge Station Rainfall"<<endl;
+		Cout << "Exiting Program...\n\n"<<endl;
+		exit(1);
 	}
 	
 	// Get Forecast File Directory, use same extension
@@ -135,7 +128,7 @@ tRainfall::~tRainfall()
 	respPtr = nullptr;
 	simCtrl = nullptr;
 	
-	if (rainfallType == 1 || rainfallType == 2) {
+	if (rainfallType == 1) {
 #ifdef ALPHA_64
 		if ( infile )
 			infile.close();
@@ -150,7 +143,7 @@ tRainfall::~tRainfall()
 			infile.close();
 #endif
 	}
-	if (rainfallType == 3) {
+	if (rainfallType == 2) {
 		delete [] currentTime; 
 		delete [] latitude;
 		delete [] longitude; 
@@ -344,11 +337,8 @@ void tRainfall::NewRain(tRunTimer *t)
 			// Assign MAP to curRain for optMAP = 1
 			if (optMAP == 1)
 				curRain[id]=sumRain/sumArea;
-			
 			if (rainfallType == 1)
-				cn->setRain( curRain[id]*10.0/t->getRainDT()); //NEXRAD - cm/hour
-			else if (rainfallType == 2)
-				cn->setRain( curRain[id]/t->getRainDT());      //WSI - mm/hour
+				cn->setRain( curRain[id]/t->getRainDT());      //Gridded - mm/hour
 			cn = nodeIter.NextP();
 			id++;
 		}
@@ -368,9 +358,7 @@ void tRainfall::NewRain(tRunTimer *t)
 		if (t->getoptForecast() != 3) {
 			while( nodeIter.IsActive() ) {    
 				if (rainfallType == 1)
-					cn->setRain( aveMAP*10.0 ); //NEXRAD - cm/hour
-				else if (rainfallType == 2)
-					cn->setRain( aveMAP );      //WSI - mm/hour
+					cn->setRain( aveMAP );      //Gridded - mm/hour
 				cn = nodeIter.NextP();
 			}
 		}
@@ -433,7 +421,7 @@ void tRainfall::InitializeGauge()
 ***************************************************************************/
 void tRainfall::callRainGauge(tRunTimer *t) 
 {
-	NewRainData(hourlyTimeStep);
+	NewRainData(hourlyTimeStep, t);
 
 
 	tCNode * cNode;
@@ -460,12 +448,39 @@ void tRainfall::callRainGauge(tRunTimer *t)
 ** Assign the values from tRainGauge to tCNode.
 **
 ***************************************************************************/
-void tRainfall::NewRainData(int time) 
+void tRainfall::NewRainData(int time, tRunTimer *timer) 
 {  
-	currentTime[0] = rainGauges[0].getYear(time);
-	currentTime[1] = rainGauges[0].getMonth(time);
-	currentTime[2] = rainGauges[0].getDay(time);
-	currentTime[3] = rainGauges[0].getHour(time);
+    // Begin block for validation of rainfall data input 
+    // Get the timestamp from the first rain gauge's data for the current index
+    int file_yr = rainGauges[0].getYear(time);
+    int file_mo = rainGauges[0].getMonth(time);
+    int file_dy = rainGauges[0].getDay(time);
+    int file_hr = rainGauges[0].getHour(time);
+
+    // Get the current simulation time from the timer object
+    int sim_yr = timer->year;
+    int sim_mo = timer->month;
+    int sim_dy = timer->day;
+    int sim_hr = timer->hour;
+
+    // Compare the two timestamps
+    if (file_yr != sim_yr || file_mo != sim_mo || file_dy != sim_dy || file_hr != sim_hr) {
+        std::cerr << "\n\nFATAL ERROR in rain gauge data" << std::endl;
+        std::cerr << "Timestamp mismatch detected during simulation." << std::endl;
+        std::cerr << "Simulation expected data for: " << sim_yr << "/" << sim_mo << "/" << sim_dy 
+                  << " " << sim_hr << ":00" << std::endl;
+        std::cerr << "But found data for:           " << file_yr << "/" << file_mo << "/" << file_dy 
+                  << " " << file_hr << ":00" << std::endl;
+        std::cerr << "This indicates a gap, duplicate, or incorrect data in the rain gauge file(s)." << std::endl;
+        std::cerr << "Exiting Program...\n\n" << std::endl;
+        exit(1);
+    }
+    // End block for validation of rainfall data input
+	
+    currentTime[0] = rainGauges[0].getYear(time);
+    currentTime[1] = rainGauges[0].getMonth(time);
+    currentTime[2] = rainGauges[0].getDay(time);
+    currentTime[3] = rainGauges[0].getHour(time);
 	
 	assignStationToNode();
 	
@@ -830,6 +845,7 @@ void tRainfall::setToNode()
 		}
 		delete [] curGauge;  
 	}
+	
 	return;
 }
 
@@ -865,7 +881,7 @@ void tRainfall::writeRestart(fstream & rStr) const
   BinaryWrite(rStr, optMAP);
   BinaryWrite(rStr, rainDt);
 
-  if (rainfallType == 3) {
+  if (rainfallType == 2) {
     for (int i = 0; i < 4; i++)
       BinaryWrite(rStr, currentTime[i]);
     for (int i = 0; i < arraySize; i++) {
@@ -881,8 +897,6 @@ void tRainfall::writeRestart(fstream & rStr) const
   BinaryWrite(rStr, aveMAP);
   BinaryWrite(rStr, cumMAP);
   BinaryWrite(rStr, climate);
-
-  tStorm::writeRestart(rStr);
 }
 
 /***************************************************************************
@@ -903,7 +917,7 @@ void tRainfall::readRestart(fstream & rStr)
   BinaryRead(rStr, optMAP);
   BinaryRead(rStr, rainDt);
 
-  if (rainfallType == 3) {
+  if (rainfallType == 2) {
     for (int i = 0; i < 4; i++)
       BinaryRead(rStr, currentTime[i]);
     for (int i = 0; i < arraySize; i++) {
@@ -919,8 +933,6 @@ void tRainfall::readRestart(fstream & rStr)
   BinaryRead(rStr, aveMAP);
   BinaryRead(rStr, cumMAP);
   BinaryRead(rStr, climate);
-
-  tStorm::readRestart(rStr);
 }
 
 //=========================================================================

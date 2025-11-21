@@ -11,7 +11,7 @@
 **
 **  tListInputData.cpp:	  Functions for class tListInputData.
 **
-**************************************************************************/
+**************************************************************************/ 
 
 #include "src/tListInputData/tListInputData.h"
 #include "src/Headers/globalIO.h"
@@ -39,8 +39,7 @@
 **  on the same line.
 **
 **  Modifications for tRIBS simplifies routine by not having to search
-**  through multiple time slices. tRIBS has only one time slice at 
-**  INPUTTIME = 0. Option for CHILD maintained. 
+**  through multiple time slices. tRIBS has only one time slice.
 **
 **************************************************************************/
 
@@ -48,14 +47,9 @@ template< class tSubNode >
 tListInputData< tSubNode >::
 tListInputData( tInputFile &infile )                  
 {
-	int righttime;                   	//flag: found the right time slice
-	double time, intime;             	//current & desired time
+	double time;
 	char basename[80],               	//base name of input files
 		inname[80];                  	//full name of an input file
-	char nodeHeader[kMaxNameLength]; 	//header line read from input file
-	char zHeader[kMaxNameLength]; 	//header line read from input file
-	char edgHeader[kMaxNameLength]; 	//header line read from input file
-	char triHeader[kMaxNameLength]; 	//header line read from input file
 	
 	Cout<<"\nCreating tListInputData for reading in existing mesh..."<<endl;
 	
@@ -90,117 +84,29 @@ tListInputData( tInputFile &infile )
 		cerr <<"Unable to open triangulation input file(s).";
 	}
 	
-	// Find out which time slice we want to extract
-	intime = infile.ReadItem( intime, "INPUTTIME" );
-	
-	Cout<<"\nReading in existing mesh files for input time slice = "<< intime<<": "<<endl;
+	Cout<<"\nReading in existing mesh files..."<<endl;
 	Cout<<"'"<< basename << ".nodes'"<<endl;
 	Cout<<"'"<< basename << ".edges'"<<endl;
 	Cout<<"'"<< basename << ".tri'"<<endl;
 	Cout<<"'"<< basename << ".z'"<<endl;
 	
 	
-	// For tRIBS, use INPUTTIME = 0 as flag implying only one mesh
+	// For tRIBS there is only 1 mesh
 	// list (nodes, edges, tri, z) per file opened. Will read the
 	// the number of elements directly, followed by the values in
 	// the GetFileEntry() Function.
 	
+	nodeinfile >> time;
+	nodeinfile >> nnodes;
 	
-	if(intime == 0){
-		nodeinfile >> time;
-		nodeinfile >> nnodes;
-		
-		zinfile >> time;
-		zinfile >> nnodes;
-		
-		edgeinfile >> time;
-		edgeinfile >> nedges;
-		
-		triinfile >> time;
-		triinfile >> ntri;
-	}
+	zinfile >> time;
+	zinfile >> nnodes;
 	
+	edgeinfile >> time;
+	edgeinfile >> nedges;
 	
-	// Keep the following for CHILD compatibility
-	
-	else{    // Find specified input times in input data files and read # items.
-		
-		//Nodes:
-		righttime = 0;
-		time = 0;
-		while( !( nodeinfile.eof() ) && !righttime ){
-			nodeinfile.getline( nodeHeader, kMaxNameLength );
-			cout<<"nodeheader[0] = "<<nodeHeader[0]<<endl;
-			if( nodeHeader[0] == kTimeLineMark ){
-				nodeinfile.seekg( -nodeinfile.gcount(), ios::cur );
-				nodeinfile >> time;
-				cout << "from node file, time = " << time << endl;
-				cout << "from node file, intime = " <<intime <<endl;
-				if( time == intime ) righttime = 1;
-			}
-		}
-		if( !( nodeinfile.eof() ) ) nodeinfile >> nnodes;
-		else{
-			cerr << "\nCouldn't find the specified input time in the node file\n";
-		}
-		
-		//"z" values:
-		righttime = 0;
-		time = 0;
-		while( !( zinfile.eof() ) && !righttime ){
-			zinfile.getline( zHeader, kMaxNameLength );
-			cout<<"zheader[0] = "<<zHeader[0]<<endl;
-			if( zHeader[0] == kTimeLineMark ){
-				zinfile.seekg( -zinfile.gcount(), ios::cur );
-				zinfile >> time;
-				cout << "from z file, time = " << time << endl;
-				cout << "from z file, intime = " <<intime <<endl;
-				if( time == intime ) righttime = 1;
-			}
-		}
-		if( !( zinfile.eof() ) ) zinfile >> nnodes;
-		else{
-			cerr << "Couldn't find the specified input time in elevation file\n";
-		}
-		
-		//Edges:
-		righttime = 0;
-		time = 0;
-		while( !( edgeinfile.eof() ) && !righttime ){
-			edgeinfile.getline( edgHeader, kMaxNameLength );
-			cout<<"edgheader[0] = "<<edgHeader[0]<<endl;
-			if( edgHeader[0] == kTimeLineMark ){
-				edgeinfile.seekg( -edgeinfile.gcount(), ios::cur );
-				edgeinfile >> time;
-				cout << "from edg file, time = " << time << endl;
-				cout << "from edg file, intime = " <<intime <<endl;
-				if( time == intime ) righttime = 1;
-			}
-		}
-		if( !( edgeinfile.eof() ) ) edgeinfile >> nedges;
-		else{
-			cerr << "Couldn't find the specified input time in the edge file\n";
-		}
-		
-		//Triangles:
-		righttime = 0;
-		time = 0;
-		while( !( triinfile.eof() ) && !righttime ){
-			triinfile.getline( triHeader, kMaxNameLength );
-			cout<<"triheader[0] = "<<triHeader[0]<<endl;
-			if( triHeader[0] == kTimeLineMark ){
-				triinfile.seekg( -triinfile.gcount(), ios::cur );
-				triinfile >> time;
-				cout << "from tri file, time = " << time << endl;
-				cout << "from tri file, intime = " <<intime <<endl;
-				if( time == intime ) righttime = 1;
-			}
-		}
-		if( !( triinfile.eof() ) ) triinfile >> ntri;
-		else{
-			cerr << "Couldn't find the specified input time in the tri file\n";
-		}
-	}
+	triinfile >> time;
+	triinfile >> ntri;
 	
 	// Dimension the arrays 
 	x.setSize( nnodes );

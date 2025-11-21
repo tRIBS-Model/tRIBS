@@ -440,6 +440,9 @@ void tHydroModel::InitSet(tResample *resamp)
 		Rs_LU   = landPtr->getLandProp(10);
 		V_LU    = landPtr->getLandProp(11);
 		LAI_LU  = landPtr->getLandProp(12);
+		// CJC2025 Stress Thresholds
+		SE_LU   = landPtr->getLandProp(13);
+		ST_LU   = landPtr->getLandProp(14);
 		cn->setLandUseAlb(Al_LU);
 		cn->setLandUseAlbInPrevGrid(Al_LU);
 		cn->setLandUseAlbInUntilGrid(Al_LU);
@@ -476,6 +479,13 @@ void tHydroModel::InitSet(tResample *resamp)
 		cn->setLeafAI(LAI_LU);
 		cn->setLeafAIInPrevGrid(LAI_LU);
 		cn->setLeafAIInUntilGrid(LAI_LU);
+		// CJC2025 Stress Thresholds
+		cn->setEvapThresh(SE_LU);
+		cn->setEvapThreshInPrevGrid(SE_LU);
+		cn->setEvapThreshInUntilGrid(SE_LU);
+		cn->setTransThresh(ST_LU);
+		cn->setTransThreshInPrevGrid(ST_LU);
+		cn->setTransThreshInUntilGrid(ST_LU);
 
 		// SKY2008Snow
 		cn->setLandFact(0.0);
@@ -572,6 +582,9 @@ void tHydroModel::InitIntegralVars()
 		Rs_LU   = landPtr->getLandProp(10);
 		V_LU    = landPtr->getLandProp(11);
 		LAI_LU  = landPtr->getLandProp(12);
+		// CJC2025 Stress Thresholds
+		SE_LU  = landPtr->getLandProp(13);
+		ST_LU  = landPtr->getLandProp(14);
 		cn->setAvCanStorParam(a_LU);
 		cn->setAvIntercepCoeff(b1_LU);
 		cn->setAvThroughFall(P_LU);
@@ -584,10 +597,12 @@ void tHydroModel::InitIntegralVars()
 		cn->setAvStomRes(Rs_LU);
 		cn->setAvVegFraction(V_LU);
 		cn->setAvLeafAI(LAI_LU);
+		cn->setAvEvapThresh(SE_LU);
+		cn->setAvTransThresh(ST_LU);
 
 		CheckMoistureContent( cn );
 	}
-	}
+}
 
 /*************************************************************************
 **
@@ -4464,6 +4479,8 @@ void tHydroModel::writeRestart(fstream & rStr) const
   BinaryWrite(rStr, Rs_LU);
   BinaryWrite(rStr, V_LU);
   BinaryWrite(rStr, LAI_LU);
+  BinaryWrite(rStr, SE_LU);
+  BinaryWrite(rStr, ST_LU);
 
 }
 
@@ -4560,6 +4577,8 @@ void tHydroModel::readRestart(fstream & rStr)
   BinaryRead(rStr, Rs_LU);
   BinaryRead(rStr, V_LU);
   BinaryRead(rStr, LAI_LU);
+  BinaryRead(rStr, SE_LU);
+  BinaryRead(rStr, ST_LU);
 }
 
 //=========================================================================

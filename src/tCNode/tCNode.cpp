@@ -121,7 +121,6 @@ tCNode::tCNode() :tNode()
 	cumLHF = cumMelt = 0.0;
 	snSub = snEvap = 0.0; // Initialize snowpack cumulative sublimation & evaporation CJC2020
 	cumSnSub = cumSnEvap = cumTotEvap = cumBarEvap = 0.0; // Initialize snowpack cumulative sublimation & evaporation CJC2020
-	cumWetCanEvap = cumDryCanEvap = 0.0; // Initialize dry & wet canopy evaporation JB2025
 	snLHF = snSHF = snGHF = snPHF = snRLin = snRLout = snRSin = 0.0;
 	Unode = Uerror = 0.0;
 	cumUError = 0.0;
@@ -495,10 +494,10 @@ double tCNode::getOptTransmCoeffInUntilGrid() {return OptTransmCoeffInUntilGrid;
 double tCNode::getLeafAIInPrevGrid() {return LeafAIInPrevGrid;}
 double tCNode::getLeafAIInUntilGrid() {return LeafAIInUntilGrid;}
 // CJC2025: New Parameters
-double tCNode::getEvapThreshInPrevGrid() {return EvapThreshInPrevGrid;} 
-double tCNode::getEvapThreshInUntilGrid() {return EvapThreshInUntilGrid;} 
-double tCNode::getTransThreshInPrevGrid() {return TransThreshInPrevGrid;} 
-double tCNode::getTransThreshInUntilGrid() {return TransThreshInUntilGrid;} 
+double tCNode::getEvapThreshInPrevGrid() {return EvapThreshInPrevGrid;}
+double tCNode::getEvapThreshInUntilGrid() {return EvapThreshInUntilGrid;}
+double tCNode::getTransThreshInPrevGrid() {return TransThreshInPrevGrid;}
+double tCNode::getTransThreshInUntilGrid() {return TransThreshInUntilGrid;}
 
 // SKYnGM2008LU
 double tCNode::getAvCanStorParam() {return AvCanStorParam;}
@@ -703,7 +702,7 @@ void tCNode::setGridET(double gridet)       { GridET = gridet; }
 void tCNode::setShortRadIn(double val)     { ShortRadIn = val; }
 void tCNode::setShortRadIn_dir(double val) { ShortRadIn_dir = val; }
 void tCNode::setShortRadIn_dif(double val) { ShortRadIn_dif = val; }
-void tCNode::setShortAbsbVeg(double val)   { ShortAbsbVeg = val; } 
+void tCNode::setShortAbsbVeg(double val)   { ShortAbsbVeg = val; }
 void tCNode::setShortAbsbSoi(double val)   { ShortAbsbSoi = val; }
 void tCNode::setShortRadSlope(double val)  { ShortRadSlope = val; }
 void tCNode::setLongRadIn(double longin)   { LongRadIn = longin; }

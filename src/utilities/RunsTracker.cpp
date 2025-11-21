@@ -192,10 +192,8 @@ int main(int argc, char *argv[]){
 	BRoption = ReadItem(BRoption, "RAINSOURCE");
 	theOFStream<<"RAINSOURCE:\t";
 	if (BRoption == 1)
-		theOFStream<<"NEXRAD"<<endl;
+		theOFStream<<"Gridded Rainfall"<<endl;
 	else if (BRoption == 2)
-		theOFStream<<"WSI"<<endl;
-	else if (BRoption == 3)
 		theOFStream<<"Rain gauge"<<endl;
 	else
 		theOFStream<<"-- Unknown --"<<endl;

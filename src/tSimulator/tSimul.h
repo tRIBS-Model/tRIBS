@@ -84,7 +84,7 @@ class Simulator
   void RunItAgain(tInputFile&, tHydroModel*, tKinemat*, 
 		  tEvapoTrans*, tIntercept*, tWaterBalance*, tPreProcess*,  tSnowPack*); // SKY2008Snow from AJR2007
   void PrintRunTimeVars(tHydroModel *, int);
-  void UpdatePrecipitationInput(int);
+  void UpdatePrecipitationInput();
   void SurfaceHydroProcesses(tEvapoTrans *, tIntercept *, tSnowPack *); // SKY2008Snow from AJR2007
   void SubSurfaceHydroProcesses(tHydroModel *);
   void OutputSimulatedVars(tKinemat *);

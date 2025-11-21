@@ -88,10 +88,6 @@ if(parallel)
             src/tHydro/tEvapoTrans.h
             src/tHydro/tHydroMet.cpp
             src/tHydro/tHydroMet.h
-            src/tHydro/tHydroMetConvert.cpp
-            src/tHydro/tHydroMetConvert.h
-            src/tHydro/tHydroMetStoch.cpp
-            src/tHydro/tHydroMetStoch.h
             src/tHydro/tHydroModel.cpp
             src/tHydro/tHydroModel.h
             src/tHydro/tIntercept.cpp
@@ -148,8 +144,6 @@ if(parallel)
             src/tSimulator/tRunTimer.h
             src/tSimulator/tSimul.cpp
             src/tSimulator/tSimul.h
-            src/tStorm/tStorm.cpp
-            src/tStorm/tStorm.h
     )
 
 else()
@@ -209,10 +203,6 @@ else()
             src/tHydro/tEvapoTrans.h
             src/tHydro/tHydroMet.cpp
             src/tHydro/tHydroMet.h
-            src/tHydro/tHydroMetConvert.cpp
-            src/tHydro/tHydroMetConvert.h
-            src/tHydro/tHydroMetStoch.cpp
-            src/tHydro/tHydroMetStoch.h
             src/tHydro/tHydroModel.cpp
             src/tHydro/tHydroModel.h
             src/tHydro/tIntercept.cpp
@@ -263,8 +253,6 @@ else()
             src/tSimulator/tRunTimer.h
             src/tSimulator/tSimul.cpp
             src/tSimulator/tSimul.h
-            src/tStorm/tStorm.cpp
-            src/tStorm/tStorm.h
     )
 
 endif()
