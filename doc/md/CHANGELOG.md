@@ -2,12 +2,26 @@
 # Changelog 
 All notable changes to this project are documented in this file.
 
+## Version 6.0.0
+### 10/16/2025
+* Removed multiple legacy or unused options in the input file (stochastic storm generator, hydrometeorological converter, RIBS output compatibility, alternative visualization options).
+* The only available option for calculating ET from meteorological data is Penman-Monteith.
+* There are no longer multiple methods to provided gridded rainfall data. The user can provide either gridded or point station data, both in units of mm/hr.
+* The formats for providing a tin mesh to the model with `OPTMESHINPUT` have been simplified. Now there are only two options, a pre-generated mesh from the 4 mesh files or a point file.
+* Removed conditional header writing in model outputs. Headers are now always written.
+* Added new `OPTLANDUSE` option 2 for reading static landuse parameter rasters without needing dates in the filenames.
+* Added capability to read in raster data using GDAL. To activate the GDAL features the user must have GDAL installed already. When compiling tRIBS there is a new flag, `WITH_GDAL`, for turning on GDAL support. This feature allows tRIBS to read any raster type that GDAL is capable above but note that tRIBS does not support multi-band rasters. If a user does not enable `WITH_GDAL` while compiling the model will function the exact same as previous versions.
+## Version 5.3.1
+### 10/15/2025
+* Fixed bug in Rutter interception scheme that could result in small amount of negative wet canopy evaporation.
+* Added timestamp validation to meteorological station input timeseries.
+* Fixed bug when reading gridded landuse data that would result in the landuse table values being used instead under specific conditions.
 ## Version 5.3.0
 ### 8/16/2025
-* Remove extraneous cout statement that prints out `OptRES` during initialization.
+* Removed extraneous cout statement that prints out `OptRES` during initialization.
 * Removed hardcoded version number from the top of all source code files to conform to modern standards and simplify future model updates.
 * Replaced non-standard Variable Length Arrays (VLAs) with std::vector in tResample.cpp to resolve compiler warnings and improve code portability.
-* Improve numerical stability of raster resampling in tResample.cpp. This change fixes a bug with specific voronoi polygon geometry that would result in a NaN values for gridded parameters.
+* Improved numerical stability of raster resampling in tResample.cpp. This change fixes a bug with specific voronoi polygon geometry that would result in a NaN values for gridded parameters.
 ### 8/11/2025
 * Added new optional input for the gridded land use parameters. These parameters are the soil moisture stress thresholds for soil evaporation and plant transpiration, denoted by `SE` and `ST` in the gridded data file (.gdf), respectively.
 * Resolved a bug that could cause incorrect model behavior when using dynamic land use grids with the interpolation option turned off (`luInterpOption = 0`).

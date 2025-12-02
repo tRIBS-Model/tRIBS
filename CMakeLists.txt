@@ -15,6 +15,8 @@ set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fno-omit-frame-pointer -g")
 # Release build-specific options, -O2 is the fastest
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O2")
 
+option(WITH_GDAL "Build with GDAL support for GeoTIFF/NetCDF/etc." OFF)
+
 #set compiler if necessary, this has to be done before project()
 #set (CMAKE_CXX_COMPILER <specify compiler here>)
 #if(CMAKE_CXX_COMPILER_LOADED)
@@ -255,6 +257,33 @@ else()
             src/tSimulator/tSimul.h
     )
 
+endif()
+
+################################################################################
+# GDAL CONFIGURATION
+# This applies to both Serial and Parallel builds (target: ${exe})
+################################################################################
+if(WITH_GDAL)
+    find_package(GDAL)
+    
+    if(GDAL_FOUND)
+        message(STATUS "GDAL Found: ${GDAL_VERSION}")
+        message(STATUS "Enabling GDAL support.")
+
+        # 1. Define the preprocessor macro so the C++ code knows to compile the new function
+        target_compile_definitions(${exe} PRIVATE READ_GDAL)
+
+        # 2. Include header files
+        target_include_directories(${exe} PRIVATE ${GDAL_INCLUDE_DIRS})
+
+        # 3. Link the library
+        # We use PRIVATE because we don't want to expose GDAL to consumers of tRIBS
+        target_link_libraries(${exe} PRIVATE ${GDAL_LIBRARIES})
+
+    else()
+        message(WARNING "GDAL was requested (-DWITH_GDAL=ON) but not found on the system.")
+        message(WARNING "Compiling WITHOUT GDAL support (ASCII Grids only).")
+    endif()
 endif()
 
 # can be passed via the command line with -Dpackaging=ON
