@@ -103,7 +103,6 @@ public:
   void setToNodeSnP(tCNode *);
   
   //physical routines
-  double densityFromAge();
   void computeSub();
   void computeUnload();
   void updateRipeSnowPack(double);
@@ -138,6 +137,14 @@ public:
   void readRestart(fstream &);
 
 protected:
+  // NEW SNOW PHYSICS HELPER FUNCTIONS CJC2025
+  double freshDensityCalc(double airTempC);
+  double densityCompactionCalc(double currentDensity, double currentSnWE_cm, 
+                               double snTempC, double dt_sec);
+  double drainageCalc(double liqWE_cm, double snDepth_m, double currentRho, 
+                      double irredSat, double dt_sec);
+  double porosityCalc(double rho);
+
   int hillAlbedoOption;
   double densityAge; //hr
   double rainTemp;

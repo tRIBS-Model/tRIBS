@@ -462,17 +462,76 @@ void tSnowPack::callSnowPack(tIntercept *Intercept, int flag) {
             precip = cNode->getNetPrecipitation(); //units in mm
             precip += snUnload * ctom; // units in mm
 
-            // Here precip is being set by net precipitation which is set from callSnowIntercept
-            // and represents throughfall + unloaded snow  from snow interception (so scaled by coeffV) and precipitation
-            // that falls on the no vegetated fraction of the cell (1-coeffV). refactored WR 6/21/23
-
-            snDepthm = cmtonaught * snWE / 0.312; // 0.312 is value for bulk density of snow, Sturm et al. 2010
-            //calculate current snow depth for use in the turbulent heat flux calculations and output.
-
             //change mass (volume) quantities to correct units (kJ, m, C, s)
             iceWE = iceWE * cmtonaught; // mm to m
             liqWE = liqWE * cmtonaught; // mm to m
             snWE = iceWE + liqWE; // mm to m
+
+            // Here precip is being set by net precipitation which is set from callSnowIntercept
+            // and represents throughfall + unloaded snow  from snow interception (so scaled by coeffV) and precipitation
+            // that falls on the no vegetated fraction of the cell (1-coeffV). refactored WR 6/21/23
+
+            // BEGIN Calculate current snow depth for use in the turbulent heat flux calculations and output.
+            // We don't yet know the new state of the new mass balance variables so we will project what they will be
+            // in order to calculate the new snow depth.
+
+            // Retrieve Previous Density
+            // Since we don't explicitly store density, we derive it from the previous timestep's depth/SWE
+            // If this is the very first snow, assume fresh.
+            // TODO: need to chnage the code for saving density age and use it to save density. Instead of this approximation
+            double curRho = 100.0; // Default fallback
+            if (snWE > 1e-6) {
+                // Depth = Mass / Density  ->  Density = Mass / Depth
+                // We use iceWE because depth is determined by the ice matrix, not liquid water.
+                curRho = (iceWE * 1000.0) / snDepthm; 
+            } else {
+                // If no snow existed, assume what we are about to receive is fresh
+                curRho = freshDensityCalc(airTemp);
+            }
+
+            // Calculate Incoming Mass (temporary variables)
+            // precip is in mm. Convert to meters (0.001).
+            double newSnowM = (precip * snowFracCalc()) * 0.001; 
+            double newRainM = (precip * (1.0 - snowFracCalc())) * 0.001;
+
+            // Calculate projected Mass States
+            // Approximation of what the pack will look like after this timestep.
+            // We use these only to calculate depth/roughness right now.
+            double projIceWE = iceWE + newSnowM;       // Total Ice Matrix
+            double projTotWE = snWE + newSnowM + newRainM; // Total Weight (for compaction)
+
+            // Weighted Average Mixing
+            // We have to do this step because of the single layer snow model.
+            // Only mix if we actually have new solid snow.
+            if (newSnowM > 1e-6) {
+                double freshRho = freshDensityCalc(airTemp); // e.g. 80 kg/m3
+                
+                double oldIceKg = iceWE * 1000.0;
+                double newIceKg = newSnowM * 1000.0;
+                
+                // Conservation of Volume
+                double vol_old = oldIceKg / curRho;
+                double vol_new = newIceKg / freshRho;
+                
+                // New Mixed Density
+                curRho = (oldIceKg + newIceKg) / (vol_old + vol_new);
+            }
+
+            // Apply Compaction 
+            // We pass projTotWE because the weight of the liqwe contributes to squashing the snow.
+            if (projTotWE > 1e-6) {
+                curRho = densityCompactionCalc(curRho, projTotWE * 1000.0, snTempC, timeSteps);
+            }
+            
+            // Safety Clamps on Density
+            if (curRho < 50.0) curRho = 50.0;
+            if (curRho > 600.0) curRho = 600.0; // Max density for dry snow
+
+            // Calculate Final Depth
+            // We divide by curRho (Ice Density) so liquid water doesn't artificially inflate depth.
+            snDepthm = (projIceWE * 1000.0) / curRho;
+
+            // END Calculate current snow depth
 
             //account for veg height
             if (coeffH == 0) {
@@ -518,11 +577,25 @@ void tSnowPack::callSnowPack(tIntercept *Intercept, int flag) {
                 //set other fluxes
                 L = H = G = Prec = Utotold = 0.0;
 
-                //added by XYT2023,liqRoute
-                if (liqWE > snliqfrac * iceWE) { // Added snliqfrac by CJC2020
+                // We assume the density of the ice matrix (curRho) did not change during melt, 
+                // only the amount of ice changed. 
+                if (curRho > 0) {
+                        snDepthm = (iceWE * 1000.0) / curRho;
+                } else {
+                        snDepthm = 0.0;
+                }
+
+                // Calculate the Max Liquid Capacity (in meters)
+                // We treat snliqfrac as the Volumetric Irreducible Saturation.
+                // Capacity = Depth * Porosity * snliqfrac
+                double maxPoreStorageM = snDepthm * porosityCalc(curRho) * snliqfrac; 
+
+                //put in routing bucket
+                if (liqWE > maxPoreStorageM) { 
                     //there is enough water left over
                     if (liqWE != snWE) {
-                        liqRoute = (liqWE - snliqfrac * iceWE); // Added snliqfrac by CJC2020
+                        // Calculate drainage using Darcy's Law approximation
+                        liqRoute = drainageCalc(liqWE, snDepthm, curRho, snliqfrac, timeSteps);
                         liqWE = liqWE - liqRoute;
                         snWE = liqWE + iceWE;
                     }
@@ -643,13 +716,27 @@ void tSnowPack::callSnowPack(tIntercept *Intercept, int flag) {
                             liqWE = snWE; // this is here because the liqWE += term above
                         }                  //  can result in liqWE > snWE
                         //assign water equivalents
-                        iceWE = snWE - liqWE;
+                        iceWE = snWE - liqWE; 
+
+                        // We assume the density of the ice matrix (curRho) did not change during melt, 
+                        // only the amount of ice changed. 
+                        if (curRho > 0) {
+                                snDepthm = (iceWE * 1000.0) / curRho;
+                        } else {
+                                snDepthm = 0.0;
+                        }
+
+                        // Calculate the Max Liquid Capacity (in meters)
+                        // We treat 'snliqfrac' as the Volumetric Irreducible Saturation.
+                        // Capacity = Depth * Porosity * snliqfrac
+                        double maxPoreStorageM = snDepthm * porosityCalc(curRho) * snliqfrac; 
 
                         //put in routing bucket
-                        if (liqWE > snliqfrac * iceWE) { // Added snliqfrac by CJC2020
+                        if (liqWE > maxPoreStorageM) { 
                             //there is enough water left over
                             if (liqWE != snWE) {
-                                liqRoute = (liqWE - snliqfrac * iceWE); // Added snliqfrac by CJC2020
+                                // Calculate drainage using Darcy's Law approximation
+                                liqRoute = drainageCalc(liqWE, snDepthm, curRho, snliqfrac, timeSteps);
                                 liqWE = liqWE - liqRoute;
                                 snWE = liqWE + iceWE;
                             }
@@ -1089,20 +1176,190 @@ void tSnowPack::setToNodeSnP(tCNode *node) {
 
 //---------------------------------------------------------------------------
 //
-//			  tSnowPack::densityFromAge()
+//			  tSnowPack::freshDensityCalc()
 //
-//	This function should calculate density as a function of time. The
-//	density should be in mks. (include a reference)
+//	  Calculates the density of newly fallen snow based on air temperature.
+//	  This uses the empirical relationship derived for continental snowpacks.
 //
-//						    (Tuteja et al 1996)
+//							 (Hedstrom-Pomeroy 1998)
 //
 //---------------------------------------------------------------------------
 
-double tSnowPack::densityFromAge() {
+double tSnowPack::freshDensityCalc(double airTempC) {
 
-    double rhotemporary(400); //kg/m^3
+    // Returns density in kg/m^3
+    double rho_fresh = 67.92 + 51.25 * exp(airTempC / 2.59);
+    
+    // Safety clamps
+    if (rho_fresh < 50.0) rho_fresh = 50.0;
+    if (rho_fresh > 250.0) rho_fresh = 250.0;
+    
+    return rho_fresh;
+}
 
-    return rhotemporary;
+//---------------------------------------------------------------------------
+//
+//			  tSnowPack::densityCompactionCalc()
+//
+//	  Calculates the change in bulk snow density due to two processes:
+//	  1. Destructive Metamorphism (crystal settling/rounding)
+//	  2. Overburden Pressure (compaction due to weight)
+//
+//						(Jordan 1991 / Anderson 1976)
+//
+//---------------------------------------------------------------------------
+
+double tSnowPack::densityCompactionCalc(double currentDensity, double currentSnWE_kgm2, double snTempC, double dt_sec) {
+
+    // Constants from Jordan (1991) / Anderson (1976)
+    // currentDensity in kg/m^3
+    // currentSnWE_kgm2 in kg/m^2
+    // snTempC in Celsius
+    // dt_sec is timestep in seconds
+    
+    double density = currentDensity;
+    double T_kelvin = snTempC + 273.15;
+    double gravity = 9.81;
+    
+    // If snow is colder than -20C, the viscosity is so high that 
+    // settling is physically negligible over a single timestep.
+    // Return the current density and skip the math.
+    if (snTempC < -20.0) {
+        return currentDensity;
+    }
+
+    // Destructive Metamorphism (Crystal settling)
+    // dominate process for low density snow
+    double CR_meta = 0.0; // Compaction Rate
+    double c3 = 0.04; // K^-1
+    double c4 = 0.046; // m^3/kg
+    
+    if (density < 150.0) {
+        // Rapid settling for very fresh snow
+        // Coefficient -5.8e-2 (approximate for very low density)
+        // Note: Jordan's coefficients vary strictly by grain size, 
+        // simplification for single-layer models like VIC
+        CR_meta = 0.01 * exp(-c3 * (273.15 - T_kelvin)); 
+    } else {
+        // Slower settling for denser snow
+        CR_meta = 0.003 * exp(-c3 * (273.15 - T_kelvin)); 
+    }
+    
+    // Scale metamorphism by density (stops compacting as it gets dense)
+    // This is the fractional change rate (1/sec)
+    double fractional_meta = CR_meta * exp(-c4 * (density - 100.0));
+    
+    // Overburden Pressure (Weight of snow)
+    // Pressure P (Pa) at the midpoint of the single layer = 0.5 * weight
+    double P = 0.5 * currentSnWE_kgm2 * gravity;
+    
+    // Viscosity calculation (the resistance to squishing)
+    // Jordan (1991) Eq 17 
+    double eta0 = 3.6e6; // Reference viscosity at 0C and 0 density (Pa s)
+    double a_eta = 0.08; // K^-1
+    double b_eta = 0.021; // m^3/kg
+    
+    double eta = eta0 * exp(a_eta * (273.15 - T_kelvin) + b_eta * density);
+    
+    // Compaction rate due to overburden
+    double fractional_overburden = P / eta;
+    
+    // Total Update
+    // d_rho / dt = rho * (CR_meta + CR_overburden)
+    double total_frac_change = fractional_meta + fractional_overburden;
+    
+    // Apply update over timestep
+    double new_density = density * (1.0 + total_frac_change * dt_sec);
+    
+    // Max density for dry snow 
+    if (new_density > 600.0) new_density = 600.0;
+    
+    return new_density;
+}
+
+//---------------------------------------------------------------------------
+//
+//			  tSnowPack::drainageCalc()
+//
+//	  Calculates the vertical liquid water flux (drainage) out of the 
+//	  snowpack using a Darcy's Law approximation for gravity drainage.
+//	  
+//	  The function treats 'irredSat' as the Volumetric Irreducible 
+//	  Water Saturation (fraction of pore space holding immobile water).
+//	  Flux only occurs when liquid water exceeds this holding capacity.
+//
+//						(Colbeck 1972 / Jordan 1991)
+//
+//---------------------------------------------------------------------------
+
+double tSnowPack::drainageCalc(double liqWE_m, double snDepth_m, double currentRho, double irredSat, double dt_sec) {
+    
+    // Sanity Check
+    if (liqWE_m <= 0.0 || snDepth_m <= 0.0) return 0.0;
+
+    // K_sat_ref: Reference saturated hydraulic conductivity (m/hr).
+    // range: 2.0 - 20.0 for ripe snow. Lets go with 5.
+    // Candidate for eventual snow data parameter file.
+    const double K_sat_ref = 5.0 / 3600; // convert to seconds
+
+    // Calculate Porosity
+    double porosity = porosityCalc(currentRho);
+
+    // Calculate Effective Saturation
+    double pore_volume = snDepth_m * porosity;
+    double S_absolute = liqWE_m / pore_volume;
+    double S_eff = 0.0;
+
+    // Only drain water above the irreducible holding capacity
+    if (S_absolute > irredSat) {
+        S_eff = (S_absolute - irredSat) / (1.0 - irredSat);
+    } else {
+        return 0.0; // Water is held by capillary forces
+    }
+
+    // Calculate Flux (Darcy's Law approximation)
+    // Flux = K_sat * (S_eff)^3, 3 is a theoretical value from Colbeck
+    double drainage_flux_mps = K_sat_ref * S_eff * S_eff * S_eff;
+
+    // Since timestep is hardcoded to 1 hour, Flux (m/hr) = Volume (m)
+    double route_vol = drainage_flux_mps * dt_sec;
+
+    // Mass Balance Limit
+    // Cannot drain more water than is "mobile" (Liquid - Holding Capacity)
+    double mobile_water = liqWE_m - (pore_volume * irredSat);
+    
+    // Clamp to 0 just in case floating point math goes slightly negative
+    if (mobile_water < 0.0) mobile_water = 0.0;
+    if (route_vol > mobile_water) {
+        route_vol = mobile_water;
+    }
+    
+    return route_vol;
+}
+
+//---------------------------------------------------------------------------
+//
+//        tSnowPack::porosityCalc()
+//
+//	  Calculate bulk porosity based on current snow density. Assumes 
+//	  a pure ice grain density of 917 kg/m^3.
+//	  
+//	  Includes a safety clamp (min porosity 0.05) to prevent division 
+//	  by zero errors in drainage calculations for highly compacted ice.
+//
+//---------------------------------------------------------------------------
+double tSnowPack::porosityCalc(double rho) {
+
+    // Calculate theoretical porosity
+    double por = 1.0 - (rho / 917.0);
+
+    // Safety Clamp
+    // Prevent divide by zero in dense ice
+    if (por < 0.05) { 
+        por = 0.05; 
+    }
+
+    return por;
 }
 
 /****************************************************************************
