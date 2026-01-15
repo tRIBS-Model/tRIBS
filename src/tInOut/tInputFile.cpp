@@ -78,7 +78,12 @@ int tInputFile::ReadItem( const int &datType, const char *itemCode )
 	int item;
 	char headerLine[kMaxNameLength];	
 
-	assert( infile.good() );
+	// Replacement for assert to provide user feedback
+    if ( !infile.good() ) {
+        cout << "\nFATAL ERROR: Input file stream is invalid." << endl;
+        cout << "This usually means the input '" << itemCode << "' (or the file containing it) could not be found." << endl;
+        exit(1);
+    }
 	
 	infile.getline( headerLine, kMaxNameLength );
 	while( !( infile.eof() ) &&
@@ -113,7 +118,12 @@ long tInputFile::ReadItem( const long &datType, const char *itemCode )
 	long item;
 	char headerLine[kMaxNameLength];
 	
-	assert( infile.good() );
+	// Replacement for assert to provide user feedback
+    if ( !infile.good() ) {
+        cout << "\nFATAL ERROR: Input file stream is invalid." << endl;
+        cout << "This usually means the input '" << itemCode << "' (or the file containing it) could not be found." << endl;
+        exit(1);
+    }
 	
 	infile.getline( headerLine, kMaxNameLength );
 	while( !( infile.eof() ) &&
@@ -148,7 +158,12 @@ double tInputFile::ReadItem( const double &datType, const char *itemCode )
 	double item;
 	char headerLine[kMaxNameLength];
 	
-	assert( infile.good() );
+	// Replacement for assert to provide user feedback
+    if ( !infile.good() ) {
+        cout << "\nFATAL ERROR: Input file stream is invalid." << endl;
+        cout << "This usually means the input '" << itemCode << "' (or the file containing it) could not be found." << endl;
+        exit(1);
+    }
 	
 	infile.getline( headerLine, kMaxNameLength );
 	while( !( infile.eof() ) &&
@@ -181,7 +196,12 @@ void tInputFile::ReadItem( char * theString, const char *itemCode )
 {
 	char headerLine[kMaxNameLength];
 	
-	assert( infile.good() );
+	// Replacement for assert to provide user feedback
+    if ( !infile.good() ) {
+        cout << "\nFATAL ERROR: Input file stream is invalid." << endl;
+        cout << "This usually means the input '" << itemCode << "' (or the file containing it) could not be found." << endl;
+        exit(1);
+    }
 	
 	infile.getline( headerLine, kMaxNameLength );
 	while( !( infile.eof() ) &&
@@ -216,7 +236,11 @@ int tInputFile::IsItemIn( const char *itemCode )
 	int item;
 	char headerLine[kMaxNameLength];
 	
-	assert( infile.good() );
+	if ( !infile.good() ) {
+    cout << "\nFATAL ERROR in tInputFile::IsItemIn" << endl;
+    cout << "The input file stream is invalid while searching for '" << itemCode << "'." << endl;
+    exit(1);
+	}
 	
 	infile.getline( headerLine, kMaxNameLength );
 	while( !( infile.eof() ) &&

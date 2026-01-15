@@ -72,13 +72,13 @@ tSnowPack::~tSnowPack() {
 void tSnowPack::SetSnowPackVariables(tInputFile &infile) {
 
     //parameters
-    minSnTemp = infile.ReadItem(minSnTemp, "MINSNTEMP");
-    snliqfrac = infile.ReadItem(snliqfrac, "SNLIQFRAC"); // Added by CJC 2020
+    //minSnTemp = infile.ReadItem(minSnTemp, "MINSNTEMP");
+    //snliqfrac = infile.ReadItem(snliqfrac, "SNLIQFRAC"); // Added by CJC 2020
     hillAlbedoOption = infile.ReadItem(hillAlbedoOption, "HILLALBOPT");
     densityAge = 0.0;
     ETAge = 0.0;
     compactParam = 0.3;
-    rhoSnFreshkg = 100.0;
+    //rhoSnFreshkg = 100.0;
     snOnOff = 0.0;
 }
 
@@ -163,6 +163,67 @@ void tSnowPack::SetSnowVariables(tInputFile &infile) {
     cmtonaught = 0.01; // Used convert cm to m
     ctom = 10.0;
     mtoc = 0.1;
+
+    // Read Input Parameters from snow parameter file
+    // Read the path to the snow parameter file from the main input file
+    char snowParamFile[kName]; 
+    infile.ReadItem(snowParamFile, "SNOWFILENAME"); // the existense of this file has already been check in tPreProcess.cpp
+
+    // Create a new tInputFile object specifically for the snow parameters
+    tInputFile snowIn(snowParamFile); 
+
+    // Read the parameters using keywords defined in file.
+    // Density
+    rhoSnFreshkg = snowIn.ReadItem(rhoSnFreshkg, "FRESH_SNOW_DENSITY");
+
+    // General
+    snliqfrac = snowIn.ReadItem(snliqfrac,  "IRREDUCIBLE_SAT"); 
+    kSatRef   = snowIn.ReadItem(kSatRef,    "K_SAT_REF");
+    minSnTemp = snowIn.ReadItem(minSnTemp,  "MIN_SNOW_TEMP");
+    canopyWindAtten = snowIn.ReadItem(canopyWindAtten, "CANOPY_WIND_ATTENUATION");
+    snRoughness = snowIn.ReadItem(snRoughness, "ROUGHNESS_LENGTH");
+
+    // Albedo
+    snInitialAlbedo = snowIn.ReadItem(snInitialAlbedo, "ALBEDO_FRESH");
+    snLambdaDry     = snowIn.ReadItem(snLambdaDry,     "ALBEDO_DECAY_DRY");
+    snLambdaWet     = snowIn.ReadItem(snLambdaWet,     "ALBEDO_DECAY_WET");
+    snMinAlbedo     = snowIn.ReadItem(snMinAlbedo,     "ALBEDO_MIN");
+    albResetThresh  = snowIn.ReadItem(albResetThresh,  "ALBEDO_RESET_THRESHOLD");
+
+    // Precipitation Partitioning
+    optPartition = snowIn.ReadItem(optPartition, "OPTPRECPARTITION");
+    if (optPartition == 0) { // Wet-bulb method
+        // Check input actually exists
+        if (!snowIn.IsItemIn("MAX_WETBULB_TEMP")) {
+            cout << "\nERROR: You selected Precipitation Partition Option 0 (Wet Bulb)," << endl;
+            cout << "       but the parameter 'MAX_WETBULB_TEMP' is missing from the file." << endl;
+            exit(1);
+        }
+
+        maxTempWB = snowIn.ReadItem(maxTempWB, "MAX_WETBULB_TEMP");
+    } else if (optPartition == 1) { // Linear transition method
+        // Check input actually exists
+        if (!snowIn.IsItemIn("MIN_TEMP_RAIN")) {
+            cout << "\nERROR: You selected Precipitation Partition Option 1 (Linear Transition)," << endl;
+            cout << "       but the parameter 'MIN_TEMP_RAIN' is missing from the file." << endl;
+            exit(1);
+        } else if (!snowIn.IsItemIn("MAX_TEMP_SNOW")) {
+            cout << "\nERROR: You selected Precipitation Partition Option 1 (Linear Transition)," << endl;
+            cout << "       but the parameter 'MAX_TEMP_SNOW' is missing from the file." << endl;
+            exit(1);
+        }
+
+        minTempRain = snowIn.ReadItem(minTempRain, "MIN_TEMP_RAIN");
+        maxTempSnow = snowIn.ReadItem(maxTempSnow, "MAX_TEMP_SNOW");
+    } else { // Invalid option
+        cout << "\nPrecipitation Partition Option " << optPartition;
+        cout << " not valid." << endl;
+        cout << "\tPlease use :" << endl;
+        cout << "\t\t(0) for Wet Bulb Threshold" << endl;
+        cout << "\t\t(1) for Linear Transition" << endl;
+        cout << "\nExiting Program..." << endl << endl;
+        exit(1);
+    }
 
 }
 
@@ -478,7 +539,7 @@ void tSnowPack::callSnowPack(tIntercept *Intercept, int flag) {
             // Retrieve Previous Density
             // Since we don't explicitly store density, we derive it from the previous timestep's depth/SWE
             // If this is the very first snow, assume fresh.
-            // TODO: need to chnage the code for saving density age and use it to save density. Instead of this approximation
+            // TODO: need to change the code for saving density age and use it to save density. Instead of this approximation
             double curRho = 100.0; // Default fallback
             if (snWE > 1e-6) {
                 // Depth = Mass / Density  ->  Density = Mass / Depth
@@ -625,7 +686,7 @@ void tSnowPack::callSnowPack(tIntercept *Intercept, int flag) {
                 densityAge = (snWE * densityAge) / (snWE + mtoc * precip);
 
                 //reset crust age if snowing out
-                if (precip * snowFracCalc() > 1e-3) {
+                if (precip * snowFracCalc() > albResetThresh) {
                     crustAge = 0.0;
                 }
 
@@ -1188,7 +1249,7 @@ void tSnowPack::setToNodeSnP(tCNode *node) {
 double tSnowPack::freshDensityCalc(double airTempC) {
 
     // Returns density in kg/m^3
-    double rho_fresh = 67.92 + 51.25 * exp(airTempC / 2.59);
+    double rho_fresh = rhoSnFreshkg + 51.25 * exp(airTempC / 2.59);
     
     // Safety clamps
     if (rho_fresh < 50.0) rho_fresh = 50.0;
@@ -1238,7 +1299,7 @@ double tSnowPack::densityCompactionCalc(double currentDensity, double currentSnW
         // Rapid settling for very fresh snow
         // Coefficient -5.8e-2 (approximate for very low density)
         // Note: Jordan's coefficients vary strictly by grain size, 
-        // simplification for single-layer models like VIC
+        // simplification for single-layer models
         CR_meta = 0.01 * exp(-c3 * (273.15 - T_kelvin)); 
     } else {
         // Slower settling for denser snow
@@ -1297,11 +1358,6 @@ double tSnowPack::drainageCalc(double liqWE_m, double snDepth_m, double currentR
     // Sanity Check
     if (liqWE_m <= 0.0 || snDepth_m <= 0.0) return 0.0;
 
-    // K_sat_ref: Reference saturated hydraulic conductivity (m/hr).
-    // range: 2.0 - 20.0 for ripe snow. Lets go with 5.
-    // Candidate for eventual snow data parameter file.
-    const double K_sat_ref = 5.0 / 3600; // convert to seconds
-
     // Calculate Porosity
     double porosity = porosityCalc(currentRho);
 
@@ -1319,7 +1375,7 @@ double tSnowPack::drainageCalc(double liqWE_m, double snDepth_m, double currentR
 
     // Calculate Flux (Darcy's Law approximation)
     // Flux = K_sat * (S_eff)^3, 3 is a theoretical value from Colbeck
-    double drainage_flux_mps = K_sat_ref * S_eff * S_eff * S_eff;
+    double drainage_flux_mps = kSatRef * S_eff * S_eff * S_eff;
 
     // Since timestep is hardcoded to 1 hour, Flux (m/hr) = Volume (m)
     double route_vol = drainage_flux_mps * dt_sec;
@@ -1351,7 +1407,7 @@ double tSnowPack::drainageCalc(double liqWE_m, double snDepth_m, double currentR
 double tSnowPack::porosityCalc(double rho) {
 
     // Calculate theoretical porosity
-    double por = 1.0 - (rho / 917.0);
+    double por = 1.0 - (rho / rhoicekg);
 
     // Safety Clamp
     // Prevent divide by zero in dense ice
@@ -1405,9 +1461,8 @@ double tSnowPack::latentHFCalc(double Kaero) {
     // If the snow surface is frozen, the process is sublimation.
     } else {
         // Use latent heat of sublimation.
-        // Should we be using Clausius-Clapeyron here for the vapor pressure (liquid water) or should it be for ice?
-        // Could use Magnus-Tetens formula for ice vapor pressure.
-        lhf = (latSubkJ * 0.622 * rhoAir * Kaero * (vPress - 6.112 * exp((17.67 * snTemp_corr) / (snTemp_corr + 243.5))) /
+        // Saturation Vapor Pressure over ICE
+        lhf = (latSubkJ * 0.622 * rhoAir * Kaero * (vPress - 6.112 * exp((21.87 * snTemp_corr) / (snTemp_corr + 265.5))) /
                atmPress); //sublimation by THM 2012
     }
     return lhf;
@@ -1461,32 +1516,31 @@ double tSnowPack::snowFracCalc() {
     double Tw, RH, Ta, f1;
     Ta = airTemp;
     RH = rHumidity;
-    // Calculate wet-Bulb Temperature according to Stull (2011) https://doi.org/10.1175/JAMC-D-11-0143.1
-    Tw = Ta*atan(0.151977*pow(RH + 8.313659,0.5)) + atan(Ta + RH) - atan(RH - 1.676331) +
-         0.00391838*pow(RH,1.5)*atan(0.023101*RH) - 4.686035; // in degC
+    if (optPartition == 0) { // Wet-bulb partitioning
 
-    // Calculate  snowfall fraction according to Wang et al. (2019) https://doi.org/10.1029/2019GL085722
-    f1 = 1 + 6.99*pow(10,-5)*exp(2*(Tw + 3.97));
+        // Calculate wet-Bulb Temperature according to Stull (2011) https://doi.org/10.1175/JAMC-D-11-0143.1
+        Tw = Ta*atan(0.151977*pow(RH + 8.313659,0.5)) + atan(Ta + RH) - atan(RH - 1.676331) +
+            0.00391838*pow(RH,1.5)*atan(0.023101*RH) - 4.686035; // in degC
 
-    // Wet-bulb temperature > 5C corresponds to Ta = 10C and RH = 50%, assuming no snowfall
-    if ( Tw > 5 ) {
-        snowfrac = 0;
+        // Calculate  snowfall fraction according to Wang et al. (2019) https://doi.org/10.1029/2019GL085722
+        f1 = 1 + 6.99*pow(10,-5)*exp(2*(Tw + 3.97));
+
+        // Wet-bulb temperature > 5C corresponds to Ta = 10C and RH = 50%, assuming no snowfall
+        if ( Tw > maxTempWB ) {
+            snowfrac = 0;
+        } else {
+            snowfrac = 1/f1;
+        }
+    } else { // Linear ramp partitioning
+
+        if (Ta <= minTempRain) {
+            snowfrac = 1; // all ice
+        } else if (Ta >= maxTempSnow) {
+            snowfrac = 0; // all liquid
+        } else if ((Ta >= minTempRain) && (Ta <= maxTempSnow)) {
+            snowfrac = (maxTempSnow - Ta) / (maxTempSnow - minTempRain); //mixture
+        }
     }
-    else {
-        snowfrac = 1/f1;
-    }
-
-/*  Updated as outlined above to reflect influence of RH on snow fall partitioning -WR 11272023
-//    double TMin(0), TMax(4.4); //indices (Wigmosta et al. 1994)—updated for CJC thesis (see table 11)
-//
-//    if (airTemp <= TMin)
-//        snowfrac = 1; // all ice
-//    if (airTemp >= TMax)
-//        snowfrac = 0; // all liquid
-//    if ((airTemp >= TMin) && (airTemp <= TMax))
-//        snowfrac = (TMax - airTemp) / (TMax - TMin); //mixture
-*/
-
     return snowfrac;
 }
 
@@ -1550,14 +1604,7 @@ double tSnowPack::precipitationHFCalc() {
 double tSnowPack::agingAlbedo() {
     double alb;
 
-    // Albedo Parameters for Central Arizona
-    // Based on Sun et al. (2019) and general values for dusty, ephemeral snowpacks.
-    const double snInitialAlbedo = 0.85; // Albedo of fresh, new snow.
-    const double snLambdaDry     = 0.96; // Decay factor for dry snow aging.
-    const double snLambdaWet     = 0.87; // Faster decay factor for wet/melting snow.
-    const double snMinAlbedo     = 0.45; // Minimum albedo for old, "dirty" snow.
-
-    if (liqWE < 1.0E-5) {
+    if (liqWE < 1.0E-5 && snTempC < -0.1) {
         // Dry snow aging
         alb = snInitialAlbedo * pow(snLambdaDry, pow(crustAge / 24.0, 0.58));
     } else {
@@ -1599,17 +1646,17 @@ double tSnowPack::resFactCalc() {
     vegHeight = (coeffH <= 0) ? 0.1 : coeffH;
     vegHeight = (vegHeight > snDepthm) ? vegHeight - snDepthm : 0.1;
 
-    vegBare = 0.1;
+    vegBare = 0.4;
     vegFrac = coeffV;
 
     // Compute below canopy windspeed at snow surface following equation Moreno et al. (2016) CJC 2020
     if (snDepthm < coeffH) {
-        windSpeedS = windSpeedC * exp(-0.5 * coeffLAI * (1.0 - (snDepthm / coeffH)));
+        windSpeedS = windSpeedC * exp(-canopyWindAtten * coeffLAI * (1.0 - (snDepthm / coeffH)));
     } else {
         windSpeedS = windSpeedC;  // No canopy attenuation
     }
-
-    // --- Aerodynamic resistance for vegetation ---
+    
+    // Aerodynamic resistance for vegetation
     zm = 2.0 + vegHeight;
     zom = 0.123 * vegHeight;
     zov = 0.0123 * vegHeight;
@@ -1617,10 +1664,13 @@ double tSnowPack::resFactCalc() {
 
     rav = log((zm - d) / zom) * log((zm - d) / zov) / (windSpeedC * pow(vonKarm, 2)); //Uses canopy level wind speed
 
-    // --- Aerodynamic resistance for bare soil ---
+    // Aerodynamic resistance for snow surface
+    zom = snRoughness;
+    zov = snRoughness / 10.0; // 10% of the momentum roughness like with the original code
+    vegBare = snRoughness / 0.123; // Back calculate effective obstacle height using same relation as original code
     zm = 2.0 + vegBare;
-    zom = 0.123 * vegBare;
-    zov = 0.0123 * vegBare;
+    //zom = 0.123 * vegBare;
+    //zov = 0.0123 * vegBare;
     d = 0.67 * vegBare;
 
     ras = log((zm - d) / zom) * log((zm - d) / zov) / (windSpeedS * pow(vonKarm, 2)); // Uses snow/surface level wind
@@ -1651,7 +1701,7 @@ double tSnowPack::resFactCalc() {
     // Use windSpeedS (attenuated wind at snow surface) in RiB calc.
     // Though Ta is from 2m AGL, we prioritize the snow–air interface.
     // This matches the aerodynamic resistance formulation and maintains internal consistency.
-    double RiB = (g * zm_eff * (Ta - Ts)) / (T_avg * windSpeedS* windSpeedS);
+    double RiB = (g * zm_eff * (Ta - Ts)) / (T_avg * windSpeedC* windSpeedC);
 
     // Compute upper limit Ri_u (Eq. 24)
     double Ri_u = 1.0 / (log(zm_eff / z0) + 5.0);
@@ -1660,7 +1710,7 @@ double tSnowPack::resFactCalc() {
     double C_stab;
     if (RiB < 0.0) {
         // Unstable conditions (Eq. 19)
-        C_stab = pow(1.0 - 16.0 * RiB, 0.5);
+        C_stab = 1.0 / pow(1.0 - 16.0 * RiB, 0.5);
     } else if (RiB <= Ri_u) {
         // Stable but not extreme (Eq. 25)
         C_stab = 1.0 / pow(1.0 - (RiB / Ri_cr), 2.0);

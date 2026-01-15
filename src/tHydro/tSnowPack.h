@@ -137,7 +137,19 @@ public:
   void readRestart(fstream &);
 
 protected:
-  // NEW SNOW PHYSICS HELPER FUNCTIONS CJC2025
+  // New parameter variables
+  double snliqfrac; 
+  double kSatRef;
+  double minSnTemp;
+  double canopyWindAtten, snRoughness;
+    
+  // Albedo params
+  double snInitialAlbedo, snLambdaDry, snLambdaWet, snMinAlbedo, albResetThresh;
+
+  // Partitioning Params
+  double optPartition, maxTempWB, minTempRain, maxTempSnow;
+    
+  // New snow physics helper functions CJC2025
   double freshDensityCalc(double airTempC);
   double densityCompactionCalc(double currentDensity, double currentSnWE_cm, 
                                double snTempC, double dt_sec);
@@ -204,8 +216,8 @@ protected:
   double albedo;
   double hillalbedo;
   double compactParam, rhoSnFreshkg;
-  double minSnTemp;
-  double snliqfrac; // Added by CJC2020
+  //double minSnTemp;
+  //double snliqfrac; // Added by CJC2020
 
   //output variables
   double snDepth,snDepthm; //snow depths (cm,m)

@@ -126,9 +126,13 @@ void tPreProcess::CheckInputFile(tInputFile &infile)
 	//IterReadItem(infile, tempVariable,"OPTRUNON");
 
 	// SKY2008Snow from AJR2007
-	IterReadItem(infile, tempVariable,"OPTSNOW");
-	IterReadItem(infile, tempVariable,"MINSNTEMP");
-	IterReadItem(infile, tempVariable,"SNLIQFRAC"); // Added by CJC 2020
+	double optsnow = IterReadItem(infile, tempVariable,"OPTSNOW");
+	if (optsnow == 1) {
+		IterReadItem( infile, tempString,"SNOWFILENAME");
+		CheckFileExists(infile, tempString, "SNOWFILENAME");
+	}
+	//IterReadItem(infile, tempVariable,"MINSNTEMP");
+	//IterReadItem(infile, tempVariable,"SNLIQFRAC"); // Added by CJC 2020
 	IterReadItem(infile, tempVariable,"OPTRADSHELT");
 
 
