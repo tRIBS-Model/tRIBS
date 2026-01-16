@@ -63,7 +63,6 @@ public:
   void SetInteriorNode();
  
   virtual void WriteDynamicVars(double); 
-  virtual void WriteDynamicVar(double);
   virtual void WriteNodeData(double);    
   virtual void WriteNodeData(double, tResample*);
   virtual void WritePixelInfo(double);
@@ -113,7 +112,6 @@ public:
   char outletName[kMaxNameSize];
 
   void WriteDynamicVars(double);
-  void WriteDynamicVar(double);
   void WriteIntegrVars(double);
   void WritePixelInfo(double);
   void WriteNodeData(double);
