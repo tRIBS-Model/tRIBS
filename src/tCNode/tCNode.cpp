@@ -117,7 +117,7 @@ tCNode::tCNode() :tNode()
 	//snowpack -- RINEHART 2007 @ NMT
 	liqWEq = iceWEq =  liqRoute = dU = 0.0;
 	snTemperC = 0.0;
-	crAge = densAge = ETage = 0.0;
+	crAge = rhoSn = ETage = 0.0;
 	cumLHF = cumMelt = 0.0;
 	snSub = snEvap = 0.0; // Initialize snowpack cumulative sublimation & evaporation CJC2020
 	cumSnSub = cumSnEvap = cumTotEvap = cumBarEvap = 0.0; // Initialize snowpack cumulative sublimation & evaporation CJC2020
@@ -252,7 +252,7 @@ tCNode::tCNode(tInputFile &infile) :tNode() {
 	//snowpack -- RINEHART 2007 @ NMT
 	liqWEq = iceWEq =  liqRoute = dU = 0.0;
 	snTemperC = 0.0;
-	crAge = densAge = ETage = 0.0;
+	crAge = rhoSn = ETage = 0.0;
 	cumLHF = cumMelt = 0.0;
 	snSub = snEvap = 0.0; // Initialize snowpack cumulative sublimation & evaporation CJC2020
 	cumSnSub = cumSnEvap = cumTotEvap = cumBarEvap = 0.0; // Initialize snowpack cumulative sublimation & evaporation CJC2020
@@ -533,7 +533,7 @@ double tCNode::getDU() {return dU;}//flux
 double tCNode::getLiqRouted() {return liqRoute;}//flux
 double tCNode::getSnTempC() {return snTemperC;}//state
 double tCNode::getCrustAge() {return crAge;}//state
-double tCNode::getDensityAge() {return densAge;}//state
+double tCNode::getRhoSn() {return rhoSn;}//state
 double tCNode::getEvapoTransAge() {return ETage;}//flux
 double tCNode::getSnLHF() {return snLHF;}//flux
 double tCNode::getSnSHF() {return snSHF;}//flux
@@ -748,7 +748,7 @@ void tCNode::setDU(double value) {dU = value;}//flux
 void tCNode::setLiqRouted(double lr) {liqRoute = lr;}//flux
 void tCNode::setSnTempC(double temperature) {snTemperC = temperature;}//state
 void tCNode::setCrustAge(double ca) {crAge = ca;}//state
-void tCNode::setDensityAge(double da) {densAge = da;}//state
+void tCNode::setRhoSn(double r) {rhoSn = r;}//state
 void tCNode::setEvapoTransAge(double ea) {ETage = ea;}//flux
 void tCNode::setSnLHF(double value) {snLHF = value;}//flux
 void tCNode::setSnSHF(double value) {snSHF = value;}//flux
@@ -1313,7 +1313,7 @@ void tCNode::writeRestart(fstream& rStr) const
   BinaryWrite(rStr, liqRoute);
   BinaryWrite(rStr, snTemperC);
   BinaryWrite(rStr, crAge);
-  BinaryWrite(rStr, densAge);
+  BinaryWrite(rStr, rhoSn);
   BinaryWrite(rStr, ETage);
   BinaryWrite(rStr, snLHF);
   BinaryWrite(rStr, snSHF);
@@ -1592,7 +1592,7 @@ void tCNode::readRestart(fstream& rStr)
   BinaryRead(rStr, liqRoute);
   BinaryRead(rStr, snTemperC);
   BinaryRead(rStr, crAge);
-  BinaryRead(rStr, densAge);
+  BinaryRead(rStr, rhoSn);
   BinaryRead(rStr, ETage);
   BinaryRead(rStr, snLHF);
   BinaryRead(rStr, snSHF);
@@ -1843,7 +1843,7 @@ void tCNode::printVariables()
   cout << " liqRoute " << liqRoute;
   cout << " snTemperC " << snTemperC;
   cout << " crAge " << crAge;
-  cout << " densAge " << densAge;
+  cout << " rhoSn " << rhoSn;
   cout << " ETage " << ETage;
   cout << " snLHF " << snLHF;
   cout << " snSHF " << snSHF;

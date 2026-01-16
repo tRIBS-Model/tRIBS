@@ -158,7 +158,6 @@ protected:
   double porosityCalc(double rho);
 
   int hillAlbedoOption;
-  double densityAge; //hr
   double rainTemp;
   double ETAge; //min
 

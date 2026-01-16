@@ -75,7 +75,6 @@ void tSnowPack::SetSnowPackVariables(tInputFile &infile) {
     //minSnTemp = infile.ReadItem(minSnTemp, "MINSNTEMP");
     //snliqfrac = infile.ReadItem(snliqfrac, "SNLIQFRAC"); // Added by CJC 2020
     hillAlbedoOption = infile.ReadItem(hillAlbedoOption, "HILLALBOPT");
-    densityAge = 0.0;
     ETAge = 0.0;
     compactParam = 0.3;
     //rhoSnFreshkg = 100.0;
@@ -136,7 +135,7 @@ void tSnowPack::SetSnowVariables(tInputFile &infile) {
     rhosncgs = 0.1;
     rholiqkg = 1000.0; //kg/m^3
     rhoicekg = 920.0; //kg/m^3
-    rhosnkg = 100.0;
+    //rhosnkg = 100.0;
     rhoAir = 1.3;
 
     //thermal properties
@@ -522,7 +521,6 @@ void tSnowPack::callSnowPack(tIntercept *Intercept, int flag) {
             Uwat = 0.0;
             snTempC = 0.0;
             crustAge = 0.0;
-            densityAge = 0.0;
 
             cNode->setIntSub(0.0);
             setToNodeSnP(cNode);
@@ -556,20 +554,6 @@ void tSnowPack::callSnowPack(tIntercept *Intercept, int flag) {
             // We don't yet know the new state of the new mass balance variables so we will project what they will be
             // in order to calculate the new snow depth.
 
-            // Retrieve Previous Density
-            // Since we don't explicitly store density, we derive it from the previous timestep's depth/SWE
-            // If this is the very first snow, assume fresh.
-            // TODO: need to change the code for saving density age and use it to save density. Instead of this approximation
-            double curRho = 100.0; // Default fallback
-            if (snWE > 1e-6) {
-                // Depth = Mass / Density  ->  Density = Mass / Depth
-                // We use iceWE because depth is determined by the ice matrix, not liquid water.
-                curRho = (iceWE * 1000.0) / snDepthm; 
-            } else {
-                // If no snow existed, assume what we are about to receive is fresh
-                curRho = freshDensityCalc(airTemp);
-            }
-
             // Calculate Incoming Mass (temporary variables)
             // precip is in mm. Convert to meters (0.001).
             double newSnowM = (precip * snowFracCalc()) * 0.001; 
@@ -591,26 +575,26 @@ void tSnowPack::callSnowPack(tIntercept *Intercept, int flag) {
                 double newIceKg = newSnowM * 1000.0;
                 
                 // Conservation of Volume
-                double vol_old = oldIceKg / curRho;
+                double vol_old = oldIceKg / rhosnkg;
                 double vol_new = newIceKg / freshRho;
                 
                 // New Mixed Density
-                curRho = (oldIceKg + newIceKg) / (vol_old + vol_new);
+                rhosnkg = (oldIceKg + newIceKg) / (vol_old + vol_new);
             }
 
             // Apply Compaction 
             // We pass projTotWE because the weight of the liqwe contributes to squashing the snow.
             if (projTotWE > 1e-6) {
-                curRho = densityCompactionCalc(curRho, projTotWE * 1000.0, snTempC, timeSteps);
+                rhosnkg = densityCompactionCalc(rhosnkg, projTotWE * 1000.0, snTempC, timeSteps);
             }
             
             // Safety Clamps on Density
-            if (curRho < 50.0) curRho = 50.0;
-            if (curRho > 600.0) curRho = 600.0; // Max density for dry snow
+            if (rhosnkg < 50.0) rhosnkg = 50.0;
+            if (rhosnkg > 600.0) rhosnkg = 600.0; // Max density for dry snow
 
             // Calculate Final Depth
-            // We divide by curRho (Ice Density) so liquid water doesn't artificially inflate depth.
-            snDepthm = (projIceWE * 1000.0) / curRho;
+            // We divide by rhosnkg so liquid water doesn't artificially inflate depth.
+            snDepthm = (projIceWE * 1000.0) / rhosnkg;
 
             // END Calculate current snow depth
 
@@ -632,9 +616,6 @@ void tSnowPack::callSnowPack(tIntercept *Intercept, int flag) {
                 //no precipitation heat flux, as it is totally accounted for in the snow pack energy
                 //   initialization
                 phfOnOff = 0.0;
-
-                //set the new density age
-                densityAge = 0.0;
 
                 //reinitialize crust age
                 crustAge = 0.0;
@@ -658,10 +639,10 @@ void tSnowPack::callSnowPack(tIntercept *Intercept, int flag) {
                 //set other fluxes
                 L = H = G = Prec = Utotold = 0.0;
 
-                // We assume the density of the ice matrix (curRho) did not change during melt, 
+                // We assume the density of the ice matrix (rhosnkg) did not change during melt, 
                 // only the amount of ice changed. 
-                if (curRho > 0) {
-                        snDepthm = (iceWE * 1000.0) / curRho;
+                if (rhosnkg > 0) {
+                        snDepthm = (iceWE * 1000.0) / rhosnkg;
                 } else {
                         snDepthm = 0.0;
                 }
@@ -669,14 +650,14 @@ void tSnowPack::callSnowPack(tIntercept *Intercept, int flag) {
                 // Calculate the Max Liquid Capacity (in meters)
                 // We treat snliqfrac as the Volumetric Irreducible Saturation.
                 // Capacity = Depth * Porosity * snliqfrac
-                double maxPoreStorageM = snDepthm * porosityCalc(curRho) * snliqfrac; 
+                double maxPoreStorageM = snDepthm * porosityCalc(rhosnkg) * snliqfrac; 
 
                 //put in routing bucket
                 if (liqWE > maxPoreStorageM) { 
                     //there is enough water left over
                     if (liqWE != snWE) {
                         // Calculate drainage using Darcy's Law approximation
-                        liqRoute = drainageCalc(liqWE, snDepthm, curRho, snliqfrac, timeSteps);
+                        liqRoute = drainageCalc(liqWE, snDepthm, rhosnkg, snliqfrac, timeSteps);
                         liqWE = liqWE - liqRoute;
                         snWE = liqWE + iceWE;
                     }
@@ -701,9 +682,6 @@ void tSnowPack::callSnowPack(tIntercept *Intercept, int flag) {
 
                 //account for precipitation heat flux
                 phfOnOff = 1.0;
-
-                //find the new density age
-                densityAge = (snWE * densityAge) / (snWE + mtoc * precip);
 
                 //reset crust age if snowing out
                 if (precip * snowFracCalc() > albResetThresh) {
@@ -741,7 +719,6 @@ void tSnowPack::callSnowPack(tIntercept *Intercept, int flag) {
                     Uwat = 0.0;
                     snTempC = 0.0;
                     crustAge = 0.0;
-                    densityAge = 0.0;
                 } else {
 
                     //find initial state of energy
@@ -799,10 +776,10 @@ void tSnowPack::callSnowPack(tIntercept *Intercept, int flag) {
                         //assign water equivalents
                         iceWE = snWE - liqWE; 
 
-                        // We assume the density of the ice matrix (curRho) did not change during melt, 
+                        // We assume the density of the ice matrix (rhosnkg) did not change during melt, 
                         // only the amount of ice changed. 
-                        if (curRho > 0) {
-                                snDepthm = (iceWE * 1000.0) / curRho;
+                        if (rhosnkg > 0) {
+                                snDepthm = (iceWE * 1000.0) / rhosnkg;
                         } else {
                                 snDepthm = 0.0;
                         }
@@ -810,14 +787,14 @@ void tSnowPack::callSnowPack(tIntercept *Intercept, int flag) {
                         // Calculate the Max Liquid Capacity (in meters)
                         // We treat 'snliqfrac' as the Volumetric Irreducible Saturation.
                         // Capacity = Depth * Porosity * snliqfrac
-                        double maxPoreStorageM = snDepthm * porosityCalc(curRho) * snliqfrac; 
+                        double maxPoreStorageM = snDepthm * porosityCalc(rhosnkg) * snliqfrac; 
 
                         //put in routing bucket
                         if (liqWE > maxPoreStorageM) { 
                             //there is enough water left over
                             if (liqWE != snWE) {
                                 // Calculate drainage using Darcy's Law approximation
-                                liqRoute = drainageCalc(liqWE, snDepthm, curRho, snliqfrac, timeSteps);
+                                liqRoute = drainageCalc(liqWE, snDepthm, rhosnkg, snliqfrac, timeSteps);
                                 liqWE = liqWE - liqRoute;
                                 snWE = liqWE + iceWE;
                             }
@@ -844,13 +821,11 @@ void tSnowPack::callSnowPack(tIntercept *Intercept, int flag) {
                 liqWE = 0.0;
                 iceWE = 0.0;
                 crustAge = 0.0;
-                densityAge = 0.0;
                 Utot = 0.0;
                 Usn = 0.0;
                 Uwat = 0.0;
             } else {
                 crustAge += timeSteph;
-                densityAge += timeSteph;
                 snOnOff = 1.0;
             }
 
@@ -1128,6 +1103,13 @@ void tSnowPack::getFrNodeSnP(tCNode *node) {
     liqRoute = 0.0; //cm
     snWE = liqWE + iceWE; //cm
 
+    // Deal with snow density
+    rhosnkg = node->getRhoSn();
+    // If there is no snow, density should be initialized to fresh snow
+    if (snWE <= 1e-5) {
+        rhosnkg = rhoSnFreshkg; // Uses the parameter you read from the file
+    }
+
     //deal with the snow temperatures
     if (snWE > 1e-4) {
 
@@ -1151,7 +1133,6 @@ void tSnowPack::getFrNodeSnP(tCNode *node) {
     }
 
     crustAge = node->getCrustAge();
-    densityAge = node->getDensityAge();
     ETAge = node->getEvapoTransAge();
 
     persMax = node->getPersTimeMax();
@@ -1181,7 +1162,6 @@ void tSnowPack::setToNodeSnP(tCNode *node) {
     node->setIceWE(iceWE);
     node->setSnTempC(snTempC);
     node->setCrustAge(crustAge);
-    node->setDensityAge(densityAge);
     node->setEvapoTransAge(ETAge);
     node->setSnSub(snSub); // scaled by non-vegetated area
     node->setSnEvap(snEvap); // scaled by non-vegetated area
@@ -1219,6 +1199,9 @@ void tSnowPack::setToNodeSnP(tCNode *node) {
         peaktime = hourlyTimeStep;
         inittime = inittimeTemp;
     }
+
+    // Save the updated density
+    node->setRhoSn(rhosnkg);
 
     node->setPersTimeMax(persMax);
     node->setPersTime(persMaxtemp);
@@ -2330,7 +2313,7 @@ double tSnowPack::KtoC(double temperature) {
 ***************************************************************************/
 void tSnowPack::writeRestart(fstream &rStr) const {
     BinaryWrite(rStr, hillAlbedoOption);
-    BinaryWrite(rStr, densityAge);
+    BinaryWrite(rStr, rhosnkg);
     BinaryWrite(rStr, rainTemp);
     BinaryWrite(rStr, ETAge);
 
@@ -2467,7 +2450,7 @@ void tSnowPack::writeRestart(fstream &rStr) const {
 ***************************************************************************/
 void tSnowPack::readRestart(fstream &rStr) {
     BinaryRead(rStr, hillAlbedoOption);
-    BinaryRead(rStr, densityAge);
+    BinaryRead(rStr, rhosnkg);
     BinaryRead(rStr, rainTemp);
     BinaryRead(rStr, ETAge);
 
