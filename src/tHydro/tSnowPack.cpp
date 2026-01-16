@@ -1258,9 +1258,9 @@ double tSnowPack::freshDensityCalc(double airTempC) {
     // Returns density in kg/m^3
     double rho_fresh = rhoSnFreshkg + 51.25 * exp(airTempC / 2.59);
     
-    // Safety clamps
+    // Safety clamps from https://doi.org/10.1175/1520-0477(2000)081%3C1577:DOFFSI%3E2.3.CO;2
     if (rho_fresh < 50.0) rho_fresh = 50.0;
-    if (rho_fresh > 250.0) rho_fresh = 250.0;
+    if (rho_fresh > 200.0) rho_fresh = 200.0;
     
     return rho_fresh;
 }
@@ -1287,59 +1287,39 @@ double tSnowPack::densityCompactionCalc(double rho, double SWE_kgm2, double snTe
     
     double density = rho;
     double T_kelvin = snTempC + 273.15;
+    double T_diff = 273.15 - T_kelvin;
     double gravity = 9.81;
     
-    // If snow is colder than -20C, the viscosity is so high that 
-    // settling is physically negligible over a single timestep.
-    // Return the current density and skip the math.
-    if (snTempC < -20.0) {
-        return rho;
-    }
+    if (snTempC < -20.0) return rho; // Too cold for significant compaction
 
-    // Destructive Metamorphism (Crystal settling)
-    // dominate process for low density snow
-    double CR_meta = 0.0; // Compaction Rate
-    double c3 = 0.04; // K^-1
-    double c4 = 0.046; // m^3/kg
+    // Destructive Metamorphism (Settling)
+    // Constants converted from hourly (0.01) to secondly (2.77e-6)
+    double c1 = 2.777e-6; // s^-1 
+    double c3 = 0.04;     // K^-1
+    double c4 = 0.046;    // m^3/kg
     
-    if (density < 150.0) {
-        // Rapid settling for very fresh snow
-        // Coefficient -5.8e-2 (approximate for very low density)
-        // Note: Jordan's coefficients vary strictly by grain size, 
-        // simplification for single-layer models
-        CR_meta = 0.01 * exp(-c3 * (273.15 - T_kelvin)); 
-    } else {
-        // Slower settling for denser snow
-        CR_meta = 0.003 * exp(-c3 * (273.15 - T_kelvin)); 
-    }
+    // Fractional rate (s^-1)
+    double fractional_meta = c1 * exp(-c3 * T_diff) * exp(-c4 * (density - 100.0));
     
-    // Scale metamorphism by density (stops compacting as it gets dense)
-    // This is the fractional change rate (1/sec)
-    double fractional_meta = CR_meta * exp(-c4 * (density - 100.0));
-    
-    // Overburden Pressure (Weight of snow)
-    // Pressure P (Pa) at the midpoint of the single layer = 0.5 * weight
+    // Overburden Pressure (Compaction)
+    // Pressure at midpoint = 0.5 * SWE
     double P = 0.5 * SWE_kgm2 * gravity;
     
-    // Viscosity calculation (the resistance to squishing)
-    // Jordan (1991) Eq 17 
-    double eta0 = 3.6e6; // Reference viscosity at 0C and 0 density (Pa s)
-    double a_eta = 0.08; // K^-1
-    double b_eta = 0.021; // m^3/kg
+    // Viscosity (Pa s) - Jordan (1991)
+    double eta0 = 3.6e6; 
+    double a_eta = 0.08; 
+    double b_eta = 0.021; 
+    double eta = eta0 * exp(a_eta * T_diff + b_eta * density);
     
-    double eta = eta0 * exp(a_eta * (273.15 - T_kelvin) + b_eta * density);
+    double fractional_overburden = P / eta; // s^-1
     
-    // Compaction rate due to overburden
-    double fractional_overburden = P / eta;
+    // Integration
+    double total_rate = fractional_meta + fractional_overburden;
     
-    // Total Update
-    // d_rho / dt = rho * (CR_meta + CR_overburden)
-    double total_frac_change = fractional_meta + fractional_overburden;
+    // Use exponential growth: rho(t) = rho0 * exp(rate * dt)
+    double new_density = density * exp(total_rate * dt_sec);
     
-    // Apply update over timestep
-    double new_density = density * (1.0 + total_frac_change * dt_sec);
-    
-    // Max density for dry snow 
+    // Safety Clamps
     if (new_density > 600.0) new_density = 600.0;
     
     return new_density;
