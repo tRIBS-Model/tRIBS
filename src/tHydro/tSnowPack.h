@@ -151,9 +151,9 @@ protected:
     
   // New snow physics helper functions CJC2025
   double freshDensityCalc(double airTempC);
-  double densityCompactionCalc(double currentDensity, double currentSnWE_cm, 
+  double densityCompactionCalc(double rho, double SWE_kgm2, 
                                double snTempC, double dt_sec);
-  double drainageCalc(double liqWE_cm, double snDepth_m, double currentRho, 
+  double drainageCalc(double liqWE_m, double snDepth_m, double rho, 
                       double irredSat, double dt_sec);
   double porosityCalc(double rho);
 

@@ -135,7 +135,6 @@ void tSnowPack::SetSnowVariables(tInputFile &infile) {
     rhosncgs = 0.1;
     rholiqkg = 1000.0; //kg/m^3
     rhoicekg = 920.0; //kg/m^3
-    //rhosnkg = 100.0;
     rhoAir = 1.3;
 
     //thermal properties
@@ -244,6 +243,9 @@ void tSnowPack::SetSnowVariables(tInputFile &infile) {
             exit(1);
         }
     }
+
+    // Initialize the density state variable to the parameter value
+    rhosnkg = rhoSnFreshkg; 
 }
 
 //---------------------------------------------------------------------------
@@ -1273,7 +1275,7 @@ double tSnowPack::freshDensityCalc(double airTempC) {
 //
 //---------------------------------------------------------------------------
 
-double tSnowPack::densityCompactionCalc(double currentDensity, double currentSnWE_kgm2, double snTempC, double dt_sec) {
+double tSnowPack::densityCompactionCalc(double rho, double SWE_kgm2, double snTempC, double dt_sec) {
 
     // Constants from Jordan (1991) / Anderson (1976)
     // currentDensity in kg/m^3
@@ -1281,7 +1283,7 @@ double tSnowPack::densityCompactionCalc(double currentDensity, double currentSnW
     // snTempC in Celsius
     // dt_sec is timestep in seconds
     
-    double density = currentDensity;
+    double density = rho;
     double T_kelvin = snTempC + 273.15;
     double gravity = 9.81;
     
@@ -1289,7 +1291,7 @@ double tSnowPack::densityCompactionCalc(double currentDensity, double currentSnW
     // settling is physically negligible over a single timestep.
     // Return the current density and skip the math.
     if (snTempC < -20.0) {
-        return currentDensity;
+        return rho;
     }
 
     // Destructive Metamorphism (Crystal settling)
@@ -1315,7 +1317,7 @@ double tSnowPack::densityCompactionCalc(double currentDensity, double currentSnW
     
     // Overburden Pressure (Weight of snow)
     // Pressure P (Pa) at the midpoint of the single layer = 0.5 * weight
-    double P = 0.5 * currentSnWE_kgm2 * gravity;
+    double P = 0.5 * SWE_kgm2 * gravity;
     
     // Viscosity calculation (the resistance to squishing)
     // Jordan (1991) Eq 17 
@@ -1356,13 +1358,13 @@ double tSnowPack::densityCompactionCalc(double currentDensity, double currentSnW
 //
 //---------------------------------------------------------------------------
 
-double tSnowPack::drainageCalc(double liqWE_m, double snDepth_m, double currentRho, double irredSat, double dt_sec) {
+double tSnowPack::drainageCalc(double liqWE_m, double snDepth_m, double rho, double irredSat, double dt_sec) {
     
     // Sanity Check
     if (liqWE_m <= 0.0 || snDepth_m <= 0.0) return 0.0;
 
     // Calculate Porosity
-    double porosity = porosityCalc(currentRho);
+    double porosity = porosityCalc(rho);
 
     // Calculate Effective Saturation
     double pore_volume = snDepth_m * porosity;
