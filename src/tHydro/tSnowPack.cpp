@@ -1206,9 +1206,7 @@ void tSnowPack::setToNodeSnP(tCNode *node) {
     if (snWE > 1e-5) {
         node->setRhoSn(rhosnkg);
     } else {
-        // If no snow exists, set the node storage to 0.0 for clean output.
-        // The next time getFrNodeSnP is called, it will see 0.0 and 
-        // re-initialize rhosnkg to the 'Fresh Snow' parameter anyway.
+        // If no snow exists, set the node storage to 0.0 for output.
         node->setRhoSn(0.0);
     }
 
