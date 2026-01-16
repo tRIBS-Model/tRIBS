@@ -330,38 +330,40 @@ void tOutput<tSubNode>::CreateAndOpenPixel()
 				<<"RouteWE_cm " //49
 				<<"SnTemp_C "	//50
 				<<"SurfAge_h "	//51
-				<<"DU_kJ_m2_etistep " //52
-				<<"snLHF_kJ_m2_etistep " //53
-				<<"snSHF_kJ_m2_etistep " //54
-				<<"snGHF_kJ_m2_etistep " //55
-				<<"snPHF_kJ_m2_etistep " //56
-				<<"snRLout_kJ_m2_etistep " //57
-				<<"snRLin_kJ_m2_etistep " //58
-				<<"snRSin_kJ_m2_etistep " //59
-				<<"Uerror_kJ_m2_etistep " //60
-				<<"IntSWEq_cm "		 //61
-				<<"IntSub_cm "		 //62
-				<<"IntSnUnload_cm "	 //63
-				<<"CanStorage_mm " //64
-				<<"CumIntercept_mm " //65
-				<<"Interception_mm " //66
-				<<"Recharge_mm/hr " //67
-				<<"RunOn_mm " //68
-				<<"Srf_Hour_mm " //69
-				<<"Qstrm_m3_s " //70
-				<<"Hlevel_m " //71
-				<<"CanStorParam_mm " //72
-				<<"IntercepCoeff_[] " //73
-				<<"ThroughFall_[] " //74
-				<<"CanFieldCap_mm " //75
-				<<"DrainCoeff_mm_hr " //76
-				<<"DrainExpPar_1_mm " //77
-				<<"LandUseAlb_[] " //78
-				<<"VegHeight_m " //79
-				<<"OptTransmCoeff_[] " //80
-				<<"StomRes_s_m " //81
-				<<"VegFraction[] " //82
-				<<"LeafAI_[] " //83
+				<<"SnDepth_cm "	//52
+				<<"SnDensity_kg_m3 "	//53
+				<<"DU_kJ_m2_etistep " //54
+				<<"snLHF_kJ_m2_etistep " //55
+				<<"snSHF_kJ_m2_etistep " //56
+				<<"snGHF_kJ_m2_etistep " //57
+				<<"snPHF_kJ_m2_etistep " //58
+				<<"snRLout_kJ_m2_etistep " //59
+				<<"snRLin_kJ_m2_etistep " //60
+				<<"snRSin_kJ_m2_etistep " //61
+				<<"Uerror_kJ_m2_etistep " //62
+				<<"IntSWEq_cm "		 //63
+				<<"IntSub_cm "		 //64
+				<<"IntSnUnload_cm "	 //65
+				<<"CanStorage_mm " //66
+				<<"CumIntercept_mm " //67
+				<<"Interception_mm " //68
+				<<"Recharge_mm/hr " //69
+				<<"RunOn_mm " //70
+				<<"Srf_Hour_mm " //71
+				<<"Qstrm_m3_s " //72
+				<<"Hlevel_m " //73
+				<<"CanStorParam_mm " //74
+				<<"IntercepCoeff_[] " //75
+				<<"ThroughFall_[] " //76
+				<<"CanFieldCap_mm " //77
+				<<"DrainCoeff_mm_hr " //78
+				<<"DrainExpPar_1_mm " //78
+				<<"LandUseAlb_[] " //80
+				<<"VegHeight_m " //81
+				<<"OptTransmCoeff_[] " //82
+				<<"StomRes_s_m " //83
+				<<"VegFraction[] " //84
+				<<"LeafAI_[] " //85
 				<<"\n";
 				
 				pixinfo[i].setf( ios::right, ios::adjustfield );
@@ -1008,53 +1010,54 @@ void tCOutput<tSubNode>::WritePixelInfo( double time )
 				<<this->uzel[i]->getShortRadIn_dir()<< " "
 				<<this->uzel[i]->getShortRadIn_dif()<< " "
 				<<this->uzel[i]->getShortAbsbVeg()<< " "
-				<<this->uzel[i]->getShortAbsbSoi()<< " "
+				/* 30 */ <<this->uzel[i]->getShortAbsbSoi()<< " "
 				
-				/* 30 */  <<this->uzel[i]->getLongRadIn()<< " "
+				<<this->uzel[i]->getLongRadIn()<< " "
 				<<this->uzel[i]->getLongRadOut()<< " "
 				<<this->uzel[i]->getPotEvap()<<" "
 				<<this->uzel[i]->getActEvap()<<" "
-				<<this->uzel[i]->getEvapoTrans()<<" "
+				/* 35 */ <<this->uzel[i]->getEvapoTrans()<<" "
 				
-				/* 35 */  <<this->uzel[i]->getEvapWetCanopy()<<" "
+				<<this->uzel[i]->getEvapWetCanopy()<<" "
 				<<this->uzel[i]->getEvapDryCanopy()<<" "
 				<<this->uzel[i]->getEvapSoil()<<" "
 				<<this->uzel[i]->getGFlux()<<" "
-				<<this->uzel[i]->getHFlux()<<" "
-				/* 40 */  <<this->uzel[i]->getLFlux()<<" "
-				
+				/* 40 */ <<this->uzel[i]->getHFlux()<<" "
+				<<this->uzel[i]->getLFlux()<<" "
 				<<this->uzel[i]->getNetPrecipitation()<<" "
 
 				// SKY2008Snow from AJR2007
 				<<this->uzel[i]->getLiqWE()<<" "	//added by AJR 2007 @ NMT
 				<<this->uzel[i]->getIceWE()<<" "	//added by AJR 2007 @ NMT
-				<<(this->uzel[i]->getLiqWE()+this->uzel[i]->getIceWE())<<" "    //added by AJR 2007 @ NMT
-				/* 45 */ << this->uzel[i]->getSnSub()<<" "	// added by CJC2020
-				<< this->uzel[i]->getSnEvap()<<" "	// added by CJC2020
+				/* 45 */ <<(this->uzel[i]->getLiqWE()+this->uzel[i]->getIceWE())<<" "    //added by AJR 2007 @ NMT
+				<<this->uzel[i]->getSnSub()<<" "	// added by CJC2020
+				<<this->uzel[i]->getSnEvap()<<" "	// added by CJC2020
 				<<this->uzel[i]->getUnode()<<" "	//added by AJR 2007 @ NMT
 				<<this->uzel[i]->getLiqRouted()<<" "	//added by AJR 2007 @ NMT
-				<<this->uzel[i]->getSnTempC()<<" "	//added by AJR 2007 @ NMT
-				/* 50 */ <<this->uzel[i]->getCrustAge()<<" "	//added by AJR 2007 @ NMT
+				/* 50 */ <<this->uzel[i]->getSnTempC()<<" "	//added by AJR 2007 @ NMT
+				<<this->uzel[i]->getCrustAge()<<" "	//added by AJR 2007 @ NMT
+				<<this->uzel[i]->getSnDepth()<<" "	// added by CJC2025
+				<<this->uzel[i]->getRhoSn()<<" "	// added by CJC2025
 				<<this->uzel[i]->getDU()<<" "		//added by AJR 2007 @ NMT
-				<<this->uzel[i]->getSnLHF()<<" "	//added by AJR 2007 @ NMT
+				/* 55 */ <<this->uzel[i]->getSnLHF()<<" "	//added by AJR 2007 @ NMT
 				<<this->uzel[i]->getSnSHF()<<" "	//added by AJR 2007 @ NMT
 				<<this->uzel[i]->getSnGHF()<<" "	//added by AJR 2007 @ NMT
-				/* 55 */ <<this->uzel[i]->getSnPHF()<<" "	//added by AJR 2007 @ NMT
+				<<this->uzel[i]->getSnPHF()<<" "	//added by AJR 2007 @ NMT
 				<<this->uzel[i]->getSnRLout()<<" "	//added by AJR 2007 @ NMT
-				<<this->uzel[i]->getSnRLin()<<" "	//added by AJR 2007 @ NMT
+				/* 60 */ <<this->uzel[i]->getSnRLin()<<" "	//added by AJR 2007 @ NMT
 				<<this->uzel[i]->getSnRSin()<<" "	//added by AJR 2007 @ NMT
 				<<this->uzel[i]->getUerror()<<" "	//added by AJR 2007 @ NMT
-				/* 60 */ <<this->uzel[i]->getIntSWE()<<" "	//added by AJR 2007 @ NMT
+				<<this->uzel[i]->getIntSWE()<<" "	//added by AJR 2007 @ NMT
 				<<this->uzel[i]->getIntSub()<<" "	//added by AJR 2007 @ NMT
-				<<this->uzel[i]->getIntSnUnload()<<" " //added by AJR 2007 @ NMT
+				/* 65 */ <<this->uzel[i]->getIntSnUnload()<<" " //added by AJR 2007 @ NMT
 			
 				<<this->uzel[i]->getCanStorage()<<" "
 				<<this->uzel[i]->getCumIntercept()<<" "
-				/* 65 */ <<this->uzel[i]->getInterceptLoss()<<" "
-				<<this->uzel[i]->getRecharge()<<" "
+				<<this->uzel[i]->getInterceptLoss()<<" "
+				/* 69 */ <<this->uzel[i]->getRecharge()<<" "
 				<<this->uzel[i]->getRunOn()<<" "
 				<<this->uzel[i]->getSrf_Hr()<<" ";
-				/* 69 */ 
+				 
 				if (this->uzel[i]->getBoundaryFlag() == kStream)
 					this->pixinfo[i]<<setw(10)<<this->uzel[i]->getQstrm()<<" "
 						//<<setw(6)<<this->uzel[i]->getHlevel()<<endl<<flush;
@@ -1066,15 +1069,15 @@ void tCOutput<tSubNode>::WritePixelInfo( double time )
 				// SKYnGM2008LU
 				this->pixinfo[i]<<setprecision(7)
 				<<setw(10)<<this->uzel[i]->getCanStorParam()<<" "
-				<< this->uzel[i]->getIntercepCoeff()<<" "
+				/* 75 */ << this->uzel[i]->getIntercepCoeff()<<" "
 				<< this->uzel[i]->getThroughFall()<<" "
 				<< this->uzel[i]->getCanFieldCap()<<" "
-				/* 75 */ << this->uzel[i]->getDrainCoeff()<<" "
+				<< this->uzel[i]->getDrainCoeff()<<" "
 				<< this->uzel[i]->getDrainExpPar()<<" "
-				<< this->uzel[i]->getLandUseAlb()<<" "
+				/* 80 */ << this->uzel[i]->getLandUseAlb()<<" "
 				<< this->uzel[i]->getVegHeight()<<" "
 				<< this->uzel[i]->getOptTransmCoeff()<<" "
-				/* 80 */ << this->uzel[i]->getStomRes()<<" "
+				<< this->uzel[i]->getStomRes()<<" "
 				<< this->uzel[i]->getVegFraction()<<" "
 				<< this->uzel[i]->getLeafAI()<<endl<< flush;
 
@@ -1118,58 +1121,59 @@ void tCOutput<tSubNode>::WriteDynamicVars( double time )
 
     // Write Header
 	arcofs
-			<< "ID" << ',' // 1
-			<< "Nwt" << ',' // 2
-			<< "Mu" << ',' // 3
-			<< "Mi" << ',' // 4
-			<< "Nf" << ',' // 5
-			<< "Nt" << ',' // 6
-			<< "Qpout" << ',' // 7
-			<< "Qpin" << ',' // 8
-			<< "Srf" << ',' // 9
-			<< "Rain" << ',' // 10
-			<< "ST" << ',' // 11
-			<< "IWE" << ',' // 12
-			<< "LWE" << ',' // 13
-			<< "SnSub" << ',' // 14 note snow states and fluxes are in cm
-			<< "SnEvap" << ',' // 15
-			<< "SnMelt" << ',' // 16
-			<< "Upack" << ',' // 17
-			<< "sLHF" << ',' // 18
-			<< "sSHF" << ',' // 19
-			<< "sGHF" << ',' // 20
-			<< "sPHF" << ',' // 21
-			<< "sRLo" << ',' // 22
-			<< "sRLi" << ',' // 23
-			<< "sRSi" << ',' // 24
-			<< "Uerr" << ',' // 25
-			<< "IntSWE" << ',' // 26
-			<< "IntSub" << ',' // 27
-			<< "IntUnl" << ',' // 28
-			<< "SoilMoist" << ',' // 29
-			<< "RootMoist" << ',' // 30
-			<< "CanStorage" << ',' // 31
-			<< "ActEvp" << ',' // 32
-			<< "EvpSoil" << ',' // 33 //
-			<< "ET" << ',' // 34 //
-			<< "GFlux" << ',' // 35
-			<< "HFlux" << ',' // 36
-			<< "LFlux" << ',' // 37
-			<< "Qstrm" << ',' // 38
-			<< "Hlev" << ',' // 39
-			<< "FlwVlc" << ',' // 40
-			<< "CanStorParam" << ',' // 41
-			<< "IntercepCoeff" << ',' // 42
-			<< "ThroughFall" << ',' // 43
-			<< "CanFieldCap" << ',' // 44
-			<< "DrainCoeff" << ',' // 45
-			<< "DrainExpPar" << ',' // 46
-			<< "LandUseAlb" << ',' // 47
-			<< "VegHeight" << ',' // 48
-			<< "OptTransmCoeff" << ',' // 49
-			<< "StomRes" << ',' // 50
-			<< "VegFraction" << ',' // 51
-			<< "LeafAI"; // 52
+			<< "ID" << ','             // 1
+			<< "Nwt" << ','            // 2
+			<< "Mu" << ','             // 3
+			<< "Mi" << ','             // 4
+			<< "Nf" << ','             // 5
+			<< "Nt" << ','             // 6
+			<< "Qpout" << ','          // 7
+			<< "Qpin" << ','           // 8
+			<< "Srf" << ','            // 9
+			<< "Rain" << ','           // 10
+			<< "ST" << ','             // 11
+			<< "IWE" << ','            // 12
+			<< "LWE" << ','            // 13
+			<< "SnSub" << ','          // 14 note snow states and fluxes are in cm
+			<< "SnEvap" << ','         // 15
+			<< "SnMelt" << ','         // 16
+			<< "SnDepth" << ','        // 17
+			<< "Upack" << ','          // 18
+			<< "sLHF" << ','           // 19
+			<< "sSHF" << ','           // 20
+			<< "sGHF" << ','           // 21
+			<< "sPHF" << ','           // 22
+			<< "sRLo" << ','           // 23
+			<< "sRLi" << ','           // 24
+			<< "sRSi" << ','           // 25
+			<< "Uerr" << ','           // 26
+			<< "IntSWE" << ','         // 27
+			<< "IntSub" << ','         // 28
+			<< "IntUnl" << ','         // 29
+			<< "SoilMoist" << ','      // 30
+			<< "RootMoist" << ','      // 31
+			<< "CanStorage" << ','     // 32
+			<< "ActEvp" << ','         // 33
+			<< "EvpSoil" << ','        // 34
+			<< "ET" << ','             // 35
+			<< "GFlux" << ','          // 36
+			<< "HFlux" << ','          // 37
+			<< "LFlux" << ','          // 38
+			<< "Qstrm" << ','          // 39
+			<< "Hlev" << ','           // 40
+			<< "FlwVlc" << ','         // 41
+			<< "CanStorParam" << ','   // 42
+			<< "IntercepCoeff" << ','  // 43
+			<< "ThroughFall" << ','    // 44
+			<< "CanFieldCap" << ','    // 45
+			<< "DrainCoeff" << ','     // 46
+			<< "DrainExpPar" << ','    // 47
+			<< "LandUseAlb" << ','     // 48
+			<< "VegHeight" << ','      // 49
+			<< "OptTransmCoeff" << ',' // 50
+			<< "StomRes" << ','        // 51
+			<< "VegFraction" << ','    // 52
+			<< "LeafAI";               // 53
 
 	if (time == 0)
 		arcofs << ',' << "SoilID" << ',' << "LUseID" << endl << flush;
@@ -1186,58 +1190,59 @@ void tCOutput<tSubNode>::WriteDynamicVars( double time )
     double cos_slope = cos(slope_rad);
     if (cos_slope < 1E-9) cos_slope = 1.E-9;
     // --- END FIX ---
-        arcofs << cn->getID() << ',' // 1
-               << setprecision(5) << cn->getNwtNew() / cos_slope << ',' // 2
-               << setprecision(5) << cn->getMuNew() / cos_slope << ',' // 3
-               << setprecision(5) << cn->getMiNew() / cos_slope << ',' // 4
-               << setprecision(5) << cn->getNfNew() / cos_slope << ',' // 5
-               << setprecision(5) << cn->getNtNew() / cos_slope << ',' // 6
+        arcofs << cn->getID() << ','                                                // 1
+               << setprecision(5) << cn->getNwtNew() / cos_slope << ','             // 2
+               << setprecision(5) << cn->getMuNew() / cos_slope << ','              // 3
+               << setprecision(5) << cn->getMiNew() / cos_slope << ','              // 4
+               << setprecision(5) << cn->getNfNew() / cos_slope << ','              // 5
+               << setprecision(5) << cn->getNtNew() / cos_slope << ','              // 6
                << setprecision(5) << cn->getQpout() * 1.E-6 / cn->getVArea() << ',' // 7
-               << cn->getQpin() * 1.E-6 / cn->getVArea() << ',' // 8
-               << setprecision(4) << cn->getSrf_Hr()  << ',' // 9 in mm (mm of runoff reset to 0 every hour)
-               << setprecision(3) << cn->getRain() << ',' // 10
-               << setprecision(3) << cn->getSnTempC() << ',' // 11
-               << setprecision(5) << cn->getIceWE() << ',' // 12 SWE = this column + next
-               << setprecision(5) << cn->getLiqWE() << ',' // 13
-               << setprecision(7) << cn->getSnSub()  << ',' // 14
-               << setprecision(7) << cn->getSnEvap() << ',' // 15
-               << setprecision(7) << cn->getLiqRouted() << ',' // 16
-               << setprecision(5) << cn->getUnode() << ',' // 17
-               << setprecision(5) << cn->getSnLHF() << ',' // 18
-               << setprecision(5) << cn->getSnSHF() << ',' // 19
-               << setprecision(5) << cn->getSnGHF() << ',' // 20
-               << setprecision(5) << cn->getSnPHF() << ',' // 21
-               << setprecision(5) << cn->getSnRLout() << ',' // 22
-               << setprecision(5) << cn->getSnRLin() << ',' // 23
-               << setprecision(5) << cn->getSnRSin() << ',' // 24
-               << setprecision(5) << cn->getUerror() << ',' // 25
-               << setprecision(5) << cn->getIntSWE() << ',' // 26
-               << setprecision(5) << cn->getIntSub() << ',' // 27
-               << setprecision(5) << cn->getIntSnUnload() << ',' // 28
-               << setprecision(3) << cn->getSoilMoistureSC() << ',' // 29
-               << setprecision(3) << cn->getRootMoistureSC() << ',' // 30
-               << setprecision(3) << cn->getCanStorage() << ',' // 31
-               << setprecision(3) << cn->getActEvap() << ',' // 32
-               << setprecision(5) << cn->getEvapSoil() << ',' // 33
-               << setprecision(5) << cn->getEvapoTrans() << ',' // 34
-               << setprecision(3) << cn->getGFlux() << ',' // 35
-               << setprecision(3) << cn->getHFlux() << ',' // 36
-               << setprecision(3) << cn->getLFlux() << ',' // 37
-               << setprecision(3) << cn->getQstrm() << ',' //  38
-               << setprecision(3) << cn->getHlevel() << ',' // 39
-               << setprecision(3) << cn->getFlowVelocity() << ',' // 40
-               << setprecision(5) << cn->getCanStorParam() << ',' // 41
-               << setprecision(5) << cn->getIntercepCoeff() << ',' // 42 , meaning of life?
-               << setprecision(5) << cn->getThroughFall() << ',' // 43
-               << setprecision(5) << cn->getCanFieldCap() << ',' // 44
-               << setprecision(5) << cn->getDrainCoeff() << ',' // 45
-               << setprecision(5) << cn->getDrainExpPar() << ',' // 46
-               << setprecision(5) << cn->getLandUseAlb() << ',' // 47
-               << setprecision(5) << cn->getVegHeight() << ',' // 48
-               << setprecision(5) << cn->getOptTransmCoeff() << ',' // 49
-               << setprecision(5) << cn->getStomRes() << ',' // 50
-               << setprecision(5) << cn->getVegFraction() << ',' // 51
-               << setprecision(5) << cn->getLeafAI(); // 52
+               << cn->getQpin() * 1.E-6 / cn->getVArea() << ','                     // 8
+               << setprecision(4) << cn->getSrf_Hr()  << ','                        // 9 in mm (mm of runoff reset to 0 every hour)
+               << setprecision(3) << cn->getRain() << ','                           // 10
+               << setprecision(3) << cn->getSnTempC() << ','                        // 11
+               << setprecision(5) << cn->getIceWE() << ','                          // 12 SWE = this column + next
+               << setprecision(5) << cn->getLiqWE() << ','                          // 13
+               << setprecision(7) << cn->getSnSub()  << ','                         // 14
+               << setprecision(7) << cn->getSnEvap() << ','                         // 15
+               << setprecision(7) << cn->getLiqRouted() << ','                      // 16
+               << setprecision(5) << cn->getSnDepth() << ','                        // 17
+               << setprecision(5) << cn->getUnode() << ','                          // 18
+               << setprecision(5) << cn->getSnLHF() << ','                          // 19
+               << setprecision(5) << cn->getSnSHF() << ','                          // 20
+               << setprecision(5) << cn->getSnGHF() << ','                          // 21
+               << setprecision(5) << cn->getSnPHF() << ','                          // 22
+               << setprecision(5) << cn->getSnRLout() << ','                        // 23
+               << setprecision(5) << cn->getSnRLin() << ','                         // 24
+               << setprecision(5) << cn->getSnRSin() << ','                         // 25
+               << setprecision(5) << cn->getUerror() << ','                         // 26
+               << setprecision(5) << cn->getIntSWE() << ','                         // 27
+               << setprecision(5) << cn->getIntSub() << ','                         // 28
+               << setprecision(5) << cn->getIntSnUnload() << ','                    // 29
+               << setprecision(3) << cn->getSoilMoistureSC() << ','                 // 30
+               << setprecision(3) << cn->getRootMoistureSC() << ','                 // 31
+               << setprecision(3) << cn->getCanStorage() << ','                     // 32
+               << setprecision(3) << cn->getActEvap() << ','                        // 33
+               << setprecision(5) << cn->getEvapSoil() << ','                       // 34
+               << setprecision(5) << cn->getEvapoTrans() << ','                     // 35
+               << setprecision(3) << cn->getGFlux() << ','                          // 36
+               << setprecision(3) << cn->getHFlux() << ','                          // 37
+               << setprecision(3) << cn->getLFlux() << ','                          // 38
+               << setprecision(3) << cn->getQstrm() << ','                          // 39
+               << setprecision(3) << cn->getHlevel() << ','                         // 40
+               << setprecision(3) << cn->getFlowVelocity() << ','                   // 41
+               << setprecision(5) << cn->getCanStorParam() << ','                   // 42 , meaning of life?
+               << setprecision(5) << cn->getIntercepCoeff() << ','                  // 43
+               << setprecision(5) << cn->getThroughFall() << ','                    // 44
+               << setprecision(5) << cn->getCanFieldCap() << ','                    // 45
+               << setprecision(5) << cn->getDrainCoeff() << ','                     // 46
+               << setprecision(5) << cn->getDrainExpPar() << ','                    // 47
+               << setprecision(5) << cn->getLandUseAlb() << ','                     // 48
+               << setprecision(5) << cn->getVegHeight() << ','                      // 49
+               << setprecision(5) << cn->getOptTransmCoeff() << ','                 // 50
+               << setprecision(5) << cn->getStomRes() << ','                        // 51
+               << setprecision(5) << cn->getVegFraction() << ','                    // 52
+               << setprecision(5) << cn->getLeafAI();                               // 53
 
         if (time == 0)
             arcofs << ',' << setprecision(0) << cn->getSoilID() << ','
