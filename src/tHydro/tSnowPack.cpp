@@ -1203,7 +1203,14 @@ void tSnowPack::setToNodeSnP(tCNode *node) {
     }
 
     // Save the updated density
-    node->setRhoSn(rhosnkg);
+    if (snWE > 1e-5) {
+        node->setRhoSn(rhosnkg);
+    } else {
+        // If no snow exists, set the node storage to 0.0 for clean output.
+        // The next time getFrNodeSnP is called, it will see 0.0 and 
+        // re-initialize rhosnkg to the 'Fresh Snow' parameter anyway.
+        node->setRhoSn(0.0);
+    }
 
     node->setPersTimeMax(persMax);
     node->setPersTime(persMaxtemp);
