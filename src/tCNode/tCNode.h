@@ -206,6 +206,7 @@ public:
   double getInitPackTime();//integratedoutput
   double getInitPackTimeTemp();
   double getPeakPackTime();//integratedoutput
+  double getSnDepth();//output CJC2025
 
   //snowintercept
   double getIntSWE();//state
@@ -567,6 +568,7 @@ public:
   void setInitPackTime(double);//integratedoutput
   void setInitPackTimeTemp(double);  
   void setPeakPackTime(double);//integratedoutput
+  void setSnDepth(double);//output CJC2025
   //snowintercept
   void setIntSWE(double);
   void setIntPrec(double);
@@ -782,6 +784,7 @@ protected:
   double initPackTime; //output
   double initPackTimeTemp;
   double peakPackTime; //output
+  double snDepth; //output CJC2026
   //snowintercept
   double intSWEq;//state var
   double intSnUnload;//output var

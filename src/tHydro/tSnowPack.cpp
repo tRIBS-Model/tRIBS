@@ -1211,6 +1211,8 @@ void tSnowPack::setToNodeSnP(tCNode *node) {
     node->setPeakPackTime(double(peaktime));
     node->setInitPackTime(double(inittime));
     node->setInitPackTimeTemp(double(inittimeTemp));
+    // Convert meters to centimeters for the output/node storage
+    node->setSnDepth(snDepthm * 100.0); 
 
     //cumulative outputs
     node->addLatHF(L);

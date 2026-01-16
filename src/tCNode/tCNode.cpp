@@ -126,7 +126,7 @@ tCNode::tCNode() :tNode()
 	cumUError = 0.0;
 	cumHrsSun = cumHrsSnow = 0.0;
 	cumLHF = cumSHF = cumPHF = cumRLin = cumRLout = cumRSin = cumGHF = cumMelt = 0.0;  
-	persTime = persTimeTemp = peakSWE = peakSWEtemp = initPackTime = peakPackTime = 0.0;
+	persTime = persTimeTemp = peakSWE = peakSWEtemp = initPackTime = peakPackTime = snDepth = 0.0;
 	initPackTimeTemp = 0.0;  
 	//snowintercept -- RINEHART 2007 @ NMT
 	intSWEq = 0.0;
@@ -262,7 +262,7 @@ tCNode::tCNode(tInputFile &infile) :tNode() {
 	cumLHF = cumSHF = cumPHF = cumRLin = cumRLout = cumRSin = cumGHF = 0.0;
 	cumMelt = 0.0;
 	cumHrsSun = cumHrsSnow = 0.0;
-	persTime = persTimeTemp = peakSWE = peakSWEtemp = initPackTime = peakPackTime = 0.0;
+	persTime = persTimeTemp = peakSWE = peakSWEtemp = initPackTime = peakPackTime = snDepth = 0.0;
 	initPackTimeTemp = 0.0;
 	//snowintercept -- RINEHART 2007 @ NMT
 	intSWEq = 0.0;
@@ -568,6 +568,7 @@ double tCNode::getPeakSWETemp() {return peakSWEtemp;}
 double tCNode::getInitPackTime() {return initPackTime;}
 double tCNode::getInitPackTimeTemp() {return initPackTimeTemp;}
 double tCNode::getPeakPackTime() {return peakPackTime;}
+double tCNode::getSnDepth() {return snDepth;} // CJC2026
 // snowintercept -- RINEHART 2007 @ NMT
 double tCNode::getIntSWE() {return intSWEq;}//state
 double tCNode::getIntPrec() {return intPrec;}//flux 
@@ -768,6 +769,7 @@ void tCNode::setPeakSWETemp(double value) {peakSWEtemp = value;}
 void tCNode::setInitPackTime(double value) {initPackTime = value;}
 void tCNode::setInitPackTimeTemp(double value) {initPackTimeTemp = value;}
 void tCNode::setPeakPackTime(double value) {peakPackTime = value;}
+void tCNode::setSnDepth(double value) {snDepth = value;} // CJC2026
 //snowintercept -- RINEHART 2007 @ NMT
 void tCNode::setIntSWE(double swe) {intSWEq = swe;}//state
 void tCNode::setIntPrec(double value) {intPrec = value;}//flux
@@ -1329,6 +1331,7 @@ void tCNode::writeRestart(fstream& rStr) const
   BinaryWrite(rStr, initPackTime);
   BinaryWrite(rStr, initPackTimeTemp);
   BinaryWrite(rStr, peakPackTime);
+  BinaryWrite(rStr, snDepth);
 
   BinaryWrite(rStr, intSWEq); // Snow intercept
   BinaryWrite(rStr, intSnUnload);
@@ -1608,6 +1611,7 @@ void tCNode::readRestart(fstream& rStr)
   BinaryRead(rStr, initPackTime);
   BinaryRead(rStr, initPackTimeTemp);
   BinaryRead(rStr, peakPackTime);
+  BinaryRead(rStr, snDepth);
 
   BinaryRead(rStr, intSWEq); // Snow intercept
   BinaryRead(rStr, intSnUnload);
@@ -1859,6 +1863,7 @@ void tCNode::printVariables()
   cout << " initPackTime " << initPackTime;
   cout << " initPackTimeTemp " << initPackTimeTemp ;
   cout << " peakPackTime " << peakPackTime;
+  cout << " snDepth " << snDepth;
 
   cout << " intSWEq " << intSWEq; // Snow intercept
   cout << " intSnUnload " << intSnUnload;
