@@ -47,4 +47,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: tRIBS-STGZ-linux
-          path: "packaging/Linux/TIN-based Real-time Integrated Basin Simulator-5.2.0.sh"
+          path: "packaging/Linux/TIN-based Real-time Integrated Basin Simulator-*.sh"
