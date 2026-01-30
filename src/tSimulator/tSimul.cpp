@@ -497,10 +497,6 @@ void Simulator::OutputSimulatedVars(tKinemat *Flow)
 			forenum=0;
 		else 
 			forenum=1;
-		
-		// Write selected dynamic variables
-		// if ( simCtrl->inter_results == 'Y' )
-		//   outp->WriteDynamicVar( timer->getCurrentTime() );
 	}
 	
 	// Write spatial output

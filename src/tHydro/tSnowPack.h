@@ -103,7 +103,6 @@ public:
   void setToNodeSnP(tCNode *);
   
   //physical routines
-  double densityFromAge();
   void computeSub();
   void computeUnload();
   void updateRipeSnowPack(double);
@@ -138,8 +137,27 @@ public:
   void readRestart(fstream &);
 
 protected:
+  // New parameter variables
+  double snliqfrac; 
+  double kSatRef;
+  double minSnTemp;
+  double canopyWindAtten, snRoughness;
+    
+  // Albedo params
+  double snInitialAlbedo, snLambdaDry, snLambdaWet, snMinAlbedo, albResetThresh;
+
+  // Partitioning Params
+  double optPartition, maxTempWB, minTempRain, maxTempSnow;
+    
+  // New snow physics helper functions CJC2025
+  double freshDensityCalc(double airTempC);
+  double densityCompactionCalc(double rho, double SWE_kgm2, 
+                               double snTempC, double dt_sec);
+  double drainageCalc(double liqWE_m, double snDepth_m, double rho, 
+                      double irredSat, double dt_sec);
+  double porosityCalc(double rho);
+
   int hillAlbedoOption;
-  double densityAge; //hr
   double rainTemp;
   double ETAge; //min
 
@@ -197,8 +215,8 @@ protected:
   double albedo;
   double hillalbedo;
   double compactParam, rhoSnFreshkg;
-  double minSnTemp;
-  double snliqfrac; // Added by CJC2020
+  //double minSnTemp;
+  //double snliqfrac; // Added by CJC2020
 
   //output variables
   double snDepth,snDepthm; //snow depths (cm,m)

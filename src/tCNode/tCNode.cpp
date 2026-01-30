@@ -117,7 +117,7 @@ tCNode::tCNode() :tNode()
 	//snowpack -- RINEHART 2007 @ NMT
 	liqWEq = iceWEq =  liqRoute = dU = 0.0;
 	snTemperC = 0.0;
-	crAge = densAge = ETage = 0.0;
+	crAge = rhoSn = ETage = 0.0;
 	cumLHF = cumMelt = 0.0;
 	snSub = snEvap = 0.0; // Initialize snowpack cumulative sublimation & evaporation CJC2020
 	cumSnSub = cumSnEvap = cumTotEvap = cumBarEvap = 0.0; // Initialize snowpack cumulative sublimation & evaporation CJC2020
@@ -126,7 +126,7 @@ tCNode::tCNode() :tNode()
 	cumUError = 0.0;
 	cumHrsSun = cumHrsSnow = 0.0;
 	cumLHF = cumSHF = cumPHF = cumRLin = cumRLout = cumRSin = cumGHF = cumMelt = 0.0;  
-	persTime = persTimeTemp = peakSWE = peakSWEtemp = initPackTime = peakPackTime = 0.0;
+	persTime = persTimeTemp = peakSWE = peakSWEtemp = initPackTime = peakPackTime = snDepth = 0.0;
 	initPackTimeTemp = 0.0;  
 	//snowintercept -- RINEHART 2007 @ NMT
 	intSWEq = 0.0;
@@ -252,7 +252,7 @@ tCNode::tCNode(tInputFile &infile) :tNode() {
 	//snowpack -- RINEHART 2007 @ NMT
 	liqWEq = iceWEq =  liqRoute = dU = 0.0;
 	snTemperC = 0.0;
-	crAge = densAge = ETage = 0.0;
+	crAge = rhoSn = ETage = 0.0;
 	cumLHF = cumMelt = 0.0;
 	snSub = snEvap = 0.0; // Initialize snowpack cumulative sublimation & evaporation CJC2020
 	cumSnSub = cumSnEvap = cumTotEvap = cumBarEvap = 0.0; // Initialize snowpack cumulative sublimation & evaporation CJC2020
@@ -262,7 +262,7 @@ tCNode::tCNode(tInputFile &infile) :tNode() {
 	cumLHF = cumSHF = cumPHF = cumRLin = cumRLout = cumRSin = cumGHF = 0.0;
 	cumMelt = 0.0;
 	cumHrsSun = cumHrsSnow = 0.0;
-	persTime = persTimeTemp = peakSWE = peakSWEtemp = initPackTime = peakPackTime = 0.0;
+	persTime = persTimeTemp = peakSWE = peakSWEtemp = initPackTime = peakPackTime = snDepth = 0.0;
 	initPackTimeTemp = 0.0;
 	//snowintercept -- RINEHART 2007 @ NMT
 	intSWEq = 0.0;
@@ -533,7 +533,7 @@ double tCNode::getDU() {return dU;}//flux
 double tCNode::getLiqRouted() {return liqRoute;}//flux
 double tCNode::getSnTempC() {return snTemperC;}//state
 double tCNode::getCrustAge() {return crAge;}//state
-double tCNode::getDensityAge() {return densAge;}//state
+double tCNode::getRhoSn() {return rhoSn;}//state
 double tCNode::getEvapoTransAge() {return ETage;}//flux
 double tCNode::getSnLHF() {return snLHF;}//flux
 double tCNode::getSnSHF() {return snSHF;}//flux
@@ -568,6 +568,7 @@ double tCNode::getPeakSWETemp() {return peakSWEtemp;}
 double tCNode::getInitPackTime() {return initPackTime;}
 double tCNode::getInitPackTimeTemp() {return initPackTimeTemp;}
 double tCNode::getPeakPackTime() {return peakPackTime;}
+double tCNode::getSnDepth() {return snDepth;} // CJC2026
 // snowintercept -- RINEHART 2007 @ NMT
 double tCNode::getIntSWE() {return intSWEq;}//state
 double tCNode::getIntPrec() {return intPrec;}//flux 
@@ -748,7 +749,7 @@ void tCNode::setDU(double value) {dU = value;}//flux
 void tCNode::setLiqRouted(double lr) {liqRoute = lr;}//flux
 void tCNode::setSnTempC(double temperature) {snTemperC = temperature;}//state
 void tCNode::setCrustAge(double ca) {crAge = ca;}//state
-void tCNode::setDensityAge(double da) {densAge = da;}//state
+void tCNode::setRhoSn(double r) {rhoSn = r;}//state
 void tCNode::setEvapoTransAge(double ea) {ETage = ea;}//flux
 void tCNode::setSnLHF(double value) {snLHF = value;}//flux
 void tCNode::setSnSHF(double value) {snSHF = value;}//flux
@@ -768,6 +769,7 @@ void tCNode::setPeakSWETemp(double value) {peakSWEtemp = value;}
 void tCNode::setInitPackTime(double value) {initPackTime = value;}
 void tCNode::setInitPackTimeTemp(double value) {initPackTimeTemp = value;}
 void tCNode::setPeakPackTime(double value) {peakPackTime = value;}
+void tCNode::setSnDepth(double value) {snDepth = value;} // CJC2026
 //snowintercept -- RINEHART 2007 @ NMT
 void tCNode::setIntSWE(double swe) {intSWEq = swe;}//state
 void tCNode::setIntPrec(double value) {intPrec = value;}//flux
@@ -1313,7 +1315,7 @@ void tCNode::writeRestart(fstream& rStr) const
   BinaryWrite(rStr, liqRoute);
   BinaryWrite(rStr, snTemperC);
   BinaryWrite(rStr, crAge);
-  BinaryWrite(rStr, densAge);
+  BinaryWrite(rStr, rhoSn);
   BinaryWrite(rStr, ETage);
   BinaryWrite(rStr, snLHF);
   BinaryWrite(rStr, snSHF);
@@ -1329,6 +1331,7 @@ void tCNode::writeRestart(fstream& rStr) const
   BinaryWrite(rStr, initPackTime);
   BinaryWrite(rStr, initPackTimeTemp);
   BinaryWrite(rStr, peakPackTime);
+  BinaryWrite(rStr, snDepth);
 
   BinaryWrite(rStr, intSWEq); // Snow intercept
   BinaryWrite(rStr, intSnUnload);
@@ -1592,7 +1595,7 @@ void tCNode::readRestart(fstream& rStr)
   BinaryRead(rStr, liqRoute);
   BinaryRead(rStr, snTemperC);
   BinaryRead(rStr, crAge);
-  BinaryRead(rStr, densAge);
+  BinaryRead(rStr, rhoSn);
   BinaryRead(rStr, ETage);
   BinaryRead(rStr, snLHF);
   BinaryRead(rStr, snSHF);
@@ -1608,6 +1611,7 @@ void tCNode::readRestart(fstream& rStr)
   BinaryRead(rStr, initPackTime);
   BinaryRead(rStr, initPackTimeTemp);
   BinaryRead(rStr, peakPackTime);
+  BinaryRead(rStr, snDepth);
 
   BinaryRead(rStr, intSWEq); // Snow intercept
   BinaryRead(rStr, intSnUnload);
@@ -1843,7 +1847,7 @@ void tCNode::printVariables()
   cout << " liqRoute " << liqRoute;
   cout << " snTemperC " << snTemperC;
   cout << " crAge " << crAge;
-  cout << " densAge " << densAge;
+  cout << " rhoSn " << rhoSn;
   cout << " ETage " << ETage;
   cout << " snLHF " << snLHF;
   cout << " snSHF " << snSHF;
@@ -1859,6 +1863,7 @@ void tCNode::printVariables()
   cout << " initPackTime " << initPackTime;
   cout << " initPackTimeTemp " << initPackTimeTemp ;
   cout << " peakPackTime " << peakPackTime;
+  cout << " snDepth " << snDepth;
 
   cout << " intSWEq " << intSWEq; // Snow intercept
   cout << " intSnUnload " << intSnUnload;
