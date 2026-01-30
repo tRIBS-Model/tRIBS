@@ -72,8 +72,6 @@ tSnowPack::~tSnowPack() {
 void tSnowPack::SetSnowPackVariables(tInputFile &infile) {
 
     //parameters
-    //minSnTemp = infile.ReadItem(minSnTemp, "MINSNTEMP");
-    //snliqfrac = infile.ReadItem(snliqfrac, "SNLIQFRAC"); // Added by CJC 2020
     hillAlbedoOption = infile.ReadItem(hillAlbedoOption, "HILLALBOPT");
     ETAge = 0.0;
     compactParam = 0.3;
@@ -177,7 +175,7 @@ void tSnowPack::SetSnowVariables(tInputFile &infile) {
     optPartition    = 0;       // Default to Linear Transition
     maxTempWB       = 5.0;     // Default for Wet Bulb
     minTempRain     = 0.0;     // Default for Linear
-    maxTempSnow     = 2.0;     // Default for Linear
+    maxTempSnow     = 4.0;     // Default for Linear
 
     // Read Input Parameters from snow parameter file
     // Read the path to the snow parameter file from the main input file
