@@ -29,8 +29,8 @@ We provide three options for accessing the tRIBS model:
 ## Community Support
 To stay informed about model announcements and to interact with other users, please join the **tRIBS Users Email List**.
 
-* **Option 1 (Web):** Join via the [tRIBS Google Group Page](https://groups.google.com/u/4/g/tribs) (requires Google sign-in).
-* **Option 2 (Email):** Send a blank email to [tribs+subscribe@googlegroups.com](mailto:tribsh+subscribe@googlegroups.com) to subscribe via your preferred email client (no Google account required).
+* **Option 1 (Web):** Join via the [tRIBS Google Group Page](https://groups.google.com/g/tribs ) (requires Google sign-in).
+* **Option 2 (Email):** Send a blank email to [tribs+subscribe@googlegroups.com](mailto:tribs+subscribe@googlegroups.com) to subscribe via your preferred email client (no Google account required).
 ## Release/Version Notes
 tRIBS uses semantic versioning. We record updates of major, minor, and patch versions [here](./doc/md/CHANGELOG.md).
 
