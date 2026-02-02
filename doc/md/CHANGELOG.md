@@ -4,35 +4,35 @@ All notable changes to this project are documented in this file.
 
 ## [5.3.1] - 10/15/2025
 ### Added
-* **Input Validation:** Added timestamp validation to rainfall and meteorological station input timeseries. Warning, older models will no longer run if there is missing data in the data files. PR #95
+* **Input Validation:** Added timestamp validation to rainfall and meteorological station input timeseries. Warning, older models will no longer run if there is missing data in the data files. ([#95](https://github.com/tRIBS-Model/tRIBS/pull/95))
 
 ### Fixed
-* Fixed bug in Rutter interception scheme that could result in small amount of negative wet canopy evaporation. (#94)
+* Fixed bug in Rutter interception scheme that could result in small amount of negative wet canopy evaporation. ([#94](https://github.com/tRIBS-Model/tRIBS/pull/94))
 * Fixed bug when reading gridded landuse data that would result in the landuse table values being used instead under specific conditions.
 
 ---
 
 ## [5.3.0] - 08/16/2025
-### Fixed (Scientific & Mass Balance)
-* **Canopy Water Balance:** Refactored `InterceptRutter` to calculate evaporation from the wet canopy internally. This corrects a small discrepancy in the canopy water balance previously handled in `tEvapoTrans`. (#83)
-* **Snow Interception:** Fixed vegetation fraction scaling; intercepted SWE now represents the actual state of the canopy rather than being incorrectly scaled. (#83)
-* **Raster Resampling:** Improved numerical stability of raster resampling in `tResample.cpp`. Fixed a bug with specific Voronoi polygon geometry that resulted in `NaN` values and mass balance errors. (#86)
-* **Mesh Geometry:** Fixed `ComputeVoronoiArea` function which was assigning incorrect area values to nodes connected to the outlet (node 0). (#83)
-* **Land Use Logic:** Resolved a bug where dynamic land use grids reverted to table values prematurely after the final interpolation interval. (#85)
-* **Dynamic Land Use:** Fixed incorrect model behavior when using dynamic land use grids with the interpolation option turned off (`luInterpOption = 0`). (#85)
-* **Timing:** Corrected `nodeHour` misalignment issues in `tEvapoTrans.cpp` and synchronized `julianDay()` and `SetSunVariables()` with the central `tRunTimer`. (#84)
+### Fixed
+* **Canopy Water Balance:** Refactored `InterceptRutter` to calculate evaporation from the wet canopy internally. This corrects a small discrepancy in the canopy water balance previously handled in `tEvapoTrans`. ([#83](https://github.com/tRIBS-Model/tRIBS/pull/83))
+* **Snow Interception:** Fixed vegetation fraction scaling; intercepted SWE now represents the actual state of the canopy rather than being incorrectly scaled. ([#83](https://github.com/tRIBS-Model/tRIBS/pull/83))
+* **Raster Resampling:** Improved numerical stability of raster resampling in `tResample.cpp`. Fixed a bug with specific Voronoi polygon geometry that resulted in `NaN` values and mass balance errors. ([#86](https://github.com/tRIBS-Model/tRIBS/pull/86))
+* **Mesh Geometry:** Fixed `ComputeVoronoiArea` function which was assigning incorrect area values to nodes connected to the outlet (node 0). ([#83](https://github.com/tRIBS-Model/tRIBS/pull/83))
+* **Land Use Logic:** Resolved a bug where dynamic land use grids reverted to table values prematurely after the final interpolation interval. ([#85](https://github.com/tRIBS-Model/tRIBS/pull/85))
+* **Dynamic Land Use:** Fixed incorrect model behavior when using dynamic land use grids with the interpolation option turned off (`luInterpOption = 0`). ([#85](https://github.com/tRIBS-Model/tRIBS/pull/85))
+* **Timing:** Corrected `nodeHour` misalignment issues in `tEvapoTrans.cpp` and synchronized `julianDay()` and `SetSunVariables()` with the central `tRunTimer`. ([#84](https://github.com/tRIBS-Model/tRIBS/pull/84))
 
 ### Added
 * **Soil Layer Control:** Added optional input parameters `SURFACESOILDEPTH` and `ROOTZONEDEPTH` (in mm) to allow user-defined layer depths (defaulting to 100mm and 1000mm for backward compatibility).
-* **Gridded Parameters:** Added support for soil moisture stress thresholds for soil evaporation (`SE`) and plant transpiration (`ST`) in the gridded data file (`.gdf`).
-* **New Output Variables:** Added `Qunsat` to the Mean Response File (MRF) and `shortRadSlope` to pixel files.
+* **Gridded Parameters:** Added support for soil moisture stress thresholds for soil evaporation (`SE`) and plant transpiration (`ST`) in the gridded data file (`.gdf`). ([#85](https://github.com/tRIBS-Model/tRIBS/pull/85))
+* **New Output Variables:** Added `Qunsat` to the Mean Response File (MRF) and `shortRadSlope` to pixel files. ([#83](https://github.com/tRIBS-Model/tRIBS/pull/83))
 * **Error Handling:** Added a fatal error check for cases where `luInterpOption = 1` is selected but only a single raster is provided.
 
 ### Changed & Refactored
 * **Output Standard:** Modified writing of soil water state variables in pixel, dynamic, and MRF files to convert from sloped state variables to vertical depths.
-* **Solar Radiation:** Centralized slope, albedo, and vegetation corrections into `inShortWave()`, reducing redundancy and improving consistency across the energy balance module.
+* **Solar Radiation:** Centralized slope, albedo, and vegetation corrections into `inShortWave()`, reducing redundancy and improving consistency across the energy balance module. ([#84](https://github.com/tRIBS-Model/tRIBS/pull/84))
 * **ET Partitioning:** Updated `tEvapoTrans` to prioritize potential evaporation partitioning: first to wet canopy, then transpiration, and lastly soil evaporation.
-* **Snow Physics Refactor:** (#84)
+* **Snow Physics Refactor:** ([#84](https://github.com/tRIBS-Model/tRIBS/pull/84))
     * Updated albedo decay function with a minimum albedo threshold.
     * Refactored latent and sensible heat flux for ground snowpack to prevent temperatures from dropping below zero when liquid water is present.
     * Incorporated Bulk Richardson Number stability correction for aerodynamic resistance.
