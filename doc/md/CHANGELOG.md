@@ -4,7 +4,7 @@ All notable changes to this project are documented in this file.
 
 ## [5.3.1] - 10/15/2025
 ### Added
-* **Input Validation:** Added timestamp validation to rainfall and meteorological station input timeseries. Warning, older models will no longer run if there is missing data in the data files. (#95)
+* **Input Validation:** Added timestamp validation to rainfall and meteorological station input timeseries. Warning, older models will no longer run if there is missing data in the data files. PR #95
 
 ### Fixed
 * Fixed bug in Rutter interception scheme that could result in small amount of negative wet canopy evaporation. (#94)
