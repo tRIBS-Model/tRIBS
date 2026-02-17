@@ -45,15 +45,9 @@ int point::operator < (const point& p) const {
 	return x<p.x;
 }
 
-#if defined(DEBUG_PRINT)
-void point::print () const {cout << x << ' '<< y <<endl;}
-#endif
 void point::write(ofstream& f) const {f<<x<<' '<<y<<endl;}
 
 
-#if defined(DEBUG_PRINT)
-void edge::print(const point p[]) const {p[from].print();p[to].print();}
-#endif
 void edge::write(ofstream& f,const point p[]) const {p[from].write(f);p[to].write(f);}
 bool edge::visible(const point p[],int i) const {
 	//test whether an edge on the hull is visible from a point
@@ -208,9 +202,6 @@ public:
 	}
 	int addBefore(int a /*location*/, int ej /*data*/);
 	int addAfter(int a /*location*/, int ej /*data*/);
-#if defined(DEBUG_PRINT)
-	void print() const;
-#endif
 private:
 		struct item{
 			int next,prev,data;
@@ -315,16 +306,6 @@ int cyclist::addAfter(int a,int ej){
 	//return the value that hole had at the start of the method 
 	return prev;
 }
-#if defined(DEBUG_PRINT)
-void cyclist::print() const {
-	int j=ejs[0].next;
-	for (int i=0;i<num;i++){
-		cout<<ejs[j].data<<endl;
-		j=ejs[j].next;
-	}
-}
-#endif
-
 // if the first points are aligned, then we build "by hand" the triangulation.
 // Draw a picture to find out. Not that difficult.
 void start_aligned_point(int &lower_hull_pos, int &upper_hull_pos, int &next_edge,

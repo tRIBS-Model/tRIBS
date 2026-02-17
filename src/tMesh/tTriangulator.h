@@ -18,7 +18,6 @@
 **
 \***************************************************************************/
 
-#define DEBUG_PRINT 1
 #define TIMING 1
 
 
@@ -59,9 +58,6 @@ public:
   point operator + (const point& p) const {return point(x+p.x,y+p.y);}
   point operator / (double f) const {return point(x/f,y/f);}
   double dot(const point& p) const {return (x*p.x+y*p.y);}
-#if defined(DEBUG_PRINT)
-  void print () const;
-#endif
   void write(ofstream& f) const;
 public:
   double x,y;
@@ -74,9 +70,6 @@ class edge
   edge(const edge&);
 public:
   edge(): from(-1),to(-1),lef(-1),let(-1),ref(-1),ret(-1) {}
-#if defined(DEBUG_PRINT)
-  void print(const point p[]) const;
-#endif
   void write(ofstream& f,const point p[]) const;
   bool visible(const point p[],int i) const;
 public:
