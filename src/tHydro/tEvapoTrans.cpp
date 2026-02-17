@@ -1053,16 +1053,16 @@ void tEvapoTrans::ComputeETComponents(tIntercept *Intercept, tCNode *cNode,
 		//  Following Elathir and Bras (1993)    
 		evapDryCanopy = betaT*((potEvaporation - evapWetCanopy)*transFactor);
 
+        // Account for the vegetation fraction
+        evapWetCanopy *= coeffV;
+        evapDryCanopy *= coeffV;
+
         // Remaining potential evaporation is what's available for the bare soil
         double potEvaporationRemaining = potEvaporation - evapWetCanopy - evapDryCanopy;
 		// Sanity check
 		if (potEvaporationRemaining < 0.0) {
 			potEvaporationRemaining = 0.0;
 		}
-
-        // Account for the vegetation fraction
-        evapWetCanopy *= coeffV;
-        evapDryCanopy *= coeffV;
         
         // Evaporation from Bare Soil
 
@@ -1077,7 +1077,7 @@ void tEvapoTrans::ComputeETComponents(tIntercept *Intercept, tCNode *cNode,
 
             // Method listed in Ivanov et al. (2004) for bare soil evaporation
             // Modified to use the remaining potential evaporation
-            evapSoil = (1-coeffV)*potEvaporationRemaining*betaS;
+            evapSoil = potEvaporationRemaining*betaS;
         }
 
 		// Total Evapotranspiration
