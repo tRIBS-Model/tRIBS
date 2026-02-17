@@ -31,44 +31,12 @@
 
 #include "src/tInOut/tInputFile.h"
 
-#ifdef ALPHA_64
-  #include <iostream.h>
-  #include <fstream.h>
-  #include <string.h>
-  #include <stdio.h>
-  #include <math.h>
-  #include <assert.h>
-#elif defined LINUX_32
-  #include <iostream>
-  #include <fstream>
-  #include <string>
-  #include <cstdio>
-  #include <cmath>
-  #include <cassert>
-
-#elif defined MAC
-  #include <iostream>
-  #include <fstream>
-  #include <string>
-  #include <cstdio>
-  #include <cmath>
-  #include <cassert>
-
-#elif defined WIN
-  #include <iostream.h>
-  #include <fstream.h>
-  #include <string.h>
-  #include <stdio.h>
-  #include <math.h>
-  #include <assert.h>
-#else 
-  #include <iostream.h>
-  #include <fstream.h>
-  #include <string.h>
-  #include <stdio.h>
-  #include <math.h>
-  #include <assert.h>
-#endif
+#include <iostream>
+#include <fstream>
+#include <string>
+#include <cstdio>
+#include <cmath>
+#include <cassert>
 
 //=========================================================================
 //

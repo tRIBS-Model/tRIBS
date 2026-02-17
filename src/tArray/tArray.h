@@ -25,27 +25,9 @@
 #define TARRAY_H
 
 
-#ifdef ALPHA_64
-  #include <iostream.h>
-  #include <fstream.h>
-  #include <assert.h>
-#elif defined LINUX_32
-  #include <iostream>
-  #include <fstream>
-  #include <cassert>
-#elif defined MAC
-  #include <iostream>
-  #include <fstream>
-  #include <cassert>
-#elif defined WIN
-  #include <iostream.h>
-  #include <fstream.h>
-  #include <assert.h>
-#else 
-  #include <iostream.h>
-  #include <fstream.h>
-  #include <assert.h>
-#endif
+#include <iostream>
+#include <fstream>
+#include <cassert>
 
 using namespace std;
 

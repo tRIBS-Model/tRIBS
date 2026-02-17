@@ -34,34 +34,10 @@
 #include <memory> // WR - added 09192023 :)
 #include <list> //SMM - added 09232008
 
-#ifdef ALPHA_64
-  #include <iostream.h>
-  #include <fstream.h>
-  #include <assert.h>
-  #include <math.h>
-#elif defined LINUX_32
-  #include <iostream>
-  #include <fstream>
-  #include <cassert>
-  #include <cmath>
-
-#elif defined MAC
-  #include <iostream>
-  #include <fstream>
-  #include <cassert>
-  #include <cmath>
-
-#elif defined WIN
-  #include <iostream.h>
-  #include <fstream.h>
-  #include <assert.h>
-  #include <math.h>
-#else 
-  #include <iostream.h>
-  #include <fstream.h>
-  #include <assert.h>
-  #include <math.h>
-#endif
+#include <iostream>
+#include <fstream>
+#include <cassert>
+#include <cmath>
 
 //=========================================================================
 //

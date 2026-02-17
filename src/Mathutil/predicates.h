@@ -29,23 +29,9 @@
 //=========================================================================
 
 
-#ifdef ALPHA_64
-  #include <stdio.h> 
-  #include <math.h> 
-  #include <sys/time.h> 
-#elif defined LINUX_32
-  #include <cstdio> 
-  #include <cmath> 
-  #include <ctime> 
-#elif defined WIN
-  #include <stdio.h> 
-  #include <math.h> 
-  #include <sys/time.h> 
-#else
-    #include <cstdio>    // Replaces <stdio.h>
-    #include <cmath>     // Replaces <math.h>
-    #include <ctime>
-#endif
+#include <cstdio>
+#include <cmath>
+#include <ctime>
  
 #define INEXACT                         
 #define tREAL double                      // float or double 

@@ -22,44 +22,12 @@
 #define TIMING 1
 
 
-#ifdef ALPHA_64
-  #include <math.h>
-  #include <fstream.h>
-  #include <stdlib.h>
-  #include <time.h>
-  #include <assert.h>
-  #include <iostream.h>
-#elif defined LINUX_32
-  #include <cmath>
-  #include <fstream>
-  #include <cstdlib>
-  #include <ctime>
-  #include <cassert>
-  #include <iostream>
-
-#elif defined MAC
-  #include <cmath>
-  #include <fstream>
-  #include <cstdlib>
-  #include <ctime>
-  #include <cassert>
-  #include <iostream>
-
-#elif defined WIN
-  #include <math.h>
-  #include <fstream.h>
-  #include <stdlib.h>
-  #include <time.h>
-  #include <assert.h>
-  #include <iostream.h>
-#else 
-  #include <math.h>
-  #include <fstream.h>
-  #include <stdlib.h>
-  #include <time.h>
-  #include <assert.h>
-  #include <iostream.h>
-#endif
+#include <cmath>
+#include <fstream>
+#include <cstdlib>
+#include <ctime>
+#include <cassert>
+#include <iostream>
 
 using namespace std;
 

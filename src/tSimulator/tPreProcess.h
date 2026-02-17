@@ -22,14 +22,7 @@
 
 #include "src/Headers/Inclusions.h"
 
-#ifdef ALPHA_64
-#elif defined LINUX_32
-  #ifndef _WIN32
-  #include <unistd.h>
-  #endif
-#elif defined WIN
-#else 
-#endif
+#include <unistd.h>
 
 //=========================================================================
 //

@@ -33,39 +33,11 @@
 #include "src/tInOut/tInputFile.h"
 #include "src/Headers/Definitions.h"
 
-#ifdef ALPHA_64
-  #include <math.h>
-  #include <stdlib.h>
-  #include <string.h>
-  #include <iostream.h>
-  #include <stdio.h>
-#elif defined LINUX_32
-  #include <cmath>
-  #include <cstdlib>
-  #include <cstring>
-  #include <iostream>
-  #include <cstdio>
-
-#elif defined MAC
-  #include <cmath>
-  #include <cstdlib>
-  #include <cstring>
-  #include <iostream>
-  #include <cstdio>
-
-#elif defined WIN
-  #include <math.h>
-  #include <stdlib.h>
-  #include <string.h>
-  #include <iostream.h>
-  #include <stdio.h>
-#else 
-  #include <math.h>
-  #include <stdlib.h>
-  #include <string.h>
-  #include <iostream.h>
-  #include <stdio.h>
-#endif
+#include <cmath>
+#include <cstdlib>
+#include <cstring>
+#include <iostream>
+#include <cstdio>
 
 //=========================================================================
 //

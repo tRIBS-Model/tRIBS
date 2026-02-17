@@ -32,8 +32,6 @@ target_compile_definitions(${exe}
         PARALLEL_TRIBS
         PRIVATE
         GRAPH_TRIBS
-        PRIVATE
-        LINUX_32
         )
 
 target_sources(

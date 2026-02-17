@@ -55,22 +55,8 @@
 #include "src/tMeshList/tMeshList.h"
 #include "src/Headers/globalFns.h"
 
-#ifdef ALPHA_64
-  #include <iostream.h>
-  #include <math.h> 
-#elif defined LINUX_32
-  #include <iostream>
-  #include <cmath>
-#elif defined MAC
-  #include <iostream>
-  #include <cmath>
-#elif defined WIN
-  #include <iostream.h>
-  #include <math.h> 
-#else 
-  #include <iostream.h>
-  #include <math.h> 
-#endif
+#include <iostream>
+#include <cmath>
 
 using namespace std;
 

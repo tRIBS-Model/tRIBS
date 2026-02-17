@@ -30,37 +30,11 @@
 #include "src/Headers/Definitions.h"
 #include "src/Headers/Classes.h"
 
-#ifdef ALPHA_64
-  #include <iostream.h>
-  #include <fstream.h>
-  #include <assert.h>
-  #include <string.h>
-  #include <stdlib.h>
-#elif defined LINUX_32
-  #include <iostream>
-  #include <fstream>
-  #include <cassert>
-  #include <string> 
-  #include <cstdlib>
-#elif defined MAC
-  #include <iostream>
-  #include <fstream>
-  #include <cassert>
-  #include <string>
-  #include <cstdlib>
-#elif defined WIN
-  #include <iostream.h>
-  #include <fstream.h>
-  #include <assert.h>
-  #include <string.h>
-  #include <stdlib.h>
-#else 
-  #include <iostream.h>
-  #include <fstream.h>
-  #include <assert.h>
-  #include <string.h>
-  #include <stdlib.h>
-#endif
+#include <iostream>
+#include <fstream>
+#include <cassert>
+#include <string>
+#include <cstdlib>
 
 using namespace std;
 

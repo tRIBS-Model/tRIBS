@@ -29,23 +29,9 @@
 #include "src/Headers/Inclusions.h"
 #include "src/tMesh/tTriangulator.h"
 
-#ifdef ALPHA_64
-  #include <stdlib.h>
-  #include <strings.h>
-#elif defined LINUX_32
-  #include <stdlib.h>
-  #include <strings.h>
-  #include <iostream>
-#elif defined WIN
-  #ifdef _WIN32
-  #define srand48(x) srand(x)
-  #define drand48() double(rand())/RAND_MAX
-  #define strcasecmp(x,y) _stricmp(x,y)
-  #endif
-#else 
-  #include <stdlib.h>
-  #include <strings.h>
-#endif
+#include <stdlib.h>
+#include <strings.h>
+#include <iostream>
 
 using namespace std;
 
