@@ -179,15 +179,15 @@ int main(int argc, char *argv[])
 		while (!Inp0 && !flag) {
 			
 			if (cflag) {
-				sprintf(tempstr,"%02d/%02d/%04d/%02d", month, day, year, hour);
+				snprintf(tempstr,sizeof(tempstr),"%02d/%02d/%04d/%02d", month, day, year, hour);
 				Otp0<<"Files missing from "<<tempstr;
 			}
 			cflag = 0;
 			
 			// Mark missing data in the statistics file
-			sprintf(tempstr,"%02d%02d%04d%02d", month, day, year, hour);
+			snprintf(tempstr,sizeof(tempstr),"%02d%02d%04d%02d", month, day, year, hour);
 			Otp1<<tempstr<<"   -999.0\t-999.0\t-999.0"<<endl;
-			
+
 			// To always keep track of the last missing file
 			hourS = hour;
 			dayS = day;
@@ -207,11 +207,11 @@ int main(int argc, char *argv[])
 		Inp0.close();
 		
 		if ( flag ) {
-			sprintf(tempstr,"%02d/%02d/%04d/%02d", month, day, year, hour);
+			snprintf(tempstr,sizeof(tempstr),"%02d/%02d/%04d/%02d", month, day, year, hour);
 			Otp0<<" to "<<tempstr<<endl;
 			cflag = 1;
 			// Mark missing data in the statistics file
-			sprintf(tempstr,"%02d%02d%04d%02d", month, day, year, hour);
+			snprintf(tempstr,sizeof(tempstr),"%02d%02d%04d%02d", month, day, year, hour);
 			Otp1<<tempstr<<"   -999.0\t-999.0\t-999.0"<<endl;
 		}
 		
@@ -233,7 +233,7 @@ int main(int argc, char *argv[])
 			// need to output info about next file
 			
 			if (!cflag) {
-				sprintf(tempstr,"%02d/%02d/%04d/%02d", monthS, dayS, yearS, hourS);
+				snprintf(tempstr,sizeof(tempstr),"%02d/%02d/%04d/%02d", monthS, dayS, yearS, hourS);
 				Otp0<<" to "<<tempstr<<";  Next file Grid Max = "<<maxGrid;
 				if (maxGrid > 0)
 					Otp0<<"<- Correct the gap"<<endl;
@@ -244,11 +244,11 @@ int main(int argc, char *argv[])
 			
 			// If values are suspicious -- warn about that int output
 			if (minGrid < LOWER || maxGrid > UPPER ) {
-				sprintf(tempstr,"%02d/%02d/%04d/%02d", month, day, year, hour);
+				snprintf(tempstr,sizeof(tempstr),"%02d/%02d/%04d/%02d", month, day, year, hour);
 				Otp0<<tempstr<<"\t <- Erroneous data, check the file"<<endl;
 			}
 			
-			sprintf(tempstr,"%02d%02d%04d%02d", month, day, year, hour);
+			snprintf(tempstr,sizeof(tempstr),"%02d%02d%04d%02d", month, day, year, hour);
 			Otp1<<tempstr<<"   "<<maxGrid<<"\t"<<minGrid<<"\t"<<sumGrid<<endl;
 			//printToFile(Otp0); // may want to output grid sometimes
 			
@@ -318,7 +318,7 @@ void printToFile(ofstream &Otp0)
 void In_Mrain_Name(char *pref, char *ext, int hour, int day, int month, int year)
 {
 	//cout<<"\n-----------------------------------------------------\n";
-	sprintf(mrainfileIn, "%s%02d%02d%04d%02d.%s", pref, month, day, year, hour, ext);
+	snprintf(mrainfileIn, sizeof(mrainfileIn), "%s%02d%02d%04d%02d.%s", pref, month, day, year, hour, ext);
 	//cout << "File IN --> "<<mrainfileIn<< endl;
 	return;
 }
