@@ -1043,7 +1043,7 @@ void tSnowPack::callSnowIntercept(tCNode *node, tIntercept *interceptModel, int 
 
 void tSnowPack::updateRipeSnowPack(double precip) {
     //liq WE update
-    snEvap = (1 - coeffV) * latentHFCalc(resFactCalc()) * timeSteps /
+    snEvap = latentHFCalc(resFactCalc()) * timeSteps /
              (rholiqkg * latVapkJ); // units should be in meters
     liqWE += cmtonaught * ((mtoc * precip) * (1 - snowFracCalc())) * timeSteps /
              3600; // Removed snUnload term CJC2020
@@ -1068,7 +1068,7 @@ void tSnowPack::updateSolidSnowPack(double precip) {
 
 
     //ice WE update
-    snSub = (1 - coeffV) * latentHFCalc(resFactCalc()) * timeSteps /
+    snSub = latentHFCalc(resFactCalc()) * timeSteps /
             (rholiqkg * latSubkJ);// units should be in meters
     iceWE += cmtonaught * (mtoc * (precip * snowFracCalc())) * timeSteps / 3600;
 
