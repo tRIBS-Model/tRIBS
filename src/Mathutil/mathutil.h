@@ -19,7 +19,6 @@
 #ifndef MATHUTIL_H
 #define MATHUTIL_H
 
-
 #include <cmath>
 #include <iostream>
 #include <cstdlib>

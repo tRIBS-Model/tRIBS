@@ -1704,11 +1704,11 @@ double tSnowPack::resFactCalc() {
     } else if (RiB <= Ri_u) {
         // Stable but not extreme (Eq. 25)
         double term = 1.0 - (RiB / Ri_cr);
-        C_stab = 1.0 / (term*term);
+        C_stab = 1.0 / (term * term);
     } else {
         // Very stable, capped (Eq. 26)
         double term = 1.0 - (Ri_u / Ri_cr);
-        C_stab = 1.0 / (term*term);
+        C_stab = 1.0 / (term * term);
     }
 
 	// Clamp the stability correction factor to a reasonable range
@@ -1755,7 +1755,7 @@ void tSnowPack::computeSub() {
     // needs to be refactored or maybe deprecated.
 
     //compute effective incident shortwave radiation on snow crystal
-    Sp = PI * (iceRad*iceRad) * (1 - albedo) * inShortR;//check units--check (W)//WR debug change 0.8 to albedo
+    Sp = PI * (iceRad * iceRad) * (1 - albedo) * inShortR;//check units--check (W)//WR debug change 0.8 to albedo
 
     //Find coefficient for changing windspeed
     acoefficient = beta * coeffLAI;
@@ -1866,7 +1866,7 @@ double tSnowPack::inShortWaveSn(tCNode *cNode) {
         // If observations (for a horizontal surface) exist -
         // use them, at least in an approximate manner
         if (tsOption > 1) {
-            RadGlobClr = (inShortR / (1.0 - 0.65 * (N*N)));
+            RadGlobClr = (inShortR / (1.0 - 0.65 * (N * N)));
             Ic = Ic / (Ic * sinAlpha + Id) * RadGlobClr;
             Id = RadGlobClr - Ic * sinAlpha;
         }
@@ -1929,7 +1929,7 @@ double tSnowPack::inShortWaveSn(tCNode *cNode) {
         Ids = Id * v;
 
         // 3) Account for cloud cover
-        Is = (1.0 - 0.65 * (N*N)) * (Ics + Ids);
+        Is = (1.0 - 0.65 * (N * N)) * (Ics + Ids);
 
         //Reflected from surrounded sites radiation
         //
@@ -1990,8 +1990,8 @@ double tSnowPack::inShortWaveSn(tCNode *cNode) {
     } else {
         cNode->setShortRadIn(Isw);
     }
-    cNode->setShortRadIn_dir(Ics * (1.0 - 0.65 * (N*N))); // TODO: should these be set as values above the canopy?
-    cNode->setShortRadIn_dif((Ids + Ir) * (1.0 - 0.65 * (N*N)));//AJR2008, SKY2008Snow
+    cNode->setShortRadIn_dir(Ics * (1.0 - 0.65 * (N * N))); // TODO: should these be set as values above the canopy?
+    cNode->setShortRadIn_dif((Ids + Ir) * (1.0 - 0.65 * (N * N)));//AJR2008, SKY2008Snow
 
     return Isw;
 }
@@ -2034,7 +2034,7 @@ double tSnowPack::inShortWaveCan() {
         // If observations (for a horizontal surface) exist -
         // use them, at least in an approximate manner
         if (tsOption > 1) {
-            RadGlobClr = (inShortR / (1.0 - 0.65 * (N*N)));
+            RadGlobClr = (inShortR / (1.0 - 0.65 * (N * N)));
             Ic = Ic / (Ic * sinAlpha + Id) * RadGlobClr;
             Id = RadGlobClr - Ic * sinAlpha;
         }
@@ -2097,7 +2097,7 @@ double tSnowPack::inShortWaveCan() {
         Ids = Id * v;
 
         // 3) Account for cloud cover
-        Is = (1.0 - 0.65 * (N*N)) * (Ics + Ids);
+        Is = (1.0 - 0.65 * (N * N)) * (Ics + Ids);
 
         //Reflected from surrounded sites radiation
         //

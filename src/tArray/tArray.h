@@ -24,7 +24,6 @@
 #ifndef TARRAY_H
 #define TARRAY_H
 
-
 #include <iostream>
 #include <fstream>
 #include <cassert>

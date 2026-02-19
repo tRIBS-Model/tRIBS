@@ -31,7 +31,6 @@
 #ifndef TPTRLIST_H
 #define TPTRLIST_H
 
-
 #include <cassert>
 
 template < class NodeType > class tPtrList;
