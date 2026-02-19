@@ -65,8 +65,6 @@
 #include "src/Headers/Inclusions.h"
 #include "src/tHydro/tEvapoTrans.h"
 
-
-
 //=========================================================================
 //
 //		Section 2: tSnowPack Class Definitions

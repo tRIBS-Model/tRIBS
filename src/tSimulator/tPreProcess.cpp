@@ -379,15 +379,7 @@ void tPreProcess::CheckPathNameCorrect(tInputFile &infile, char* filename,
 		} 
 		else {
 			InpStatus = 1;
-#ifdef ALPHA_64
 			remove(bname);
-#elif defined LINUX_32
-			unlink(bname);
-#elif defined WIN
-			remove(bname);
-#else 
-			remove(bname);
-#endif
 			
 		}
 	}

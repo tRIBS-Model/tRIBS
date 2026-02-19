@@ -129,19 +129,8 @@ tRainfall::~tRainfall()
 	simCtrl = nullptr;
 	
 	if (rainfallType == 1) {
-#ifdef ALPHA_64
-		if ( infile )
-			infile.close();
-#elif defined LINUX_32
 		if ( infile.is_open() )
 			infile.close();
-#elif defined WIN
-		if ( infile )
-			infile.close();
-#else 
-		if ( infile )
-			infile.close();
-#endif
 	}
 	if (rainfallType == 2) {
 		delete [] currentTime; 
@@ -171,19 +160,8 @@ tRainfall::~tRainfall()
 ***************************************************************************/
 int tRainfall::Compose_In_Mrain_Name(tRunTimer *t) 
 { 
-#ifdef ALPHA_64
-    if ( infile )
-		infile.close();
-#elif defined LINUX_32
     if ( infile.is_open() )
 		infile.close();
-#elif defined WIN
-    if ( infile )
-		infile.close();
-#else 
-    if ( infile )
-		infile.close();
-#endif
 	
 	// Read rainfall file depending on forecast state
 	if (fState == 0) {
@@ -222,19 +200,8 @@ int tRainfall::Compose_In_Mrain_Name(tRunTimer *t)
 		return 1;
 	
 	// Check if file opened
-#ifdef ALPHA_64
-    if ( !infile )
-		return 0;
-#elif defined LINUX_32
     if ( !(infile.is_open()) )
 		return 0;
-#elif defined WIN
-    if ( !infile )
-		return 0;
-#else 
-    if ( !infile )
-		return 0;
-#endif
 	else {
 		infile.close();
 		return 1;

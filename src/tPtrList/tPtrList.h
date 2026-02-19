@@ -31,16 +31,7 @@
 #ifndef TPTRLIST_H
 #define TPTRLIST_H
 
-
-#ifdef ALPHA_64
-  #include <assert.h>
-#elif defined LINUX_32
-  #include <cassert>
-#elif defined WIN
-  #include <assert.h>
-#else 
-  #include <assert.h>
-#endif
+#include <cassert>
 
 template < class NodeType > class tPtrList;
 template < class NodeType > class tPtrListIter;

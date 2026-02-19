@@ -44,8 +44,6 @@ if(parallel)
             PARALLEL_TRIBS
             PRIVATE
             GRAPH_TRIBS
-            PRIVATE
-            LINUX_32
             )
 
     find_package(MPI REQUIRED) #Note: changes to MPI path etc may require reset of CMakeCache.txt
@@ -159,18 +157,6 @@ if(parallel)
 else()
     # currently only tested on new macs (M1 and M2 chips)
     message(WARNING "Compiling serial version of tRIBS")
-
-    if(APPLE) # not sure though if loading libraries are any different for linux--windows don't know
-        target_compile_definitions(${exe}
-                PRIVATE
-                MAC
-                )
-    else()
-        target_compile_definitions(${exe}
-                PRIVATE
-                LINUX_32
-                )
-    endif()
 
     target_sources(
             ${exe} PRIVATE src/main.cpp

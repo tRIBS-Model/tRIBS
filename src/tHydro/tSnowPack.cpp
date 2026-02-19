@@ -1043,7 +1043,7 @@ void tSnowPack::callSnowIntercept(tCNode *node, tIntercept *interceptModel, int 
 
 void tSnowPack::updateRipeSnowPack(double precip) {
     //liq WE update
-    snEvap = (1 - coeffV) * latentHFCalc(resFactCalc()) * timeSteps /
+    snEvap = latentHFCalc(resFactCalc()) * timeSteps /
              (rholiqkg * latVapkJ); // units should be in meters
     liqWE += cmtonaught * ((mtoc * precip) * (1 - snowFracCalc())) * timeSteps /
              3600; // Removed snUnload term CJC2020
@@ -1068,7 +1068,7 @@ void tSnowPack::updateSolidSnowPack(double precip) {
 
 
     //ice WE update
-    snSub = (1 - coeffV) * latentHFCalc(resFactCalc()) * timeSteps /
+    snSub = latentHFCalc(resFactCalc()) * timeSteps /
             (rholiqkg * latSubkJ);// units should be in meters
     iceWE += cmtonaught * (mtoc * (precip * snowFracCalc())) * timeSteps / 3600;
 
@@ -1509,7 +1509,7 @@ double tSnowPack::snowFracCalc() {
     if (optPartition == 0) { // Wet-bulb partitioning
 
         // Calculate wet-Bulb Temperature according to Stull (2011) https://doi.org/10.1175/JAMC-D-11-0143.1
-        Tw = Ta*atan(0.151977*pow(RH + 8.313659,0.5)) + atan(Ta + RH) - atan(RH - 1.676331) +
+        Tw = Ta*atan(0.151977*sqrt(RH + 8.313659)) + atan(Ta + RH) - atan(RH - 1.676331) +
             0.00391838*pow(RH,1.5)*atan(0.023101*RH) - 4.686035; // in degC
 
         // Calculate  snowfall fraction according to Wang et al. (2019) https://doi.org/10.1029/2019GL085722
@@ -1652,7 +1652,7 @@ double tSnowPack::resFactCalc() {
     zov = 0.0123 * vegHeight;
     d = 0.67 * vegHeight;
 
-    rav = log((zm - d) / zom) * log((zm - d) / zov) / (windSpeedC * pow(vonKarm, 2)); //Uses canopy level wind speed
+    rav = log((zm - d) / zom) * log((zm - d) / zov) / (windSpeedC * (vonKarm * vonKarm)); //Uses canopy level wind speed
 
     // Aerodynamic resistance for snow surface
     zom = snRoughness;
@@ -1663,7 +1663,7 @@ double tSnowPack::resFactCalc() {
     //zov = 0.0123 * vegBare;
     d = 0.67 * vegBare;
 
-    ras = log((zm - d) / zom) * log((zm - d) / zov) / (windSpeedS * pow(vonKarm, 2)); // Uses snow/surface level wind
+    ras = log((zm - d) / zom) * log((zm - d) / zov) / (windSpeedS * (vonKarm * vonKarm)); // Uses snow/surface level wind
 
     // Weighted resistance
     ra = (1 - vegFrac) * ras + vegFrac * rav;
@@ -1700,13 +1700,15 @@ double tSnowPack::resFactCalc() {
     double C_stab;
     if (RiB < 0.0) {
         // Unstable conditions (Eq. 19)
-        C_stab = 1.0 / pow(1.0 - 16.0 * RiB, 0.5);
+        C_stab = 1.0 / sqrt(1.0 - 16.0 * RiB);
     } else if (RiB <= Ri_u) {
         // Stable but not extreme (Eq. 25)
-        C_stab = 1.0 / pow(1.0 - (RiB / Ri_cr), 2.0);
+        double term = 1.0 - (RiB / Ri_cr);
+        C_stab = 1.0 / (term * term);
     } else {
         // Very stable, capped (Eq. 26)
-        C_stab = 1.0 / pow(1.0 - (Ri_u / Ri_cr), 2.0);
+        double term = 1.0 - (Ri_u / Ri_cr);
+        C_stab = 1.0 / (term * term);
     }
 
 	// Clamp the stability correction factor to a reasonable range
@@ -1753,7 +1755,7 @@ void tSnowPack::computeSub() {
     // needs to be refactored or maybe deprecated.
 
     //compute effective incident shortwave radiation on snow crystal
-    Sp = PI * pow(iceRad, 2.0) * (1 - albedo) * inShortR;//check units--check (W)//WR debug change 0.8 to albedo
+    Sp = PI * (iceRad * iceRad) * (1 - albedo) * inShortR;//check units--check (W)//WR debug change 0.8 to albedo
 
     //Find coefficient for changing windspeed
     acoefficient = beta * coeffLAI;
@@ -1768,7 +1770,7 @@ void tSnowPack::computeSub() {
     Re = 2 * iceRad * windSpeedC / nu;
 
     //Calculate Sherwood number
-    Sh = 1.79 + 0.606 * pow(Re, 0.5);
+    Sh = 1.79 + 0.606 * sqrt(Re);
 
     //Calculate Nusselt number
     Nu = Sh;
@@ -1864,7 +1866,7 @@ double tSnowPack::inShortWaveSn(tCNode *cNode) {
         // If observations (for a horizontal surface) exist -
         // use them, at least in an approximate manner
         if (tsOption > 1) {
-            RadGlobClr = (inShortR / (1.0 - 0.65 * pow(N, 2.0)));
+            RadGlobClr = (inShortR / (1.0 - 0.65 * (N * N)));
             Ic = Ic / (Ic * sinAlpha + Id) * RadGlobClr;
             Id = RadGlobClr - Ic * sinAlpha;
         }
@@ -1927,7 +1929,7 @@ double tSnowPack::inShortWaveSn(tCNode *cNode) {
         Ids = Id * v;
 
         // 3) Account for cloud cover
-        Is = (1.0 - 0.65 * pow(N, 2)) * (Ics + Ids);
+        Is = (1.0 - 0.65 * (N * N)) * (Ics + Ids);
 
         //Reflected from surrounded sites radiation
         //
@@ -1988,8 +1990,8 @@ double tSnowPack::inShortWaveSn(tCNode *cNode) {
     } else {
         cNode->setShortRadIn(Isw);
     }
-    cNode->setShortRadIn_dir(Ics * (1.0 - 0.65 * pow(N, 2.0))); // TODO: should these be set as values above the canopy?
-    cNode->setShortRadIn_dif((Ids + Ir) * (1.0 - 0.65 * pow(N, 2.0)));//AJR2008, SKY2008Snow
+    cNode->setShortRadIn_dir(Ics * (1.0 - 0.65 * (N * N))); // TODO: should these be set as values above the canopy?
+    cNode->setShortRadIn_dif((Ids + Ir) * (1.0 - 0.65 * (N * N)));//AJR2008, SKY2008Snow
 
     return Isw;
 }
@@ -2032,7 +2034,7 @@ double tSnowPack::inShortWaveCan() {
         // If observations (for a horizontal surface) exist -
         // use them, at least in an approximate manner
         if (tsOption > 1) {
-            RadGlobClr = (inShortR / (1.0 - 0.65 * pow(N, 2.0)));
+            RadGlobClr = (inShortR / (1.0 - 0.65 * (N * N)));
             Ic = Ic / (Ic * sinAlpha + Id) * RadGlobClr;
             Id = RadGlobClr - Ic * sinAlpha;
         }
@@ -2095,7 +2097,7 @@ double tSnowPack::inShortWaveCan() {
         Ids = Id * v;
 
         // 3) Account for cloud cover
-        Is = (1.0 - 0.65 * pow(N, 2)) * (Ics + Ids);
+        Is = (1.0 - 0.65 * (N * N)) * (Ics + Ids);
 
         //Reflected from surrounded sites radiation
         //
@@ -2204,7 +2206,7 @@ void tSnowPack::snowEB(int nodeID, tCNode *node) {
     //atmospheric heat flux
     RSin = naughttokilo * inShortWaveSn(node); // AJR2008, SKY2008Snow
     RLin = naughttokilo * inLongWave(node); // AJR2008, SKY2008Snow
-    RLout = -naughttokilo * v1 * emmisSn() * sigma * pow(snTempK, 4.0);
+    RLout = -naughttokilo * v1 * emmisSn() * sigma * (snTempK*snTempK*snTempK*snTempK);
 
 
     //set up for output

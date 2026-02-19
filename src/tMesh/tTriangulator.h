@@ -18,57 +18,17 @@
 **
 \***************************************************************************/
 
-#define DEBUG_PRINT 1
 #define TIMING 1
 
 
-#ifdef ALPHA_64
-  #include <math.h>
-  #include <fstream.h>
-  #include <stdlib.h>
-  #include <time.h>
-  #include <assert.h>
-  #include <iostream.h>
-#elif defined LINUX_32
-  #include <cmath>
-  #include <fstream>
-  #include <cstdlib>
-  #include <ctime>
-  #include <cassert>
-  #include <iostream>
-
-#elif defined MAC
-  #include <cmath>
-  #include <fstream>
-  #include <cstdlib>
-  #include <ctime>
-  #include <cassert>
-  #include <iostream>
-
-#elif defined WIN
-  #include <math.h>
-  #include <fstream.h>
-  #include <stdlib.h>
-  #include <time.h>
-  #include <assert.h>
-  #include <iostream.h>
-#else 
-  #include <math.h>
-  #include <fstream.h>
-  #include <stdlib.h>
-  #include <time.h>
-  #include <assert.h>
-  #include <iostream.h>
-#endif
+#include <cmath>
+#include <fstream>
+#include <cstdlib>
+#include <ctime>
+#include <cassert>
+#include <iostream>
 
 using namespace std;
-
-#if __SUNPRO_CC==0x420
-# if !defined(ENUM_BOOL_DEFINED)
-#  define ENUM_BOOL_DEFINED 1
-typedef enum { false=0, true } bool;
-# endif
-#endif
 
 class point;
 class edge;
@@ -98,9 +58,6 @@ public:
   point operator + (const point& p) const {return point(x+p.x,y+p.y);}
   point operator / (double f) const {return point(x/f,y/f);}
   double dot(const point& p) const {return (x*p.x+y*p.y);}
-#if defined(DEBUG_PRINT)
-  void print () const;
-#endif
   void write(ofstream& f) const;
 public:
   double x,y;
@@ -113,9 +70,6 @@ class edge
   edge(const edge&);
 public:
   edge(): from(-1),to(-1),lef(-1),let(-1),ref(-1),ret(-1) {}
-#if defined(DEBUG_PRINT)
-  void print(const point p[]) const;
-#endif
   void write(ofstream& f,const point p[]) const;
   bool visible(const point p[],int i) const;
 public:

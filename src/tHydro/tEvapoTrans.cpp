@@ -789,7 +789,8 @@ double tEvapoTrans::ApproximateEP()
 	inLongR  = inLongWave( nodeIter.LastP() );
 	
 	// Assume air temperature for estimation of L  // [W m^-2]
-	outLongR = v1*emiss_soi*sigma*pow((airTemp+273.15),4.0);
+	double airTempKelv = airTemp+273.15;
+	outLongR = v1*emiss_soi*sigma*(airTempKelv*airTempKelv*airTempKelv*airTempKelv);
 	
 	// Approximate Rn (term on the right accounts for reflection)  // [W m^-2]
 	// Note: could use actual estimated albedo (not 0.17)
@@ -1053,16 +1054,16 @@ void tEvapoTrans::ComputeETComponents(tIntercept *Intercept, tCNode *cNode,
 		//  Following Elathir and Bras (1993)    
 		evapDryCanopy = betaT*((potEvaporation - evapWetCanopy)*transFactor);
 
+        // Account for the vegetation fraction
+        evapWetCanopy *= coeffV;
+        evapDryCanopy *= coeffV;
+
         // Remaining potential evaporation is what's available for the bare soil
         double potEvaporationRemaining = potEvaporation - evapWetCanopy - evapDryCanopy;
 		// Sanity check
 		if (potEvaporationRemaining < 0.0) {
 			potEvaporationRemaining = 0.0;
 		}
-
-        // Account for the vegetation fraction
-        evapWetCanopy *= coeffV;
-        evapDryCanopy *= coeffV;
         
         // Evaporation from Bare Soil
 
@@ -1077,7 +1078,7 @@ void tEvapoTrans::ComputeETComponents(tIntercept *Intercept, tCNode *cNode,
 
             // Method listed in Ivanov et al. (2004) for bare soil evaporation
             // Modified to use the remaining potential evaporation
-            evapSoil = (1-coeffV)*potEvaporationRemaining*betaS;
+            evapSoil = potEvaporationRemaining*betaS;
         }
 
 		// Total Evapotranspiration
@@ -1141,7 +1142,7 @@ double tEvapoTrans::clausClap()
 	esat = satVaporPress();
 	rv = 461.5;
 	airTempK = airTemp + 273.15;
-	cc = 100.0*(latHeat*esat)/(rv*pow(airTempK,2.0));
+	cc = 100.0*(latHeat*esat)/(rv*(airTempK*airTempK));
 	return cc;
 }
 
@@ -1374,13 +1375,13 @@ double tEvapoTrans::aeroResist() {
 	zom = 0.123*vegHeight;
 	zov = 0.0123*vegHeight;
 	d = 0.67*vegHeight;
-	rav = log((zm-d)/zom)*log((zm-d)/zov)/(windSpeedC*pow(vonKarm,2.0));
+	rav = log((zm-d)/zom)*log((zm-d)/zov)/(windSpeedC*(vonKarm*vonKarm));
 
 	zm = 2.0 + vegBare;
 	zom = 0.123*vegBare;
 	zov = 0.0123*vegBare;
 	d = 0.67*vegBare;
-	ras = log((zm-d)/zom)*log((zm-d)/zov)/(windSpeedC*pow(vonKarm,2.0));
+	ras = log((zm-d)/zom)*log((zm-d)/zov)/(windSpeedC*(vonKarm*vonKarm));
 
 	ra = (1-vegFrac)*ras + vegFrac*rav;
 
@@ -1555,7 +1556,7 @@ void tEvapoTrans::SetSunVariables()
 	
 	// Compute extraterrestrial radiation [W m^-2]
 	// at the top of the atmosphere
-	Io = (Wo/pow(r,2.0));
+	Io = (Wo/(r*r));
 	
 	// These are calculated in LOCAL time. To obtain values in
 	// standard meridian time, add 'deltaT' to both
@@ -1710,7 +1711,7 @@ double tEvapoTrans::inShortWave(tCNode *cNode)
 		// use them, at least in an approximate manner
 		if (tsOption > 1) {
 			// Moved RadGlobClr declaration inside this block since it's only used here JB 2025
-			double RadGlobClr = (inShortR / (1.0 - 0.65 * pow(N, 2.0))); 
+			double RadGlobClr = (inShortR / (1.0 - 0.65 * (N*N))); 
 			Ic = Ic/(Ic*sinAlpha + Id)*RadGlobClr;
 			Id = RadGlobClr - Ic*sinAlpha;
 		}
@@ -1778,7 +1779,7 @@ double tEvapoTrans::inShortWave(tCNode *cNode)
 
 		// 3) Account for cloud cover - the result is
 		// the Global Shortwave Irradiance [W m^-2]
-		Is = (1.0-0.65*pow(N,2.0))*(Ics + Ids);
+		Is = (1.0-0.65*(N*N))*(Ics + Ids);
 
 		// 4) Reflected radiation from surrounded sites
 
@@ -1824,8 +1825,8 @@ double tEvapoTrans::inShortWave(tCNode *cNode)
 	else {
         cNode->setShortRadIn(Isw);
     }
-	cNode->setShortRadIn_dir(Ics*(1.0-0.65*pow(N,2.0)));
-	cNode->setShortRadIn_dif((Ids+Ir)*(1.0-0.65*pow(N,2.0)));//AJR2008, SKY2008Snow
+	cNode->setShortRadIn_dir(Ics*(1.0-0.65*(N*N)));
+	cNode->setShortRadIn_dif((Ids+Ir)*(1.0-0.65*(N*N)));//AJR2008, SKY2008Snow
 
 	return Isw;
 }
@@ -1859,7 +1860,7 @@ void tEvapoTrans::DirectDiffuse( double elev)
 	
 	// The Rayleigh optical thickness at air mass
 	if (m <= 20.0)
-		drm = 1/(6.6296+1.7513*m-0.1202*m*m+0.0065*pow(m,3.0)-0.00013*pow(m,4.0)); 
+		drm = 1/(6.6296+1.7513*m-0.1202*m*m+0.0065*(m*m*m)-0.00013*(m*m*m*m)); 
 	else 
 		drm = 1/(10.4 + 0.718*m);
 	
@@ -1870,17 +1871,17 @@ void tEvapoTrans::DirectDiffuse( double elev)
 	
 	
 	// 2.) ------------------- Diffuse -------------------
-	TnTLK = -0.015843 + 0.030543*Tlinke + 0.0003797*pow(Tlinke,2.0);
-	A1p = 0.26463 - 0.061581*Tlinke + 0.0031408*pow(Tlinke,2.0);
+	TnTLK = -0.015843 + 0.030543*Tlinke + 0.0003797*(Tlinke*Tlinke);
+	A1p = 0.26463 - 0.061581*Tlinke + 0.0031408*(Tlinke*Tlinke);
 	if (A1p*TnTLK < 0.0022)
 		A1 = 0.0022/TnTLK;
 	else
 		A1 = A1p;
-	A2 = 2.04020 + 0.018945*Tlinke - 0.011161*pow(Tlinke,2.0);
-	A3 = -1.3025 + 0.039231*Tlinke + 0.0085079*pow(Tlinke,2.0);
+	A2 = 2.04020 + 0.018945*Tlinke - 0.011161*(Tlinke*Tlinke);
+	A3 = -1.3025 + 0.039231*Tlinke + 0.0085079*(Tlinke*Tlinke);
 	
 	// The solar altitude function
-	Fdh0 = A1 + A2*sinAlpha + A3*pow(sinAlpha,2.0);
+	Fdh0 = A1 + A2*sinAlpha + A3*(sinAlpha*sinAlpha);
 	
 	// Estimation of diffuse radiation on horizontal surface [W m^-2]
 	Id = Io*TnTLK*Fdh0;
@@ -1927,10 +1928,10 @@ double tEvapoTrans::inLongWave(tCNode *cNode)
 	skyCoverC = scover;
 	
 	N = scover/10.0;
-	kCloud = 1.0 + 0.17*pow(N,2.0);
+	kCloud = 1.0 + 0.17*(N*N);
 	airTempK = airTemp+273.15;
 	Ea = 0.74 + 0.0049*vaporPress();
-	Rlin = v0*kCloud*Ea*sigma*pow(airTempK,4.0);
+	Rlin = v0*kCloud*Ea*sigma*(airTempK*airTempK*airTempK*airTempK);
 	return Rlin;
 }
 
@@ -2232,7 +2233,7 @@ double tEvapoTrans::energyBalance(tCNode* cNode)
 	// Set the temperatures values to the node
 	Tso = Tg;
 	Tlo += (gFlux*timeStep*60.0)/
-		(coeffCs*33.862683*pow((coeffKs/coeffCs/3.6361E-05),0.5));  
+		(coeffCs*33.862683*sqrt(coeffKs/coeffCs/3.6361E-05));
 	cNode->setSurfTemp(Tg  - 273.15);
 	cNode->setSoilTemp(Tlo - 273.15);
 	
@@ -2422,12 +2423,12 @@ void tEvapoTrans::FunctionAndDerivative(tCNode* cNode,
 	
 	// 1.) == NET longwave radiation ==
 	inLongR  = cNode->getLongRadIn();
-	outLongR = v1*Es*sigma*pow(Tg,4.0);
+	outLongR = v1*Es*sigma*(Tg*Tg*Tg*Tg);
 	Lsoi = outLongR - inLongR;
 	
 	// 2.) == Ground heat flux ==
 	if (gFluxOption == 1) { // Surface toC from the previous time step Tso is used
-        G = pow((4.0 * coeffKs * coeffCs / (pi * DTime)), 0.5) * (Tg - Tso);
+        G = sqrt(4.0 * coeffKs * coeffCs / (pi * DTime)) * (Tg - Tso);
     }
 	else if (gFluxOption == 2) {
         G = ForceRestore(Tg, 1);
@@ -2463,11 +2464,11 @@ void tEvapoTrans::FunctionAndDerivative(tCNode* cNode,
 	
 	
 	// Compute partial derivatives
- 	dLdTg = 4.0*Es*sigma*pow(Tg,3.0);
+ 	dLdTg = 4.0*Es*sigma*(Tg*Tg*Tg);
 	dRndTg = -dLdTg;
 	
 	if (gFluxOption == 1)
-		dGdTg = pow((4.0*coeffKs*coeffCs/(pi*DTime)),0.5);
+		dGdTg = sqrt(4.0*coeffKs*coeffCs/(pi*DTime));
 	else if (gFluxOption == 2)
 		dGdTg = ForceRestore(Tg, 2); 
 	
@@ -2512,7 +2513,6 @@ void tEvapoTrans::FunctionAndDerivative(tCNode* cNode,
 /***************************************************************************
 **
 ** tEvapoTrans::ForceRestore()
-** TODO see if the computations here can be optimized, notably pow is expensive -WR
 ** Calculates the ground heat flux and the deep soil temperature using
 ** the Force-restore method. Depending on the option used (1 or 2) this
 ** function, can return G or dG/dTg. See Lin (1980) and Hu and Islam (1995).
@@ -2550,7 +2550,7 @@ double tEvapoTrans::ForceRestore(double Ts, int option)
 	
 	cs = coeffCs;                 // Heat capacity     [J m^-3 K^-1]
 	k  = coeffKs/coeffCs;         // Heat diffusivity  [m^2 s^-1]
-	d1 = pow((2.0*k/w1),0.5);     // Damping depth of the diurnal temperature [m] (not Tlo)
+	d1 = sqrt(2.0*k/w1);     // Damping depth of the diurnal temperature [m] (not Tlo)
 				      // d1*sqrt(365)               // Penetration depth of the annual temperature wave  [m]
 	ddel = 0.1;                   // Soil layer thickness  [m]
 
@@ -2559,7 +2559,7 @@ double tEvapoTrans::ForceRestore(double Ts, int option)
 	nd = ddel/d1;                  // Normalized depth
 	
 	if (nd >= 0.0 && nd <= 5.0) {
-		alpha = 1+0.943*nd+0.223*pow(nd,2.0)+0.0168*pow(nd,3.0)-0.00527*pow(nd,4.0);
+		alpha = 1+0.943*nd+0.223*(nd*nd)+0.0168*(nd*nd*nd)-0.00527*(nd*nd*nd*nd);
 	}
 	else {
 		cout<<"\nWarning: Normalized depth for Force-Restore Equation out of ";
@@ -2572,7 +2572,7 @@ double tEvapoTrans::ForceRestore(double Ts, int option)
 	Tg = Ts;     // degree Kelvin
 	Tl = Tlo;    // degree Kelvin  
     
-	dg = (0.5*cs*d1)/(1.0 + (w1*dt)/(2.0*pow(365.,0.5)));
+	dg = (0.5*cs*d1)/(1.0 + (w1*dt)/(2.0*sqrt(365.)));
 	
 	if (option == 1) {
 		dTgdt = (Tg - Tso)/dt;
