@@ -2,57 +2,46 @@
 # Changelog 
 All notable changes to this project are documented in this file.
 
-## Version 6.0.0
-### 10/16/2025
-* Removed multiple legacy or unused options in the input file (stochastic storm generator, hydrometeorological converter, RIBS output compatibility, alternative visualization options).
-* The only available option for calculating ET from meteorological data is Penman-Monteith.
-* There are no longer multiple methods to provided gridded rainfall data. The user can provide either gridded or point station data, both in units of mm/hr.
-* The formats for providing a tin mesh to the model with `OPTMESHINPUT` have been simplified. Now there are only two options, a pre-generated mesh from the 4 mesh files or a point file.
-* Removed conditional header writing in model outputs. Headers are now always written.
-* Added new `OPTLANDUSE` option 2 for reading static landuse parameter rasters without needing dates in the filenames.
-* Added capability to read in raster data using GDAL. To activate the GDAL features the user must have GDAL installed already. When compiling tRIBS there is a new flag, `WITH_GDAL`, for turning on GDAL support. This feature allows tRIBS to read any raster type that GDAL is capable above but note that tRIBS does not support multi-band rasters. If a user does not enable `WITH_GDAL` while compiling the model will function the exact same as previous versions.
-## Version 5.3.1
-### 10/15/2025
-* Fixed bug in Rutter interception scheme that could result in small amount of negative wet canopy evaporation.
-* Added timestamp validation to meteorological station input timeseries.
-* Fixed bug when reading gridded landuse data that would result in the landuse table values being used instead under specific conditions.
-## Version 5.3.0
-### 8/16/2025
-* Removed extraneous cout statement that prints out `OptRES` during initialization.
-* Removed hardcoded version number from the top of all source code files to conform to modern standards and simplify future model updates.
-* Replaced non-standard Variable Length Arrays (VLAs) with std::vector in tResample.cpp to resolve compiler warnings and improve code portability.
-* Improved numerical stability of raster resampling in tResample.cpp. This change fixes a bug with specific voronoi polygon geometry that would result in a NaN values for gridded parameters.
-### 8/11/2025
-* Added new optional input for the gridded land use parameters. These parameters are the soil moisture stress thresholds for soil evaporation and plant transpiration, denoted by `SE` and `ST` in the gridded data file (.gdf), respectively.
-* Resolved a bug that could cause incorrect model behavior when using dynamic land use grids with the interpolation option turned off (`luInterpOption = 0`).
-Resolved a bug that would cause gridded land use parameters to revert back to the table values after the final interpolation interval. Now the model will hold the final grid's value until the end of the simulation.
-* Added a fatal error check for when the interpolation option turned off (`luInterpOption = 1`) but the user only supplied a single raster. Previously, the model would crash without warning.
-### 8/3/2025 
-* Updated copyright notices to the current year.
-* Added new optional input file parameters for specifying the depth that defines surface soil and root zone soil moisture. These can be specified with `SURFACESOILDEPTH` and `ROOTZONEDEPTH` in mm. If not specified, these values default to their original hardcoded values of 100mm and 1,000mm, respectively, ensuring backward compatibility.
-* Updated how surface soil moisture is calculated in tEvapoTrans. Now the calculated potential evaporation is partitioned first to the wet canopy, then transpiration, and lastly soil evaporation.
-### 7/28/2025
-* Refactored snow albedo decay function in tSnowPack to have descriptive variable names and set a minimum albedo threshold for which albedo cannot go below.
-* Refactor the calculation of latent and sensible heat flux for the ground snowpack in tSnowPack to prevent the snowpack temperature to be less than zero when there is liquid water present.
-* Incorporate a stability correction factor based on the Bulk Richardson Number for the calculation of aerodynamic resistance in tSnowPack.
-### 7/25/2025
-* Refactor the function InterceptRutter to now calculate evaporation from the wet canopy rather than in tEvapoTrans. This change corrects a small error in the canopy water balance.
-* Modify the function ComputeETComponents to handle the changes in tIntercept.cpp.
-* Fix vegetation fraction scaling in snow interception scheme. Intercepted SWE now represents the actual state of the canopy rather than scaled by the vegetation fraction.
-* Fix ComputeVoronoiArea function in meshElements.cpp that was setting the incorrect voronoi area value for the node connected to the outlet node in the mesh.
-* Modify writing of soil water state variables to pixel, dynamic, and mrf outputs files to convert from sloped state variables to vertical depths.
-* Add new variable, Qunsat, to the mean response file.
-### 6/5/2025
-* Refactored solar radiation handling for clarity and consistency:
-* Centralized all slope, albedo, and vegetation corrections into inShortWave(), reducing redundancy in energyBalance().
-* Reorganized computation of direct and diffuse radiation components using observed and computed values where applicable.
-* Introduced new pixel file variable shortRadSlope to store terrain-corrected incoming shortwave radiation.
-* Added setShortRadSlope() and getShortRadSlope() to the tCNode class.
-* Corrected nodeHour misalignment issues in tEvapoTrans.cpp.
-* Updated julianDay() and SetSunVariables() to use consistent time source from tRunTimer.
-* Fixed declaration scope of RadGlobClr to clarify its limited usage within conditional blocks.
-* Fixed multiple small bugs that were not meeting C17 compatibility standards.
+## [5.3.1] - 10/15/2025
+### Added
+* **Input Validation:** Added timestamp validation to rainfall and meteorological station input timeseries. Warning, older models will no longer run if there is missing data in the data files. ([#95](https://github.com/tRIBS-Model/tRIBS/pull/95))
 
+### Fixed
+* Fixed bug in Rutter interception scheme that could result in small amount of negative wet canopy evaporation. ([#94](https://github.com/tRIBS-Model/tRIBS/pull/94))
+* Fixed bug when reading gridded landuse data that would result in the landuse table values being used instead under specific conditions.
+
+---
+
+## [5.3.0] - 08/16/2025
+### Fixed
+* **Canopy Water Balance:** Refactored `InterceptRutter` to calculate evaporation from the wet canopy internally. This corrects a small discrepancy in the canopy water balance previously handled in `tEvapoTrans`. ([#83](https://github.com/tRIBS-Model/tRIBS/pull/83))
+* **Snow Interception:** Fixed vegetation fraction scaling; intercepted SWE now represents the actual state of the canopy rather than being incorrectly scaled. ([#83](https://github.com/tRIBS-Model/tRIBS/pull/83))
+* **Raster Resampling:** Improved numerical stability of raster resampling in `tResample.cpp`. Fixed a bug with specific Voronoi polygon geometry that resulted in `NaN` values and mass balance errors. ([#86](https://github.com/tRIBS-Model/tRIBS/pull/86))
+* **Mesh Geometry:** Fixed `ComputeVoronoiArea` function which was assigning incorrect area values to nodes connected to the outlet (node 0). ([#83](https://github.com/tRIBS-Model/tRIBS/pull/83))
+* **Land Use Logic:** Resolved a bug where dynamic land use grids reverted to table values prematurely after the final interpolation interval. ([#85](https://github.com/tRIBS-Model/tRIBS/pull/85))
+* **Dynamic Land Use:** Fixed incorrect model behavior when using dynamic land use grids with the interpolation option turned off (`luInterpOption = 0`). ([#85](https://github.com/tRIBS-Model/tRIBS/pull/85))
+* **Timing:** Corrected `nodeHour` misalignment issues in `tEvapoTrans.cpp` and synchronized `julianDay()` and `SetSunVariables()` with the central `tRunTimer`. ([#84](https://github.com/tRIBS-Model/tRIBS/pull/84))
+
+### Added
+* **Soil Layer Control:** Added optional input parameters `SURFACESOILDEPTH` and `ROOTZONEDEPTH` (in mm) to allow user-defined layer depths (defaulting to 100mm and 1000mm for backward compatibility).
+* **Gridded Parameters:** Added support for soil moisture stress thresholds for soil evaporation (`SE`) and plant transpiration (`ST`) in the gridded data file (`.gdf`). ([#85](https://github.com/tRIBS-Model/tRIBS/pull/85))
+* **New Output Variables:** Added `Qunsat` to the Mean Response File (MRF) and `shortRadSlope` to pixel files. ([#83](https://github.com/tRIBS-Model/tRIBS/pull/83))
+* **Error Handling:** Added a fatal error check for cases where `luInterpOption = 1` is selected but only a single raster is provided.
+
+### Changed & Refactored
+* **Output Standard:** Modified writing of soil water state variables in pixel, dynamic, and MRF files to convert from sloped state variables to vertical depths.
+* **Solar Radiation:** Centralized slope, albedo, and vegetation corrections into `inShortWave()`, reducing redundancy and improving consistency across the energy balance module. ([#84](https://github.com/tRIBS-Model/tRIBS/pull/84))
+* **ET Partitioning:** Updated `tEvapoTrans` to prioritize potential evaporation partitioning: first to wet canopy, then transpiration, and lastly soil evaporation.
+* **Snow Physics Refactor:** ([#84](https://github.com/tRIBS-Model/tRIBS/pull/84))
+    * Updated albedo decay function with a minimum albedo threshold.
+    * Refactored latent and sensible heat flux for ground snowpack to prevent temperatures from dropping below zero when liquid water is present.
+    * Incorporated Bulk Richardson Number stability correction for aerodynamic resistance.
+* **Technical Cleanup:** 
+    * Replaced non-standard Variable Length Arrays (VLAs) with `std::vector` for improved stability.
+    * Removed hardcoded version numbers from source headers and updated copyright notices.
+    * Cleaned up extraneous debug `cout` statements and fixed C17 compatibility standards.
+
+---
 
 ## Version 5.2.1
 ### 6/21/2024
