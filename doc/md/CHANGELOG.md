@@ -2,6 +2,45 @@
 # Changelog 
 All notable changes to this project are documented in this file.
 
+## [6.0.0] - Unreleased
+v6.0.0 is a major release focused on simplifying the user experience and streamlining the codebase. This version introduces improvements to snow physics, adds modern raster support via GDAL, and implements optimizations to improve simulation performance. **To view examples of the updated v6.0.0 input structure and the new snow parameter files (.spf), please visit our [Model Benchmark Repository](https://github.com/tRIBS-Model/tRIBS-benchmarks).**
+
+### Added
+* **GDAL Integration:** Added optional build configuration to link against GDAL, allowing tRIBS to read a wide variety of binary raster formats. Includes a new `WITH_GDAL` CMake flag. ([#103](https://github.com/tRIBS-Model/tRIBS/pull/103))
+* **Static Land Use Grids:** Added `OPTLANDUSE = 2` to allow reading spatially variable but temporally constant land use parameters from non-timestamped rasters. ([#102](https://github.com/tRIBS-Model/tRIBS/pull/102))
+* **Snow Parameter File:** Users can now provide a dedicated `.spf` file for snow physics constants, moving away from hardcoded defaults. ([#104](https://github.com/tRIBS-Model/tRIBS/pull/104))
+* **New Snow Physics:** ([#104](https://github.com/tRIBS-Model/tRIBS/pull/104))
+    * **Dynamic Density:** Implemented snow compaction and density evolution based on Jordan (1991) and Anderson (1976).
+    * **Liquid Water Routing:** Added a physically-based routing scheme accounting for holding capacity and conductivity (Colbeck 1972).
+    * **Phase Partitioning:** Added user-selectable thresholds for Wet-bulb or Air Temperature to determine precipitation phase.
+* **Snow Outputs:** Added `Snow Depth` and `Snow Density` to standard pixel and dynamic output routines. ([#104](https://github.com/tRIBS-Model/tRIBS/pull/104))
+
+### Fixed
+* **ET Partitioning:** Fixed a scaling bug in `tEvapoTrans` where unscaled vegetation rates were subtracted from potential ET. ([#107](https://github.com/tRIBS-Model/tRIBS/pull/107))
+* **Snow Fluxes:** Removed the vegetation fraction scaling on sublimation and evaporation from the ground snowpack. ([#107](https://github.com/tRIBS-Model/tRIBS/pull/107))
+* **tIntercept Memory Leak:** Resolved a crash occurring at simulation termination due to improper deallocation of grid filenames when interception was disabled. ([#102](https://github.com/tRIBS-Model/tRIBS/pull/102))
+
+### Changed & Refactored
+* **Input Simplification:** Streamlined the `.in` file by removing legacy or unused options including:
+    * Stochastic storm generator. ([#97](https://github.com/tRIBS-Model/tRIBS/pull/97))
+    * RIBS-output compatibility and alternative visualization options. ([#107](https://github.com/tRIBS-Model/tRIBS/pull/107))
+    * Conditional header writing (headers are now always written). ([#107](https://github.com/tRIBS-Model/tRIBS/pull/107))
+    * Simplified gridded rainfall options; the model now standardizes on mm/hr for both point and gridded data. ([#98](https://github.com/tRIBS-Model/tRIBS/pull/98))
+    * Removed HydroMetConverter options for converting meteorologcial inputs from various sources internally. ([#96](https://github.com/tRIBS-Model/tRIBS/pull/98))
+    * Simplified `OPTEVAPOTRANS` to support only the Penman-Monteith method for calculating ET. ([#107](https://github.com/tRIBS-Model/tRIBS/pull/107))
+    * Simplified `OPTMESHINPUT` to support only pre-generated 4-mesh files or points files. ([#107](https://github.com/tRIBS-Model/tRIBS/pull/107))
+* **C++ Performance Optimizations:** ([#107](https://github.com/tRIBS-Model/tRIBS/pull/107))
+    * **Memory Management:** Refactored geometry functions (`FindIntersectionCoords`, `PlaneFit`, and `setRVtx`) to pass `tArray<double>` by `const` reference, eliminating massive heap allocation overhead.
+    * **Math:** Replaced `pow()` calls with `x*x` and `sqrt()` in core physics loops to reduce CPU cycles.
+    * **Standardization:** Unified platform-specific headers and replaced `sprintf` with `snprintf` for modern compiler compatibility.
+
+### Removed
+* Removed legacy code related to changes in Input Changes listed above.
+* Removed unused platform-specific `#ifdef` blocks in headers. ([#107](https://github.com/tRIBS-Model/tRIBS/pull/107))
+* Removed legacy debug printing in `tTriangulator`. ([#107](https://github.com/tRIBS-Model/tRIBS/pull/107))
+
+---
+
 ## [5.3.1] - 10/15/2025
 ### Added
 * **Input Validation:** Added timestamp validation to rainfall and meteorological station input timeseries. Warning, older models will no longer run if there is missing data in the data files. ([#95](https://github.com/tRIBS-Model/tRIBS/pull/95))
