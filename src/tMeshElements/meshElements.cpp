@@ -43,8 +43,8 @@ int PointsCCW( tArray< double > &, tArray< double > &, tArray< double > & );
 **
 *************************************************************************/
 
-tArray< double > FindIntersectionCoords( tArray< double > xy1, tArray< double > xy2,
-                                         tArray< double > xy3, tArray< double > xy4 )
+tArray< double > FindIntersectionCoords( const tArray< double > &xy1, const tArray< double > &xy2,
+                                         const tArray< double > &xy3, const tArray< double > &xy4 )
 {
 	double dxa, dxb, dya, dyb, a, b, c, f, g, h;
 	

@@ -67,13 +67,13 @@ tEdge* IntersectsAnyEdgeInList( tEdge*, tPtrList< tEdge >& );
 
 double InterpSquareGrid( double, double, tMatrix< double >&, int );
 
-tArray< double > FindIntersectionCoords( tArray< double >,
-                                         tArray< double >,
-                                         tArray< double >,
-                                         tArray< double > );
+tArray< double > FindIntersectionCoords( const tArray< double >&,
+                                         const tArray< double >&,
+                                         const tArray< double >&,
+                                         const tArray< double >& );
 
-double PlaneFit(double x, double y, tArray<double> p0,
-                tArray<double> p1, tArray<double> p2, tArray<double> zs);
+double PlaneFit(double x, double y, const tArray<double>&p0,
+                const tArray<double>&p1, const tArray<double>&p2, const tArray<double>&zs);
 
 double LineFit(double x1, double y1, double x2, double y2, double nx);
 
