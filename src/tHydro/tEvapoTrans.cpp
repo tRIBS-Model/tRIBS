@@ -1142,7 +1142,7 @@ double tEvapoTrans::clausClap()
 	esat = satVaporPress();
 	rv = 461.5;
 	airTempK = airTemp + 273.15;
-	cc = 100.0*(latHeat*esat)/(rv*airTempK*airTempK);
+	cc = 100.0*(latHeat*esat)/(rv*(airTempK*airTempK));
 	return cc;
 }
 
@@ -1375,13 +1375,13 @@ double tEvapoTrans::aeroResist() {
 	zom = 0.123*vegHeight;
 	zov = 0.0123*vegHeight;
 	d = 0.67*vegHeight;
-	rav = log((zm-d)/zom)*log((zm-d)/zov)/(windSpeedC*vonKarm*vonKarm);
+	rav = log((zm-d)/zom)*log((zm-d)/zov)/(windSpeedC*(vonKarm*vonKarm));
 
 	zm = 2.0 + vegBare;
 	zom = 0.123*vegBare;
 	zov = 0.0123*vegBare;
 	d = 0.67*vegBare;
-	ras = log((zm-d)/zom)*log((zm-d)/zov)/(windSpeedC*vonKarm*vonKarm);
+	ras = log((zm-d)/zom)*log((zm-d)/zov)/(windSpeedC*(vonKarm*vonKarm));
 
 	ra = (1-vegFrac)*ras + vegFrac*rav;
 
