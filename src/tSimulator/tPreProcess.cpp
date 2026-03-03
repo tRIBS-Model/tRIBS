@@ -465,8 +465,8 @@ void tPreProcess::IterReadItem(tInputFile &infile, char * theString,
 	
 	while ( !InpStatus ) {
 		infile.ReadItem(theString, itemCode);
-		Cout<<"Parameter =   "<<left<<setw(28)<<itemCode<<theString<<endl;
-
+		Cout<<"Parameter =   "<<itemCode<<"\t\t\t"<<theString<<endl;
+		
 		if (!strcmp(theString, errr)) {
 			cout<<"\nThe input parameter is either not specified"
 				<<"\nor wrong. Correct the .in file and type 'y'"
