@@ -29,6 +29,7 @@ v6.0.0 is a major release focused on simplifying the user experience and streaml
     * Removed HydroMetConverter options for converting meteorologcial inputs from various sources internally. ([#96](https://github.com/tRIBS-Model/tRIBS/pull/98))
     * Simplified `OPTEVAPOTRANS` to support only the Penman-Monteith method for calculating ET. ([#107](https://github.com/tRIBS-Model/tRIBS/pull/107))
     * Simplified `OPTMESHINPUT` to support only pre-generated 4-mesh files or points files. ([#107](https://github.com/tRIBS-Model/tRIBS/pull/107))
+    * Simplified `OPTINTERCEPT` to support only the Rutter method for calculating canopy interception. ([#109](https://github.com/tRIBS-Model/tRIBS/pull/109))
 * **C++ Performance Optimizations:** ([#107](https://github.com/tRIBS-Model/tRIBS/pull/107))
     * **Memory Management:** Refactored geometry functions (`FindIntersectionCoords`, `PlaneFit`, and `setRVtx`) to pass `tArray<double>` by `const` reference, eliminating massive heap allocation overhead.
     * **Math:** Replaced `pow()` calls with `x*x` and `sqrt()` in core physics loops to reduce CPU cycles.
