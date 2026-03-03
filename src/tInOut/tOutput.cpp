@@ -352,18 +352,16 @@ void tOutput<tSubNode>::CreateAndOpenPixel()
 				<<"Srf_Hour_mm " //71
 				<<"Qstrm_m3_s " //72
 				<<"Hlevel_m " //73
-				<<"CanStorParam_mm " //74
-				<<"IntercepCoeff_[] " //75
-				<<"ThroughFall_[] " //76
-				<<"CanFieldCap_mm " //77
-				<<"DrainCoeff_mm_hr " //78
-				<<"DrainExpPar_1_mm " //78
-				<<"LandUseAlb_[] " //80
-				<<"VegHeight_m " //81
-				<<"OptTransmCoeff_[] " //82
-				<<"StomRes_s_m " //83
-				<<"VegFraction[] " //84
-				<<"LeafAI_[] " //85
+				<<"ThroughFall_[] " //74
+				<<"CanFieldCap_mm " //75
+				<<"DrainCoeff_mm_hr " //76
+				<<"DrainExpPar_1_mm " //77
+				<<"LandUseAlb_[] " //78
+				<<"VegHeight_m " //79
+				<<"OptTransmCoeff_[] " //80
+				<<"StomRes_s_m " //81
+				<<"VegFraction[] " //82
+				<<"LeafAI_[] " //83
 				<<"\n";
 				
 				pixinfo[i].setf( ios::right, ios::adjustfield );
@@ -1062,8 +1060,6 @@ void tCOutput<tSubNode>::WritePixelInfo( double time )
 				
 				// SKYnGM2008LU
 				this->pixinfo[i]<<setprecision(7)
-				<<setw(10)<<this->uzel[i]->getCanStorParam()<<" "
-				/* 75 */ << this->uzel[i]->getIntercepCoeff()<<" "
 				<< this->uzel[i]->getThroughFall()<<" "
 				<< this->uzel[i]->getCanFieldCap()<<" "
 				<< this->uzel[i]->getDrainCoeff()<<" "
@@ -1156,18 +1152,16 @@ void tCOutput<tSubNode>::WriteDynamicVars( double time )
 			<< "Qstrm" << ','          // 39
 			<< "Hlev" << ','           // 40
 			<< "FlwVlc" << ','         // 41
-			<< "CanStorParam" << ','   // 42
-			<< "IntercepCoeff" << ','  // 43
-			<< "ThroughFall" << ','    // 44
-			<< "CanFieldCap" << ','    // 45
-			<< "DrainCoeff" << ','     // 46
-			<< "DrainExpPar" << ','    // 47
-			<< "LandUseAlb" << ','     // 48
-			<< "VegHeight" << ','      // 49
-			<< "OptTransmCoeff" << ',' // 50
-			<< "StomRes" << ','        // 51
-			<< "VegFraction" << ','    // 52
-			<< "LeafAI";               // 53
+			<< "ThroughFall" << ','    // 42
+			<< "CanFieldCap" << ','    // 43
+			<< "DrainCoeff" << ','     // 44
+			<< "DrainExpPar" << ','    // 45
+			<< "LandUseAlb" << ','     // 46
+			<< "VegHeight" << ','      // 47
+			<< "OptTransmCoeff" << ',' // 48
+			<< "StomRes" << ','        // 49
+			<< "VegFraction" << ','    // 50
+			<< "LeafAI";               // 51
 
 	if (time == 0)
 		arcofs << ',' << "SoilID" << ',' << "LUseID" << endl << flush;
@@ -1225,18 +1219,16 @@ void tCOutput<tSubNode>::WriteDynamicVars( double time )
                << setprecision(3) << cn->getQstrm() << ','                          // 39
                << setprecision(3) << cn->getHlevel() << ','                         // 40
                << setprecision(3) << cn->getFlowVelocity() << ','                   // 41
-               << setprecision(5) << cn->getCanStorParam() << ','                   // 42 , meaning of life?
-               << setprecision(5) << cn->getIntercepCoeff() << ','                  // 43
-               << setprecision(5) << cn->getThroughFall() << ','                    // 44
-               << setprecision(5) << cn->getCanFieldCap() << ','                    // 45
-               << setprecision(5) << cn->getDrainCoeff() << ','                     // 46
-               << setprecision(5) << cn->getDrainExpPar() << ','                    // 47
-               << setprecision(5) << cn->getLandUseAlb() << ','                     // 48
-               << setprecision(5) << cn->getVegHeight() << ','                      // 49
-               << setprecision(5) << cn->getOptTransmCoeff() << ','                 // 50
-               << setprecision(5) << cn->getStomRes() << ','                        // 51
-               << setprecision(5) << cn->getVegFraction() << ','                    // 52
-               << setprecision(5) << cn->getLeafAI();                               // 53
+               << setprecision(5) << cn->getThroughFall() << ','                    // 42
+               << setprecision(5) << cn->getCanFieldCap() << ','                    // 43
+               << setprecision(5) << cn->getDrainCoeff() << ','                     // 44
+               << setprecision(5) << cn->getDrainExpPar() << ','                    // 45
+               << setprecision(5) << cn->getLandUseAlb() << ','                     // 46
+               << setprecision(5) << cn->getVegHeight() << ','                      // 47
+               << setprecision(5) << cn->getOptTransmCoeff() << ','                 // 48
+               << setprecision(5) << cn->getStomRes() << ','                        // 49
+               << setprecision(5) << cn->getVegFraction() << ','                    // 50
+               << setprecision(5) << cn->getLeafAI();                               // 51
 
         if (time == 0)
             arcofs << ',' << setprecision(0) << cn->getSoilID() << ','
@@ -1330,34 +1322,32 @@ void tCOutput<tSubNode>::WriteIntegrVars( double time )
 		   << "cSnSub" << ','    // 45
 		   << "cSnEvap" << ','    // 46
 		   << "cIntUnl" << ','    // 47
-		   << "AvCanStorParam" << ','    // 48
-		   << "AvIntercCoeff" << ','    // 49
-		   << "AvTF" << ','    // 50
-		   << "AvCanFieldCap" << ','    // 51
-		   << "AvDrainCoeff" << ','    // 52
-		   << "AvDrainExpPar" << ','    // 53
-		   << "AvLUAlb" << ','    // 54
-		   << "AvVegHeight" << ','    // 55
-		   << "AvOTCoeff" << ','    // 56
-		   << "AvStomRes" << ','    // 57
-		   << "AvVegFract" << ','    // 58
-		   << "AvLeafAI" << ','    // 59
-		   << "AvEvapThresh" << ','    // 60
-		   << "AvTransThresh"    // 61
-		   << ',' << "Bedrock_Depth_mm"    // 62
-		   << ',' << "Ks"    // 63
-		   << ',' << "ThetaS"    // 64
-		   << ',' << "ThetaR"    // 65
-		   << ',' << "PoreSize"    // 66
-		   << ',' << "AirEBubPress"    // 67
-		   << ',' << "DecayF"    // 67
-		   << ',' << "SatAnRatio"    // 69
-		   << ',' << "UnsatAnRatio"    // 70
-		   << ',' << "Porosity"    // 71
-		   << ',' << "VolHeatCond"    // 72
-		   << ',' << "SoilHeatCap"    // 73
-		   << ',' << "SoilID"    // 74
-		   << ',' << "LandUseID"    // 75
+		   << "AvTF" << ','    // 48
+		   << "AvCanFieldCap" << ','    // 49
+		   << "AvDrainCoeff" << ','    // 50
+		   << "AvDrainExpPar" << ','    // 51
+		   << "AvLUAlb" << ','    // 52
+		   << "AvVegHeight" << ','    // 53
+		   << "AvOTCoeff" << ','    // 54
+		   << "AvStomRes" << ','    // 55
+		   << "AvVegFract" << ','    // 56
+		   << "AvLeafAI" << ','    // 57
+		   << "AvEvapThresh" << ','    // 58
+		   << "AvTransThresh"    // 59
+		   << ',' << "Bedrock_Depth_mm"    // 60
+		   << ',' << "Ks"    // 61
+		   << ',' << "ThetaS"    // 62
+		   << ',' << "ThetaR"    // 63
+		   << ',' << "PoreSize"    // 64
+		   << ',' << "AirEBubPress"    // 65
+		   << ',' << "DecayF"    // 66
+		   << ',' << "SatAnRatio"    // 67
+		   << ',' << "UnsatAnRatio"    // 68
+		   << ',' << "Porosity"    // 69
+		   << ',' << "VolHeatCond"    // 70
+		   << ',' << "SoilHeatCap"    // 71
+		   << ',' << "SoilID"    // 72
+		   << ',' << "LandUseID"    // 73
 		   << "\n";
 	
 	cn = ni.FirstP();
@@ -1467,34 +1457,32 @@ void tCOutput<tSubNode>::WriteIntegrVars( double time )
 			<<setprecision(7)<<cn->getCumSnSub()<<','//45
 			<<setprecision(7)<<cn->getCumSnEvap()<<','//46
 			<<setprecision(7)<<cn->getCumIntUnl()<<','//47
-			<<setprecision(7)<<cn->getAvCanStorParam()<<',' //48
-			<<setprecision(7)<<cn->getAvIntercepCoeff()<<',' //49
-			<<setprecision(7)<<cn->getAvThroughFall()<<',' //50
-			<<setprecision(7)<<cn->getAvCanFieldCap()<<',' //51
-			<<setprecision(7)<<cn->getAvDrainCoeff()<<',' //52
-			<<setprecision(7)<<cn->getAvDrainExpPar()<<',' //53
-			<<setprecision(7)<<cn->getAvLandUseAlb()<<',' //54
-			<<setprecision(7)<<cn->getAvVegHeight()<<','  //55
-			<<setprecision(7)<<cn->getAvOptTransmCoeff()<<',' //56
-			<<setprecision(7)<<cn->getAvStomRes()<<',' // 57
-			<<setprecision(7)<<cn->getAvVegFraction()<<',' //58
-			<<setprecision(7)<<cn->getAvLeafAI()<<',' //59
-			<<setprecision(7)<<cn->getAvEvapThresh()<<',' //60
-			<<setprecision(7)<<cn->getAvTransThresh()<<',' //61
-            <<setprecision(7)<<cn->getBedrockDepth()<<',' //62 bedrock depth mm
-           << setprecision(7) << cn->getKs() << ',' // 63
-           << setprecision(7) << cn->getThetaS() << ',' // 64
-           << setprecision(7) << cn->getThetaR() << ',' // 65
-           << setprecision(7) << cn->getPoreSize() << ',' // 66
-           << setprecision(7) << cn->getAirEBubPres() << ',' // 67
-           << setprecision(7) << cn->getDecayF() << ',' // 68
-           << setprecision(7) << cn->getSatAnRatio() << ',' // 69
-           << setprecision(7) << cn->getUnsatAnRatio() << ',' // 70
-           << setprecision(7) << cn->getPorosity() << ',' // 71
-           << setprecision(7) << cn->getVolHeatCond() << ',' // 72
-           << setprecision(7) << cn->getSoilHeatCap() << ',' // 73
-           << setprecision(7) << cn->getSoilID() << ',' //74
-           << setprecision(7) << cn->getLandUse(); // 75
+			<<setprecision(7)<<cn->getAvThroughFall()<<',' //48
+			<<setprecision(7)<<cn->getAvCanFieldCap()<<',' //49
+			<<setprecision(7)<<cn->getAvDrainCoeff()<<',' //50
+			<<setprecision(7)<<cn->getAvDrainExpPar()<<',' //51
+			<<setprecision(7)<<cn->getAvLandUseAlb()<<',' //52
+			<<setprecision(7)<<cn->getAvVegHeight()<<','  //53
+			<<setprecision(7)<<cn->getAvOptTransmCoeff()<<',' //54
+			<<setprecision(7)<<cn->getAvStomRes()<<',' // 55
+			<<setprecision(7)<<cn->getAvVegFraction()<<',' //56
+			<<setprecision(7)<<cn->getAvLeafAI()<<',' //57
+			<<setprecision(7)<<cn->getAvEvapThresh()<<',' //58
+			<<setprecision(7)<<cn->getAvTransThresh()<<',' //59
+            <<setprecision(7)<<cn->getBedrockDepth()<<',' //60 bedrock depth mm
+           << setprecision(7) << cn->getKs() << ',' // 61
+           << setprecision(7) << cn->getThetaS() << ',' // 62
+           << setprecision(7) << cn->getThetaR() << ',' // 63
+           << setprecision(7) << cn->getPoreSize() << ',' // 64
+           << setprecision(7) << cn->getAirEBubPres() << ',' // 65
+           << setprecision(7) << cn->getDecayF() << ',' // 66
+           << setprecision(7) << cn->getSatAnRatio() << ',' // 67
+           << setprecision(7) << cn->getUnsatAnRatio() << ',' // 68
+           << setprecision(7) << cn->getPorosity() << ',' // 69
+           << setprecision(7) << cn->getVolHeatCond() << ',' // 70
+           << setprecision(7) << cn->getSoilHeatCap() << ',' // 71
+           << setprecision(7) << cn->getSoilID() << ',' //72
+           << setprecision(7) << cn->getLandUse(); // 73
 
         intofs<<"\n";
 		

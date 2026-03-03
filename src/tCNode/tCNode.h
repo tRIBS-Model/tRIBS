@@ -246,13 +246,11 @@ public:
   double getStomRes();
 
   // SKYnGM2008LU
-  double getIntercepCoeff();
   double getCanFieldCap();
   double getDrainCoeff();
   double getDrainExpPar();
   double getOptTransmCoeff();
   double getLeafAI();
-  double getCanStorParam();
   // CJC2025: New Parameters
   double getEvapThresh();
   double getTransThresh();
@@ -268,10 +266,6 @@ public:
   double getStomResInUntilGrid();
   double getVegFractionInPrevGrid();
   double getVegFractionInUntilGrid();
-  double getCanStorParamInPrevGrid();
-  double getCanStorParamInUntilGrid();
-  double getIntercepCoeffInPrevGrid();
-  double getIntercepCoeffInUntilGrid();
   double getCanFieldCapInPrevGrid();
   double getCanFieldCapInUntilGrid();
   double getDrainCoeffInPrevGrid();
@@ -291,8 +285,6 @@ public:
 
 
   // SKYnGM2008LU
-  double getAvCanStorParam();
-  double getAvIntercepCoeff();
   double getAvThroughFall();
   double getAvCanFieldCap();
   double getAvDrainCoeff();
@@ -448,13 +440,11 @@ public:
   void setStomRes(double);
 
   // SKYnGM2008LU
-  void setIntercepCoeff(double);
   void setCanFieldCap(double);
   void setDrainCoeff(double);
   void setDrainExpPar(double);
   void setOptTransmCoeff(double);
   void setLeafAI(double);
-  void setCanStorParam(double);
   // CJC2025: New Parameters
   void setEvapThresh(double);
   void setTransThresh(double);
@@ -469,10 +459,6 @@ public:
   void setStomResInUntilGrid(double);
   void setVegFractionInPrevGrid(double);
   void setVegFractionInUntilGrid(double);
-  void setCanStorParamInPrevGrid(double);
-  void setCanStorParamInUntilGrid(double);
-  void setIntercepCoeffInPrevGrid(double);
-  void setIntercepCoeffInUntilGrid(double);
   void setCanFieldCapInPrevGrid(double);
   void setCanFieldCapInUntilGrid(double);
   void setDrainCoeffInPrevGrid(double);
@@ -490,8 +476,6 @@ public:
   void setTransThreshInUntilGrid(double);
 
   // SKYnGM2008LU
-  void setAvCanStorParam(double);
-  void setAvIntercepCoeff(double);
   void setAvThroughFall(double);
   void setAvCanFieldCap(double);
   void setAvDrainCoeff(double);
@@ -796,13 +780,11 @@ protected:
   double StomRes;
 
   // SKYnGM2008LU
-  double IntercepCoeff;
   double CanFieldCap;
   double DrainCoeff;
   double DrainExpPar;
   double OptTransmCoeff;
   double LeafAI;
-  double CanStorParam;
   // CJC2025: New Parameters
   double EvapThresh;
   double TransThresh;
@@ -810,14 +792,14 @@ protected:
   // SKYnGM2008LU
   double LandUseAlbInPrevGrid, LandUseAlbInUntilGrid, ThroughFallInPrevGrid, ThroughFallInUntilGrid;
   double VegHeightInPrevGrid, VegHeightInUntilGrid, StomResInPrevGrid, StomResInUntilGrid;
-  double VegFractionInPrevGrid, VegFractionInUntilGrid, CanStorParamInPrevGrid, CanStorParamInUntilGrid;
-  double IntercepCoeffInPrevGrid,IntercepCoeffInUntilGrid, CanFieldCapInPrevGrid, CanFieldCapInUntilGrid;
+  double VegFractionInPrevGrid, VegFractionInUntilGrid;
+  double CanFieldCapInPrevGrid, CanFieldCapInUntilGrid;
   double DrainCoeffInPrevGrid, DrainCoeffInUntilGrid, DrainExpParInPrevGrid, DrainExpParInUntilGrid;
   double OptTransmCoeffInPrevGrid, OptTransmCoeffInUntilGrid, LeafAIInPrevGrid, LeafAIInUntilGrid;
   double EvapThreshInPrevGrid, EvapThreshInUntilGrid, TransThreshInPrevGrid, TransThreshInUntilGrid; // CJC2025: New Parameters
 
   // SKYnGM2008LU
-  double AvCanStorParam, AvIntercepCoeff, AvThroughFall, AvCanFieldCap;
+  double AvThroughFall, AvCanFieldCap;
   double AvDrainCoeff, AvDrainExpPar, AvLandUseAlb, AvVegHeight;
   double AvOptTransmCoeff, AvStomRes, AvVegFraction, AvLeafAI;
   double AvEvapThresh, AvTransThresh; // CJC2025: New Parameters

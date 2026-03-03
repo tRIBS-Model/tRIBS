@@ -68,8 +68,6 @@ tEvapoTrans::tEvapoTrans()
 	VegHeightGrid = nullptr;
 	StomResGrid = nullptr;
 	VegFractGrid = nullptr;
-	CanStorParamGrid = nullptr;
-	IntercepCoeffGrid = nullptr;
 	CanFieldCapGrid = nullptr;
 	DrainCoeffGrid = nullptr;
 	DrainExpParGrid = nullptr;
@@ -82,8 +80,6 @@ tEvapoTrans::tEvapoTrans()
 	VHgridhours = nullptr;
 	SRgridhours = nullptr;
 	VFgridhours = nullptr;
-	CSgridhours = nullptr;
-	ICgridhours = nullptr;
 	CCgridhours = nullptr;
 	DCgridhours = nullptr;
 	DEgridhours = nullptr;
@@ -96,8 +92,6 @@ tEvapoTrans::tEvapoTrans()
 	VHgridFileNames = nullptr;
 	SRgridFileNames = nullptr;
 	VFgridFileNames = nullptr;
-	CSgridFileNames = nullptr;
-	ICgridFileNames = nullptr;
 	CCgridFileNames = nullptr;
 	DCgridFileNames = nullptr;
 	DEgridFileNames = nullptr;
@@ -147,8 +141,6 @@ tEvapoTrans::tEvapoTrans(SimulationControl *simCtrPtr, tMesh<tCNode> *gridRef,
 	VegHeightGrid = nullptr;
 	StomResGrid = nullptr;
 	VegFractGrid = nullptr;
-	CanStorParamGrid = nullptr;
-	IntercepCoeffGrid = nullptr;
 	CanFieldCapGrid = nullptr;
 	DrainCoeffGrid = nullptr;
 	DrainExpParGrid = nullptr;
@@ -161,8 +153,6 @@ tEvapoTrans::tEvapoTrans(SimulationControl *simCtrPtr, tMesh<tCNode> *gridRef,
 	VHgridhours = nullptr;
 	SRgridhours = nullptr;
 	VFgridhours = nullptr;
-	CSgridhours = nullptr;
-	ICgridhours = nullptr;
 	CCgridhours = nullptr;
 	DCgridhours = nullptr;
 	DEgridhours = nullptr;
@@ -175,8 +165,6 @@ tEvapoTrans::tEvapoTrans(SimulationControl *simCtrPtr, tMesh<tCNode> *gridRef,
 	VHgridFileNames = nullptr;
 	SRgridFileNames = nullptr;
 	VFgridFileNames = nullptr;
-	CSgridFileNames = nullptr;
-	ICgridFileNames = nullptr;
 	CCgridFileNames = nullptr;
 	DCgridFileNames = nullptr;
 	DEgridFileNames = nullptr;
@@ -841,21 +829,21 @@ void tEvapoTrans::setCoeffs(tCNode* cNode)
 	landPtr->setLandPtr(cNode->getLandUse());
 
 	if (snowOption == 1)
-		coeffLAI = landPtr->getLandProp(12);
+		coeffLAI = landPtr->getLandProp(10);
 
 	if (evapotransOption == 1) {
-		coeffAl = landPtr->getLandProp(7); 
-		coeffH  = landPtr->getLandProp(8); 
-		coeffKt = landPtr->getLandProp(9);
-		coeffRs = landPtr->getLandProp(10);
-		coeffV  = landPtr->getLandProp(11);
+		coeffAl = landPtr->getLandProp(5);
+		coeffH  = landPtr->getLandProp(6);
+		coeffKt = landPtr->getLandProp(7);
+		coeffRs = landPtr->getLandProp(8);
+		coeffV  = landPtr->getLandProp(9);
 	}
 	else if (evapotransOption == 2)
-		coeffV  = landPtr->getLandProp(11);
-		
+		coeffV  = landPtr->getLandProp(9);
+
 	// CJC2025: Set the values for the stress thresholds from the table.
-    coeffSE = landPtr->getLandProp(13);
-    coeffST = landPtr->getLandProp(14);
+    coeffSE = landPtr->getLandProp(11);
+    coeffST = landPtr->getLandProp(12);
 
     if (coeffV >= 1.0) //prevents loss of snow when unloaded from canopy WR 05/12/2024
         coeffV = 0.99;
@@ -909,7 +897,7 @@ void tEvapoTrans::callEvapoTrans(tIntercept *Intercept, int flag)
 	}
 
 	// SKYnGM2008LU: Following handles the 'Interception ON' case in SurfaceHydroProcesses
-	if (getEToption() == 0 && Intercept->getIoption() == 1) {
+	if (getEToption() == 0 && Intercept->getIoption() != 0) {
 	  if (luOption == 1) { // resampling Land Use grids done here, i.e., dynamic case
 	    if (AtFirstTimeStepLUFlag) {
 	      initialLUGridAssignment();
@@ -924,7 +912,7 @@ void tEvapoTrans::callEvapoTrans(tIntercept *Intercept, int flag)
 	cNode = nodeIter.FirstP();
 	while ( nodeIter.IsActive() ) {
 
-	  if (getEToption() == 0 && Intercept->getIoption() == 1) {
+	  if (getEToption() == 0 && Intercept->getIoption() != 0) {
         if (luOption == 1) { 
           if (luInterpOption == 1) {
             interpolateLUGrids(cNode);
@@ -1014,31 +1002,12 @@ void tEvapoTrans::ComputeETComponents(tIntercept *Intercept, tCNode *cNode,
 		rs = stomResist();
 		transFactor = (cc + psy)/(cc + psy*(1+rs/ra));
 		
-		// Code block modified to accoutn for changes to evapWetCanopy calculation in tIntercept:InterceptRutter CJC2025
 		// Check if the interception scheme is turned on
 		if ( flag && (coeffV > 0) && Intercept->IsThereCanopy( cNode )) {
-			// Get quantities and make checks depending on Interception model
 			if (Ioption == 1) {
-				CanStorage = cNode->getCumIntercept();
-				// Evaporation from Wet Canopy
-				if (CanStorage >= potEvaporation*timer->getEtIStep())
-					evapWetCanopy = potEvaporation;
-				else {
-					evapWetCanopy = CanStorage/timer->getEtIStep(); 
-				}
-
-				// Sanity Check
-				if (evapWetCanopy > potEvaporation) {
-					evapWetCanopy = potEvaporation;
-				}
-
-				// Call to Interception  Model
+				// Call Rutter interception model
 				Intercept->callInterception(cNode, potEvaporation);
-			}
-			else if (Ioption == 2) {
-				// Call to Interception  Model
-				Intercept->callInterception(cNode, potEvaporation);
-				// Retrieve wet can evap rate calculated by the rutter interception model.
+				// Retrieve wet canopy evap rate calculated by the Rutter model.
 				evapWetCanopy = cNode->getEvapWetCanopy(); // sanity check done in tIntercept.cpp
 			}
 		}
@@ -1083,12 +1052,6 @@ void tEvapoTrans::ComputeETComponents(tIntercept *Intercept, tCNode *cNode,
 
 		// Total Evapotranspiration
 		evapoTranspiration = evapWetCanopy + evapDryCanopy + evapSoil;
-		
-		// Assignments
-		if (Ioption == 1) {
-			CanStorage = cNode->getCumIntercept();
-			cNode->setCumIntercept(CanStorage - evapWetCanopy/coeffV*timer->getEtIStep()); 
-		}
 		
 		cNode->setEvapWetCanopy(evapWetCanopy);
 		cNode->setEvapDryCanopy(evapDryCanopy);
@@ -2728,7 +2691,7 @@ void tEvapoTrans::betaFunc(tCNode* cNode)
 
     soilzone_cutoff = cNode->getSoilCutoff();
 
-	//Th_star = landPtr->getLandProp(13);
+	//Th_star = landPtr->getLandProp(11);
 	// Th_star can now be read from a table or gridded CJC2025
 	Th_star = coeffSE;
 
@@ -2791,7 +2754,7 @@ void tEvapoTrans::betaFuncT(tCNode* cNode)
 
     rootzone_cutoff = cNode->getRootCutoff();
 
-	//Th_star = landPtr->getLandProp(14);
+	//Th_star = landPtr->getLandProp(12);
 	// Th_star can now be read from a table or gridded CJC2025
 	Th_star = coeffST;
 
@@ -3499,7 +3462,7 @@ void tEvapoTrans::readHydroMetGrid(char *gridFile)
 ** Reads a file (*.gdf) from LUGRID keyword containing the base names of 
 ** the various input land use parameter grids along with the extension
 ** used for the filename. These follow a string that identifies the line
-** with the parameters (ie. AL,TF,VH,SR,VF,CS,IC,CC,DC,DE,OT,LA). If no data 
+** with the parameters (ie. AL,TF,VH,SR,VF,CC,DC,DE,OT,LA). If no data 
 ** available for any parameters, the string NO_DATA should be input 
 ** instead of the path name and extension name. In this version, a single
 ** value of latitude, longitude and GMT is used for entire grids. The
@@ -3556,8 +3519,6 @@ void tEvapoTrans::readLUGrid(char *gridFile)
 		  		(strcmp(LUgridParamNames[ct],"VH")!=0) &&
 		  		(strcmp(LUgridParamNames[ct],"SR")!=0) &&
 		  		(strcmp(LUgridParamNames[ct],"VF")!=0) &&
-		  		(strcmp(LUgridParamNames[ct],"CS")!=0) &&
-		  		(strcmp(LUgridParamNames[ct],"IC")!=0) &&
 		  		(strcmp(LUgridParamNames[ct],"CC")!=0) &&
 		  		(strcmp(LUgridParamNames[ct],"DC")!=0) &&
 		  		(strcmp(LUgridParamNames[ct],"DE")!=0) &&
@@ -3567,7 +3528,7 @@ void tEvapoTrans::readLUGrid(char *gridFile)
                 (strcmp(LUgridParamNames[ct],"ST")!=0) ) { // CJC2025
 			
 			Cout << "\nA land use parameter name in the LU gdf file is an unexpected one."<<endl;
-			Cout << "\nExpected variables: AL,TF,VH,SR,VF,CS,IC,CC,DC,DE,OT,LA,SE or ST" << endl;
+			Cout << "\nExpected variables: AL,TF,VH,SR,VF,CC,DC,DE,OT,LA,SE or ST" << endl;
 			Cout << "\tCheck and re-run the program" << endl;
 			Cout << "\nExiting Program..."<<endl<<endl;
 			exit(1);
@@ -3741,18 +3702,6 @@ void tEvapoTrans::createVariantLU()
 			SetGridTimeInfoVariables(VegFractGrid, LUgridParamNames[ct]);
 			VegFractGrid->newVariable(LUgridParamNames[ct]);
 		}
-		if (strcmp(LUgridParamNames[ct],"CS")==0) {
-			CanStorParamGrid = new tVariant(gridPtr,respPtr);
-			CanStorParamGrid->setFileNames(LUgridBaseNames[ct], LUgridExtNames[ct]);
-			SetGridTimeInfoVariables(CanStorParamGrid, LUgridParamNames[ct]);
-			CanStorParamGrid->newVariable(LUgridParamNames[ct]);
-		}
-		if (strcmp(LUgridParamNames[ct],"IC")==0) {
-			IntercepCoeffGrid = new tVariant(gridPtr,respPtr);
-			IntercepCoeffGrid->setFileNames(LUgridBaseNames[ct], LUgridExtNames[ct]);
-			SetGridTimeInfoVariables(IntercepCoeffGrid, LUgridParamNames[ct]);
-			IntercepCoeffGrid->newVariable(LUgridParamNames[ct]);
-		}
 		if (strcmp(LUgridParamNames[ct],"CC")==0) {
 			CanFieldCapGrid = new tVariant(gridPtr,respPtr);
 			CanFieldCapGrid->setFileNames(LUgridBaseNames[ct], LUgridExtNames[ct]);
@@ -3836,12 +3785,6 @@ void tEvapoTrans::createStaticVariantLU()
         } else if (paramName == "VF") {
             VegFractGrid = new tVariant(gridPtr, respPtr);
             VegFractGrid->updateLUVarOfPrevGrid("VF", staticFileName);
-        } else if (paramName == "CS") {
-            CanStorParamGrid = new tVariant(gridPtr, respPtr);
-            CanStorParamGrid->updateLUVarOfPrevGrid("CS", staticFileName);
-        } else if (paramName == "IC") {
-            IntercepCoeffGrid = new tVariant(gridPtr, respPtr);
-            IntercepCoeffGrid->updateLUVarOfPrevGrid("IC", staticFileName);
         } else if (paramName == "CC") {
             CanFieldCapGrid = new tVariant(gridPtr, respPtr);
             CanFieldCapGrid->updateLUVarOfPrevGrid("CC", staticFileName);
@@ -4192,36 +4135,6 @@ void tEvapoTrans::initialLUGridAssignment()
         }
       }
     }
-    if (strcmp(LUgridParamNames[ct],"CS")==0) {
-      if ( (timer->getCurrentTime())>(double(CSgridhours[NowTillWhichCSgrid])) && numCSfiles > 1) {
-	while ( (timer->getCurrentTime())>(double(CSgridhours[NowTillWhichCSgrid])) ) {
-	  NowTillWhichCSgrid++;
-	}
-	CanStorParamGrid->updateLUVarOfBothGrids("CS", CSgridFileNames[NowTillWhichCSgrid]);
-	CanStorParamGrid->updateLUVarOfPrevGrid("CS", CSgridFileNames[NowTillWhichCSgrid-1]);
-      }
-      else {
-        CanStorParamGrid->updateLUVarOfPrevGrid("CS", CSgridFileNames[1]);
-        if (luInterpOption == 1) {
-            CanStorParamGrid->updateLUVarOfBothGrids("CS", CSgridFileNames[1]);
-        }
-      }
-    }
-    if (strcmp(LUgridParamNames[ct],"IC")==0) {
-      if ( (timer->getCurrentTime())>(double(ICgridhours[NowTillWhichICgrid])) && numICfiles > 1) {
-	while ( (timer->getCurrentTime())>(double(ICgridhours[NowTillWhichICgrid])) ) {
-	  NowTillWhichICgrid++;
-	}
-	IntercepCoeffGrid->updateLUVarOfBothGrids("IC", ICgridFileNames[NowTillWhichICgrid]);
-	IntercepCoeffGrid->updateLUVarOfPrevGrid("IC", ICgridFileNames[NowTillWhichICgrid-1]);
-      }
-      else {
-        IntercepCoeffGrid->updateLUVarOfPrevGrid("IC", ICgridFileNames[1]);
-        if (luInterpOption == 1) {
-            IntercepCoeffGrid->updateLUVarOfBothGrids("IC", ICgridFileNames[1]);
-        }
-      }
-    }
     if (strcmp(LUgridParamNames[ct],"CC")==0) {
       if ( (timer->getCurrentTime())>(double(CCgridhours[NowTillWhichCCgrid])) && numCCfiles > 1 ) {
 	while ( (timer->getCurrentTime())>(double(CCgridhours[NowTillWhichCCgrid])) ) {
@@ -4413,34 +4326,6 @@ void tEvapoTrans::LUGridAssignment()
 	    }
       }
     }
-    if (strcmp(LUgridParamNames[ct],"CS")==0) {
-      if (numCSfiles <= 1) continue;
-      if (NowTillWhichCSgrid<=numCSfiles) {
-	    if ((timer->getCurrentTime())>(double(CSgridhours[NowTillWhichCSgrid]))) { 
-	      NowTillWhichCSgrid++;
-	      if ((NowTillWhichCSgrid-1)<numCSfiles) {
-	        CanStorParamGrid->updateLUVarOfBothGrids("CS", CSgridFileNames[NowTillWhichCSgrid]);
-	      }
-	      else {
-	        CanStorParamGrid->updateLUVarOfPrevGrid("CS", CSgridFileNames[numCSfiles]);
-	      }	
-	    }
-      }
-    }
-    if (strcmp(LUgridParamNames[ct],"IC")==0) {
-      if (numICfiles <= 1) continue;
-      if (NowTillWhichICgrid<=numICfiles) {
-	    if ((timer->getCurrentTime())>(double(ICgridhours[NowTillWhichICgrid]))) { 
-	      NowTillWhichICgrid++;
-	      if ((NowTillWhichICgrid-1)<numICfiles) {
-	        IntercepCoeffGrid->updateLUVarOfBothGrids("IC", ICgridFileNames[NowTillWhichICgrid]);
-	      }
-	      else {
-	        IntercepCoeffGrid->updateLUVarOfPrevGrid("IC", ICgridFileNames[numICfiles]);
-	      }
-	    }
-      }
-    }
     if (strcmp(LUgridParamNames[ct],"CC")==0) {
       if (numCCfiles <= 1) continue;
       if (NowTillWhichCCgrid<=numCCfiles) {
@@ -4613,28 +4498,6 @@ void tEvapoTrans::interpolateLUGrids(tCNode* cNode)
 								(double(VFgridhours[NowTillWhichVFgrid]) - double(VFgridhours[NowTillWhichVFgrid - 1])));
 		}
 	}
-	if (strcmp(LUgridParamNames[ct], "CS") == 0) {
-		if (NowTillWhichCSgrid > numCSfiles) {
-			cNode->setCanStorParam(cNode->getCanStorParamInPrevGrid());
-		}
-		else if ((NowTillWhichCSgrid > 1) && (NowTillWhichCSgrid <= numCSfiles)) {
-			cNode->setCanStorParam(cNode->getCanStorParamInPrevGrid() +
-								(cNode->getCanStorParamInUntilGrid() - cNode->getCanStorParamInPrevGrid()) *
-								(timer->getCurrentTime() - double(CSgridhours[NowTillWhichCSgrid - 1])) /
-								(double(CSgridhours[NowTillWhichCSgrid]) - double(CSgridhours[NowTillWhichCSgrid - 1])));
-		}
-	}
-	if (strcmp(LUgridParamNames[ct], "IC") == 0) {
-		if (NowTillWhichICgrid > numICfiles) {
-			cNode->setIntercepCoeff(cNode->getIntercepCoeffInPrevGrid());
-		}
-		else if ((NowTillWhichICgrid > 1) && (NowTillWhichICgrid <= numICfiles)) {
-			cNode->setIntercepCoeff(cNode->getIntercepCoeffInPrevGrid() +
-								(cNode->getIntercepCoeffInUntilGrid() - cNode->getIntercepCoeffInPrevGrid()) *
-								(timer->getCurrentTime() - double(ICgridhours[NowTillWhichICgrid - 1])) /
-								(double(ICgridhours[NowTillWhichICgrid]) - double(ICgridhours[NowTillWhichICgrid - 1])));
-		}
-	}
 	if (strcmp(LUgridParamNames[ct], "CC") == 0) {
 		if (NowTillWhichCCgrid > numCCfiles) {
 			cNode->setCanFieldCap(cNode->getCanFieldCapInPrevGrid());
@@ -4747,14 +4610,6 @@ void tEvapoTrans::constantLUGrids(tCNode* cNode)
         {
             cNode->setVegFraction( cNode->getVegFractionInPrevGrid() );
         }
-        if ( (strcmp(LUgridParamNames[ct],"CS")==0))
-        {
-            cNode->setCanStorParam( cNode->getCanStorParamInPrevGrid());
-        }
-        if ( (strcmp(LUgridParamNames[ct],"IC")==0))
-        {
-            cNode->setIntercepCoeff( cNode->getIntercepCoeffInPrevGrid());
-        }
         if ( (strcmp(LUgridParamNames[ct],"CC")==0))
         {
             cNode->setCanFieldCap( cNode->getCanFieldCapInPrevGrid());
@@ -4828,18 +4683,6 @@ void tEvapoTrans::integratedLUVars(tCNode* cNode, double te){
       else if (te > 1.0) 
 	cNode->setAvVegFraction((cNode->getAvVegFraction()*(te-1.0) + cNode->getVegFraction())/te);
     }
-    if (strcmp(LUgridParamNames[ct],"CS")==0) {  
-      if (fabs(te - 1.0) < 1.0E-6)
-	cNode->setAvCanStorParam(cNode->getCanStorParam());
-      else if (te > 1.0) 
-	cNode->setAvCanStorParam((cNode->getAvCanStorParam()*(te-1.0) + cNode->getCanStorParam())/te);
-    }
-    if (strcmp(LUgridParamNames[ct],"IC")==0) {  
-      if (fabs(te - 1.0) < 1.0E-6)
-	cNode->setAvIntercepCoeff(cNode->getIntercepCoeff());
-      else if (te > 1.0) 
-	cNode->setAvIntercepCoeff((cNode->getAvIntercepCoeff()*(te-1.0) + cNode->getIntercepCoeff())/te);
-    }
     if (strcmp(LUgridParamNames[ct],"CC")==0) {  
       if (fabs(te - 1.0) < 1.0E-6)
 	cNode->setAvCanFieldCap(cNode->getCanFieldCap());
@@ -4911,8 +4754,6 @@ void tEvapoTrans::SetGridTimeInfoVariables(tVariant *VariantLU, char *LUgridPara
 	else if (strcmp(LUgridParamName,"VH")==0) {numVHfiles = 0;}
 	else if (strcmp(LUgridParamName,"SR")==0) {numSRfiles = 0;}
 	else if (strcmp(LUgridParamName,"VF")==0) {numVFfiles = 0;}
-	else if (strcmp(LUgridParamName,"CS")==0) {numCSfiles = 0;}
-	else if (strcmp(LUgridParamName,"IC")==0) {numICfiles = 0;}
 	else if (strcmp(LUgridParamName,"CC")==0) {numCCfiles = 0;}
 	else if (strcmp(LUgridParamName,"DC")==0) {numDCfiles = 0;}
 	else if (strcmp(LUgridParamName,"DE")==0) {numDEfiles = 0;}
@@ -4941,8 +4782,6 @@ void tEvapoTrans::SetGridTimeInfoVariables(tVariant *VariantLU, char *LUgridPara
 			else if (strcmp(LUgridParamName,"VH")==0) {numVHfiles++;}
 			else if (strcmp(LUgridParamName,"SR")==0) {numSRfiles++;}
 			else if (strcmp(LUgridParamName,"VF")==0) {numVFfiles++;}
-			else if (strcmp(LUgridParamName,"CS")==0) {numCSfiles++;}
-			else if (strcmp(LUgridParamName,"IC")==0) {numICfiles++;}
 			else if (strcmp(LUgridParamName,"CC")==0) {numCCfiles++;}
 			else if (strcmp(LUgridParamName,"DC")==0) {numDCfiles++;}
 			else if (strcmp(LUgridParamName,"DE")==0) {numDEfiles++;}
@@ -5028,20 +4867,6 @@ void tEvapoTrans::SetGridTimeInfoVariables(tVariant *VariantLU, char *LUgridPara
 		VFgridFileNames = new char*[numVFfiles+1];
 		for (int ct=0;ct<numVFfiles+1;ct++) {
 			VFgridFileNames[ct]=new char[kName];
-		}
-	}
-	else if (strcmp(LUgridParamName,"CS")==0) {
-		CSgridhours = new int [numCSfiles+1];
-		CSgridFileNames = new char*[numCSfiles+1];
-		for (int ct=0;ct<numCSfiles+1;ct++) {
-			CSgridFileNames[ct]=new char[kName];
-		}
-	}
-	else if (strcmp(LUgridParamName,"IC")==0) {
-		ICgridhours = new int [numICfiles+1];
-		ICgridFileNames = new char*[numICfiles+1];
-		for (int ct=0;ct<numICfiles+1;ct++) {
-			ICgridFileNames[ct]=new char[kName];
 		}
 	}
 	else if (strcmp(LUgridParamName,"CC")==0) {
@@ -5136,14 +4961,6 @@ void tEvapoTrans::SetGridTimeInfoVariables(tVariant *VariantLU, char *LUgridPara
 				VFgridhours[GridHourCounter]=currentTimeLU;
 				strcpy(VFgridFileNames[GridHourCounter],VariantLU->fileIn);
 			}
-			else if (strcmp(LUgridParamName,"CS")==0) {
-				CSgridhours[GridHourCounter]=currentTimeLU;
-				strcpy(CSgridFileNames[GridHourCounter],VariantLU->fileIn);
-			}
-			else if (strcmp(LUgridParamName,"IC")==0) {
-				ICgridhours[GridHourCounter]=currentTimeLU;
-				strcpy(ICgridFileNames[GridHourCounter],VariantLU->fileIn);
-			}
 			else if (strcmp(LUgridParamName,"CC")==0) {
 				CCgridhours[GridHourCounter]=currentTimeLU;
 				strcpy(CCgridFileNames[GridHourCounter],VariantLU->fileIn);
@@ -5201,8 +5018,6 @@ void tEvapoTrans::SetGridTimeInfoVariables(tVariant *VariantLU, char *LUgridPara
 	else if (strcmp(LUgridParamName,"VH")==0) {NowTillWhichVHgrid = 1;}
 	else if (strcmp(LUgridParamName,"SR")==0) {NowTillWhichSRgrid = 1;}
 	else if (strcmp(LUgridParamName,"VF")==0) {NowTillWhichVFgrid = 1;}
-	else if (strcmp(LUgridParamName,"CS")==0) {NowTillWhichCSgrid = 1;}
-	else if (strcmp(LUgridParamName,"IC")==0) {NowTillWhichICgrid = 1;}
 	else if (strcmp(LUgridParamName,"CC")==0) {NowTillWhichCCgrid = 1;}
 	else if (strcmp(LUgridParamName,"DC")==0) {NowTillWhichDCgrid = 1;}
 	else if (strcmp(LUgridParamName,"DE")==0) {NowTillWhichDEgrid = 1;}
@@ -5264,22 +5079,6 @@ void tEvapoTrans::deleteLUGrids()
 	    delete [] VFgridFileNames[sz];
 	  }
 	  delete [] VFgridFileNames;
-	}
-	if (strcmp(LUgridParamNames[ct],"CS")==0) {
-	  delete CanStorParamGrid;
-	  delete [] CSgridhours;
-	  for (int sz=0;sz<numCSfiles+1;sz++) {
-	    delete [] CSgridFileNames[sz];
-	  }
-	  delete [] CSgridFileNames;
-	}
-	if (strcmp(LUgridParamNames[ct],"IC")==0) {
-	  delete IntercepCoeffGrid;
-	  delete [] ICgridhours;
-	  for (int sz=0;sz<numICfiles+1;sz++) {
-	    delete [] ICgridFileNames[sz];
-	  }
-	  delete [] ICgridFileNames;					
 	}
 	if (strcmp(LUgridParamNames[ct],"CC")==0) {
 	  delete CanFieldCapGrid;
@@ -5523,8 +5322,6 @@ void tEvapoTrans::writeRestart(fstream & rStr) const
     BinaryWrite(rStr, NowTillWhichVHgrid); // Ara Ko 2017
     BinaryWrite(rStr, NowTillWhichSRgrid); // Ara Ko 2017
     BinaryWrite(rStr, NowTillWhichVFgrid); // Ara Ko 2017
-    BinaryWrite(rStr, NowTillWhichCSgrid); // Ara Ko 2017
-    BinaryWrite(rStr, NowTillWhichICgrid); // Ara Ko 2017
     BinaryWrite(rStr, NowTillWhichCCgrid); // Ara Ko 2017
     BinaryWrite(rStr, NowTillWhichDCgrid); // Ara Ko 2017
     BinaryWrite(rStr, NowTillWhichDEgrid); // Ara Ko 2017
@@ -5691,8 +5488,6 @@ void tEvapoTrans::readRestart(fstream & rStr)
   BinaryRead(rStr, NowTillWhichVHgrid); // Ara Ko 2017
   BinaryRead(rStr, NowTillWhichSRgrid); // Ara Ko 2017
   BinaryRead(rStr, NowTillWhichVFgrid); // Ara Ko 2017
-  BinaryRead(rStr, NowTillWhichCSgrid); // Ara Ko 2017
-  BinaryRead(rStr, NowTillWhichICgrid); // Ara Ko 2017
   BinaryRead(rStr, NowTillWhichCCgrid); // Ara Ko 2017
   BinaryRead(rStr, NowTillWhichDCgrid); // Ara Ko 2017
   BinaryRead(rStr, NowTillWhichDEgrid); // Ara Ko 2017

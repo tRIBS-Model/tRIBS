@@ -368,21 +368,6 @@ void tSnowPack::callSnowPack(tIntercept *Intercept, int flag) {
     while (nodeIter.IsActive()) {
         double precip = 0.0;
 
-        // CJC2025 this block was overwriting land use parameters when it is not needed
-        /* landPtr->setLandPtr(cNode->getLandUse());
-        cNode->setCanStorParam(landPtr->getLandProp(1));
-        cNode->setIntercepCoeff(landPtr->getLandProp(2));
-        cNode->setThroughFall(landPtr->getLandProp(3));
-        cNode->setCanFieldCap(landPtr->getLandProp(4));
-        cNode->setDrainCoeff(landPtr->getLandProp(5));
-        cNode->setDrainExpPar(landPtr->getLandProp(6));
-        cNode->setLandUseAlb(landPtr->getLandProp(7));
-        cNode->setVegHeight(landPtr->getLandProp(8));
-        cNode->setOptTransmCoeff(landPtr->getLandProp(9));
-        cNode->setStomRes(landPtr->getLandProp(10));
-        cNode->setVegFraction(landPtr->getLandProp(11));
-        cNode->setLeafAI(landPtr->getLandProp(12)); */
-
         // Elapsed MET steps from the beginning, used for averaging dynamic LU grid values below over time for integ. output
         auto te = (double) timer->getElapsedMETSteps(timer->getCurrentTime());
         integratedLUVars(cNode, te);

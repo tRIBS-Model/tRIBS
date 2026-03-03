@@ -93,22 +93,21 @@ tCNode::tCNode() :tNode()
 	LandUseAlb = ThroughFall = VegHeight = StomRes = 0.0; 
 
 	// SKYnGM2008LU
-	IntercepCoeff = CanFieldCap = DrainCoeff = 0.0;  
-	DrainExpPar = OptTransmCoeff = LeafAI = 0.0;	
-	CanStorParam = 0.0;
+	CanFieldCap = DrainCoeff = 0.0;
+	DrainExpPar = OptTransmCoeff = LeafAI = 0.0;
   EvapThresh = TransThresh = 0.0; // CJC2025
 
 	// SKYnGM2008LU
 	LandUseAlbInPrevGrid = LandUseAlbInUntilGrid = ThroughFallInPrevGrid = ThroughFallInUntilGrid = 0.0;
 	VegHeightInPrevGrid = VegHeightInUntilGrid = StomResInPrevGrid = StomResInUntilGrid = 0.0;
-	VegFractionInPrevGrid = VegFractionInUntilGrid = CanStorParamInPrevGrid = CanStorParamInUntilGrid = 0.0;
-	IntercepCoeffInPrevGrid = IntercepCoeffInUntilGrid = CanFieldCapInPrevGrid = CanFieldCapInUntilGrid = 0.0;
+	VegFractionInPrevGrid = VegFractionInUntilGrid = 0.0;
+	CanFieldCapInPrevGrid = CanFieldCapInUntilGrid = 0.0;
 	DrainCoeffInPrevGrid = DrainCoeffInUntilGrid = DrainExpParInPrevGrid = DrainExpParInUntilGrid = 0.0;
 	OptTransmCoeffInPrevGrid = OptTransmCoeffInUntilGrid = LeafAIInPrevGrid = LeafAIInUntilGrid = 0.0;
   EvapThreshInPrevGrid = EvapThreshInUntilGrid = TransThreshInPrevGrid = TransThreshInUntilGrid = 0.0; // CJC2025
 
 	// SKYnGM2008LU
-	AvCanStorParam = AvIntercepCoeff = AvThroughFall = AvCanFieldCap = 0.0;
+	AvThroughFall = AvCanFieldCap = 0.0;
 	AvDrainCoeff = AvDrainExpPar = AvLandUseAlb = AvVegHeight = 0.0;
 	AvOptTransmCoeff = AvStomRes = AvVegFraction = AvLeafAI = 0.0;
   AvEvapThresh = AvTransThresh = 0.0; // CJC2025
@@ -228,22 +227,21 @@ tCNode::tCNode(tInputFile &infile) :tNode() {
 	LandUseAlb = ThroughFall = VegHeight = StomRes = 0.0; 
 
 	// SKYnGM2008LU
-	IntercepCoeff = CanFieldCap = DrainCoeff = 0.0; 
+	CanFieldCap = DrainCoeff = 0.0;
 	DrainExpPar = OptTransmCoeff = LeafAI = 0.0;
-        CanStorParam = 0.0;	
   EvapThresh = TransThresh = 0.0; // CJC2025
 
 	// SKYnGM2008LU
 	LandUseAlbInPrevGrid = LandUseAlbInUntilGrid = ThroughFallInPrevGrid = ThroughFallInUntilGrid = 0.0;
 	VegHeightInPrevGrid = VegHeightInUntilGrid = StomResInPrevGrid = StomResInUntilGrid = 0.0;
-	VegFractionInPrevGrid = VegFractionInUntilGrid = CanStorParamInPrevGrid = CanStorParamInUntilGrid = 0.0;
-	IntercepCoeffInPrevGrid = IntercepCoeffInUntilGrid = CanFieldCapInPrevGrid = CanFieldCapInUntilGrid = 0.0;
+	VegFractionInPrevGrid = VegFractionInUntilGrid = 0.0;
+	CanFieldCapInPrevGrid = CanFieldCapInUntilGrid = 0.0;
 	DrainCoeffInPrevGrid = DrainCoeffInUntilGrid = DrainExpParInPrevGrid = DrainExpParInUntilGrid = 0.0;
 	OptTransmCoeffInPrevGrid = OptTransmCoeffInUntilGrid = LeafAIInPrevGrid = LeafAIInUntilGrid = 0.0;
   EvapThreshInPrevGrid = EvapThreshInUntilGrid = TransThreshInPrevGrid = TransThreshInUntilGrid = 0.0; // CJC2025
 
 	// SKYnGM2008LU
-	AvCanStorParam = AvIntercepCoeff = AvThroughFall = AvCanFieldCap = 0.0;
+	AvThroughFall = AvCanFieldCap = 0.0;
 	AvDrainCoeff = AvDrainExpPar = AvLandUseAlb = AvVegHeight = 0.0;
 	AvOptTransmCoeff = AvStomRes = AvVegFraction = AvLeafAI = 0.0;
   AvEvapThresh = AvTransThresh = 0.0; // CJC2025
@@ -457,13 +455,11 @@ double tCNode::getVegHeight() {return VegHeight;}
 double tCNode::getStomRes() {return StomRes;}
 
 // SKYnGM2008LU
-double tCNode::getIntercepCoeff() {return IntercepCoeff;}
 double tCNode::getCanFieldCap() {return CanFieldCap;}
 double tCNode::getDrainCoeff() {return DrainCoeff;}
 double tCNode::getDrainExpPar() {return DrainExpPar;}
 double tCNode::getOptTransmCoeff() {return OptTransmCoeff;}
 double tCNode::getLeafAI() {return LeafAI;}
-double tCNode::getCanStorParam() {return CanStorParam;}
 // CJC2025: New Parameters
 double tCNode::getEvapThresh() {return EvapThresh;}
 double tCNode::getTransThresh() {return TransThresh;}
@@ -479,10 +475,6 @@ double tCNode::getStomResInPrevGrid() {return StomResInPrevGrid;}
 double tCNode::getStomResInUntilGrid() {return StomResInUntilGrid;}
 double tCNode::getVegFractionInPrevGrid() {return VegFractionInPrevGrid;}
 double tCNode::getVegFractionInUntilGrid() {return VegFractionInUntilGrid;}
-double tCNode::getCanStorParamInPrevGrid() {return CanStorParamInPrevGrid;}
-double tCNode::getCanStorParamInUntilGrid() {return CanStorParamInUntilGrid;}
-double tCNode::getIntercepCoeffInPrevGrid() {return IntercepCoeffInPrevGrid;}
-double tCNode::getIntercepCoeffInUntilGrid() {return IntercepCoeffInUntilGrid;}
 double tCNode::getCanFieldCapInPrevGrid() {return CanFieldCapInPrevGrid;}
 double tCNode::getCanFieldCapInUntilGrid() {return CanFieldCapInUntilGrid;}
 double tCNode::getDrainCoeffInPrevGrid() {return DrainCoeffInPrevGrid;}
@@ -500,8 +492,6 @@ double tCNode::getTransThreshInPrevGrid() {return TransThreshInPrevGrid;}
 double tCNode::getTransThreshInUntilGrid() {return TransThreshInUntilGrid;} 
 
 // SKYnGM2008LU
-double tCNode::getAvCanStorParam() {return AvCanStorParam;}
-double tCNode::getAvIntercepCoeff() {return AvIntercepCoeff;}
 double tCNode::getAvThroughFall() {return AvThroughFall;}
 double tCNode::getAvCanFieldCap() {return AvCanFieldCap;}
 double tCNode::getAvDrainCoeff() {return AvDrainCoeff;}
@@ -806,13 +796,11 @@ void tCNode::setVegHeight(double value) { VegHeight = value; }
 void tCNode::setStomRes(double value) {StomRes = value; }
 
 // SKYnGM2008LU
-void tCNode::setIntercepCoeff(double value) { IntercepCoeff = value; }
 void tCNode::setCanFieldCap(double value) { CanFieldCap = value; }
 void tCNode::setDrainCoeff(double value) { DrainCoeff = value; }
 void tCNode::setDrainExpPar(double value) {DrainExpPar = value; }
 void tCNode::setOptTransmCoeff(double value) { OptTransmCoeff = value; }
 void tCNode::setLeafAI(double value) { LeafAI = value; }
-void tCNode::setCanStorParam(double value) { CanStorParam = value; }
 // CJC2025: New Parameters
 void tCNode::setEvapThresh(double value) { EvapThresh = value; }
 void tCNode::setTransThresh(double value) { TransThresh = value; }
@@ -828,10 +816,6 @@ void tCNode::setStomResInPrevGrid(double value) { StomResInPrevGrid = value; }
 void tCNode::setStomResInUntilGrid(double value) { StomResInUntilGrid = value; }
 void tCNode::setVegFractionInPrevGrid(double value) { VegFractionInPrevGrid = value; }
 void tCNode::setVegFractionInUntilGrid(double value) { VegFractionInUntilGrid = value; }
-void tCNode::setCanStorParamInPrevGrid(double value) { CanStorParamInPrevGrid = value; }
-void tCNode::setCanStorParamInUntilGrid(double value) { CanStorParamInUntilGrid = value; }
-void tCNode::setIntercepCoeffInPrevGrid(double value) { IntercepCoeffInPrevGrid = value; }
-void tCNode::setIntercepCoeffInUntilGrid(double value) { IntercepCoeffInUntilGrid = value; }
 void tCNode::setCanFieldCapInPrevGrid(double value) { CanFieldCapInPrevGrid = value; }
 void tCNode::setCanFieldCapInUntilGrid(double value) { CanFieldCapInUntilGrid = value; }
 void tCNode::setDrainCoeffInPrevGrid(double value) { DrainCoeffInPrevGrid = value; }
@@ -849,8 +833,6 @@ void tCNode::setTransThreshInPrevGrid(double value) { TransThreshInPrevGrid = va
 void tCNode::setTransThreshInUntilGrid(double value) { TransThreshInUntilGrid = value; }
 
 // SKYnGM2008LU
-void tCNode::setAvCanStorParam(double value) { AvCanStorParam = value; }
-void tCNode::setAvIntercepCoeff(double value) { AvIntercepCoeff = value; }
 void tCNode::setAvThroughFall(double value) { AvThroughFall = value; }
 void tCNode::setAvCanFieldCap(double value) { AvCanFieldCap = value; }
 void tCNode::setAvDrainCoeff(double value) { AvDrainCoeff = value; }
@@ -1362,13 +1344,11 @@ void tCNode::writeRestart(fstream& rStr) const
   BinaryWrite(rStr, ThroughFall);
   BinaryWrite(rStr, VegHeight);
   BinaryWrite(rStr, StomRes);
-  BinaryWrite(rStr, IntercepCoeff);
   BinaryWrite(rStr, CanFieldCap);
   BinaryWrite(rStr, DrainCoeff);
   BinaryWrite(rStr, DrainExpPar);
   BinaryWrite(rStr, OptTransmCoeff);
   BinaryWrite(rStr, LeafAI);
-  BinaryWrite(rStr, CanStorParam);
   // CJC2025: New Parameters
   BinaryWrite(rStr, EvapThresh);
   BinaryWrite(rStr, TransThresh);
@@ -1383,10 +1363,6 @@ void tCNode::writeRestart(fstream& rStr) const
   BinaryWrite(rStr, StomResInUntilGrid);
   BinaryWrite(rStr, VegFractionInPrevGrid);
   BinaryWrite(rStr, VegFractionInUntilGrid);
-  BinaryWrite(rStr, CanStorParamInPrevGrid);
-  BinaryWrite(rStr, CanStorParamInUntilGrid);
-  BinaryWrite(rStr, IntercepCoeffInPrevGrid);
-  BinaryWrite(rStr, IntercepCoeffInUntilGrid);
   BinaryWrite(rStr, CanFieldCapInPrevGrid);
   BinaryWrite(rStr, CanFieldCapInUntilGrid);
   BinaryWrite(rStr, DrainCoeffInPrevGrid);
@@ -1403,8 +1379,6 @@ void tCNode::writeRestart(fstream& rStr) const
   BinaryWrite(rStr, TransThreshInPrevGrid);
   BinaryWrite(rStr, TransThreshInUntilGrid);
 
-  BinaryWrite(rStr, AvCanStorParam);
-  BinaryWrite(rStr, AvIntercepCoeff);
   BinaryWrite(rStr, AvThroughFall);
   BinaryWrite(rStr, AvCanFieldCap);
   BinaryWrite(rStr, AvDrainCoeff);
@@ -1642,13 +1616,11 @@ void tCNode::readRestart(fstream& rStr)
   BinaryRead(rStr, ThroughFall);
   BinaryRead(rStr, VegHeight);
   BinaryRead(rStr, StomRes);
-  BinaryRead(rStr, IntercepCoeff);
   BinaryRead(rStr, CanFieldCap);
   BinaryRead(rStr, DrainCoeff);
   BinaryRead(rStr, DrainExpPar);
   BinaryRead(rStr, OptTransmCoeff);
   BinaryRead(rStr, LeafAI);
-  BinaryRead(rStr, CanStorParam);
   // CJC2025: New Parameters
   BinaryRead(rStr, EvapThresh);
   BinaryRead(rStr, TransThresh);
@@ -1663,10 +1635,6 @@ void tCNode::readRestart(fstream& rStr)
   BinaryRead(rStr, StomResInUntilGrid);
   BinaryRead(rStr, VegFractionInPrevGrid);
   BinaryRead(rStr, VegFractionInUntilGrid);
-  BinaryRead(rStr, CanStorParamInPrevGrid);
-  BinaryRead(rStr, CanStorParamInUntilGrid);
-  BinaryRead(rStr, IntercepCoeffInPrevGrid);
-  BinaryRead(rStr, IntercepCoeffInUntilGrid);
   BinaryRead(rStr, CanFieldCapInPrevGrid);
   BinaryRead(rStr, CanFieldCapInUntilGrid);
   BinaryRead(rStr, DrainCoeffInPrevGrid);
@@ -1683,8 +1651,6 @@ void tCNode::readRestart(fstream& rStr)
   BinaryRead(rStr, TransThreshInPrevGrid);
   BinaryRead(rStr, TransThreshInUntilGrid);
 
-  BinaryRead(rStr, AvCanStorParam);
-  BinaryRead(rStr, AvIntercepCoeff);
   BinaryRead(rStr, AvThroughFall);
   BinaryRead(rStr, AvCanFieldCap);
   BinaryRead(rStr, AvDrainCoeff);
@@ -1894,13 +1860,11 @@ void tCNode::printVariables()
   cout << " ThroughFall " << ThroughFall;
   cout << " VegHeight " << VegHeight;
   cout << " StomRes " << StomRes;
-  cout << " IntercepCoeff " << IntercepCoeff;
   cout << " CanFieldCap " << CanFieldCap;
   cout << " DrainCoeff " << DrainCoeff;
   cout << " DrainExpPar " << DrainExpPar;
   cout << " OptTransmCoeff " << OptTransmCoeff;
   cout << " LeafAI " << LeafAI;
-  cout << " CanStorParam " << CanStorParam;
   // CJC2025: New Parameters
   cout << " EvapThresh " << EvapThresh;
   cout << " TransThresh " << TransThresh;
@@ -1915,10 +1879,6 @@ void tCNode::printVariables()
   cout << " StomResInUntilGrid " << StomResInUntilGrid;
   cout << " VegFractionInPrevGrid " << VegFractionInPrevGrid;
   cout << " VegFractionInUntilGrid " << VegFractionInUntilGrid;
-  cout << " CanStorParamInPrevGrid " << CanStorParamInPrevGrid;
-  cout << " CanStorParamInUntilGrid " << CanStorParamInUntilGrid;
-  cout << " IntercepCoeffInPrevGrid " << IntercepCoeffInPrevGrid;
-  cout << " IntercepCoeffInUntilGrid " << IntercepCoeffInUntilGrid;
   cout << " CanFieldCapInPrevGrid " << CanFieldCapInPrevGrid;
   cout << " CanFieldCapInUntilGrid " << CanFieldCapInUntilGrid;
   cout << " DrainCoeffInPrevGrid " << DrainCoeffInPrevGrid;
@@ -1935,8 +1895,6 @@ void tCNode::printVariables()
   cout << " TransThreshInPrevGrid " << TransThreshInPrevGrid;
   cout << " TransThreshInUntilGrid " << TransThreshInUntilGrid;
 
-  cout << " AvCanStorParam " << AvCanStorParam;
-  cout << " AvIntercepCoeff " << AvIntercepCoeff;
   cout << " AvThroughFall " << AvThroughFall;
   cout << " AvCanFieldCap " << AvCanFieldCap;
   cout << " AvDrainCoeff " << AvDrainCoeff;

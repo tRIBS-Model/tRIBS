@@ -428,21 +428,19 @@ void tHydroModel::InitSet(tResample *resamp)
 
 		// SKYnGM2008LU: Land Use Members (for both static and dynamic)
 		landPtr->setLandPtr( cn->getLandUse() );
-		a_LU    = landPtr->getLandProp(1);
-		b1_LU   = landPtr->getLandProp(2);
-		P_LU    = landPtr->getLandProp(3);
-		S_LU    = landPtr->getLandProp(4);
-		K_LU    = landPtr->getLandProp(5);
-		b2_LU   = landPtr->getLandProp(6);
-		Al_LU   = landPtr->getLandProp(7);
-		h_LU    = landPtr->getLandProp(8);
-		Kt_LU   = landPtr->getLandProp(9);
-		Rs_LU   = landPtr->getLandProp(10);
-		V_LU    = landPtr->getLandProp(11);
-		LAI_LU  = landPtr->getLandProp(12);
+		P_LU    = landPtr->getLandProp(1);
+		S_LU    = landPtr->getLandProp(2);
+		K_LU    = landPtr->getLandProp(3);
+		b2_LU   = landPtr->getLandProp(4);
+		Al_LU   = landPtr->getLandProp(5);
+		h_LU    = landPtr->getLandProp(6);
+		Kt_LU   = landPtr->getLandProp(7);
+		Rs_LU   = landPtr->getLandProp(8);
+		V_LU    = landPtr->getLandProp(9);
+		LAI_LU  = landPtr->getLandProp(10);
 		// CJC2025 Stress Thresholds
-		SE_LU   = landPtr->getLandProp(13);
-		ST_LU   = landPtr->getLandProp(14);
+		SE_LU   = landPtr->getLandProp(11);
+		ST_LU   = landPtr->getLandProp(12);
 		cn->setLandUseAlb(Al_LU);
 		cn->setLandUseAlbInPrevGrid(Al_LU);
 		cn->setLandUseAlbInUntilGrid(Al_LU);
@@ -458,12 +456,6 @@ void tHydroModel::InitSet(tResample *resamp)
 		cn->setVegFraction(V_LU);
 		cn->setVegFractionInPrevGrid(V_LU);
 		cn->setVegFractionInUntilGrid(V_LU);
-		cn->setCanStorParam(a_LU);
-		cn->setCanStorParamInPrevGrid(a_LU);
-		cn->setCanStorParamInUntilGrid(a_LU);
-		cn->setIntercepCoeff(b1_LU);
-		cn->setIntercepCoeffInPrevGrid(b1_LU);
-		cn->setIntercepCoeffInUntilGrid(b1_LU);
 		cn->setCanFieldCap(S_LU);
 		cn->setCanFieldCapInPrevGrid(S_LU);
 		cn->setCanFieldCapInUntilGrid(S_LU);
@@ -570,23 +562,19 @@ void tHydroModel::InitIntegralVars()
 
 		// SKYnGM2008LU: Land Use Members (for both static and dynamic)
 		landPtr->setLandPtr( cn->getLandUse() );
-		a_LU    = landPtr->getLandProp(1);
-		b1_LU   = landPtr->getLandProp(2);
-		P_LU    = landPtr->getLandProp(3);
-		S_LU    = landPtr->getLandProp(4);
-		K_LU    = landPtr->getLandProp(5);
-		b2_LU   = landPtr->getLandProp(6);
-		Al_LU   = landPtr->getLandProp(7);
-		h_LU    = landPtr->getLandProp(8);
-		Kt_LU   = landPtr->getLandProp(9);
-		Rs_LU   = landPtr->getLandProp(10);
-		V_LU    = landPtr->getLandProp(11);
-		LAI_LU  = landPtr->getLandProp(12);
+		P_LU    = landPtr->getLandProp(1);
+		S_LU    = landPtr->getLandProp(2);
+		K_LU    = landPtr->getLandProp(3);
+		b2_LU   = landPtr->getLandProp(4);
+		Al_LU   = landPtr->getLandProp(5);
+		h_LU    = landPtr->getLandProp(6);
+		Kt_LU   = landPtr->getLandProp(7);
+		Rs_LU   = landPtr->getLandProp(8);
+		V_LU    = landPtr->getLandProp(9);
+		LAI_LU  = landPtr->getLandProp(10);
 		// CJC2025 Stress Thresholds
-		SE_LU  = landPtr->getLandProp(13);
-		ST_LU  = landPtr->getLandProp(14);
-		cn->setAvCanStorParam(a_LU);
-		cn->setAvIntercepCoeff(b1_LU);
+		SE_LU  = landPtr->getLandProp(11);
+		ST_LU  = landPtr->getLandProp(12);
 		cn->setAvThroughFall(P_LU);
 		cn->setAvCanFieldCap(S_LU);
 		cn->setAvDrainCoeff(K_LU);
@@ -824,11 +812,8 @@ void tHydroModel::UnSaturatedZone(double dt)
 			Ractual = cn->getRain() - EvapSoi - EvapVeg;
 
 		else if (Ioption != 0 && EToption == 0) {
-			if (Ioption != 1) {
-				cout<<"\nError: Cannot Have Rutter Model (on) and ET (off)"<<endl;
-				Ractual = cn->getRain();}
-			else
-				Ractual = cn->getNetPrecipitation();
+			cout<<"\nError: Cannot Have Rutter Model (on) and ET (off)"<<endl;
+			Ractual = cn->getRain();
 		}
 		else if (Ioption != 0 && EToption != 0) {
             Ractual = cn->getNetPrecipitation() - EvapSoi - EvapVeg;
@@ -4467,9 +4452,7 @@ void tHydroModel::writeRestart(fstream & rStr) const
   BinaryWrite(rStr, snowMeltEx);
   BinaryWrite(rStr, swe);
 
-  BinaryWrite(rStr, a_LU);          // land use
-  BinaryWrite(rStr, b1_LU);
-  BinaryWrite(rStr, P_LU);
+  BinaryWrite(rStr, P_LU);          // land use
   BinaryWrite(rStr, S_LU);
   BinaryWrite(rStr, K_LU);
   BinaryWrite(rStr, b2_LU);
@@ -4565,9 +4548,7 @@ void tHydroModel::readRestart(fstream & rStr)
   BinaryRead(rStr, snowMeltEx);
   BinaryRead(rStr, swe);
 
-  BinaryRead(rStr, a_LU);          // land use
-  BinaryRead(rStr, b1_LU);
-  BinaryRead(rStr, P_LU);
+  BinaryRead(rStr, P_LU);          // land use
   BinaryRead(rStr, S_LU);
   BinaryRead(rStr, K_LU);
   BinaryRead(rStr, b2_LU);

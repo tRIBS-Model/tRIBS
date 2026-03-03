@@ -202,14 +202,6 @@ void tVariant::updateLUVarOfPrevGrid(const char *param, char *GridFileName)
 			cn->setVegFractionInPrevGrid( resample[id] );
 			cn->setVegFraction( resample[id] );
 		}
-		else if (strcmp(param,"CS") == 0) {
-			cn->setCanStorParamInPrevGrid( resample[id] );
-			cn->setCanStorParam( resample[id] );
-		}
-		else if (strcmp(param,"IC") == 0) {
-			cn->setIntercepCoeffInPrevGrid( resample[id] );
-			cn->setIntercepCoeff( resample[id] );
-		}
 		else if (strcmp(param,"CC") == 0) {
 			cn->setCanFieldCapInPrevGrid( resample[id] );
 			cn->setCanFieldCap( resample[id] );
@@ -294,16 +286,6 @@ void tVariant::updateLUVarOfBothGrids(const char *param, char *GridFileName)
 			cn->setVegFractionInPrevGrid( cn->getVegFractionInUntilGrid() );
 			cn->setVegFraction( cn->getVegFractionInUntilGrid() );
 			cn->setVegFractionInUntilGrid( resample[id] );
-		}
-		else if (strcmp(param,"CS") == 0) {
-			cn->setCanStorParamInPrevGrid( cn->getCanStorParamInUntilGrid() );
-			cn->setCanStorParam( cn->getCanStorParamInUntilGrid() );
-			cn->setCanStorParamInUntilGrid( resample[id] );
-		}
-		else if (strcmp(param,"IC") == 0) {
-			cn->setIntercepCoeffInPrevGrid( cn->getIntercepCoeffInUntilGrid() );
-			cn->setIntercepCoeff( cn->getIntercepCoeffInUntilGrid() );
-			cn->setIntercepCoeffInUntilGrid( resample[id] );
 		}
 		else if (strcmp(param,"CC") == 0) {
 			cn->setCanFieldCapInPrevGrid( cn->getCanFieldCapInUntilGrid() );
