@@ -130,7 +130,7 @@ void tPreProcess::CheckInputFile(tInputFile &infile)
 	if (optsnow == 1) {
 		// Check if the keyword exists before trying to read it
 		if (infile.IsItemIn("SNOWFILENAME")) {
-			infile.ReadItem(tempString, "SNOWFILENAME");
+			IterReadItem(infile, tempString, "SNOWFILENAME");
 			CheckFileExists(infile, tempString, "SNOWFILENAME");
 		} else {
 			// If it's not there, we don't crash. 
@@ -465,8 +465,8 @@ void tPreProcess::IterReadItem(tInputFile &infile, char * theString,
 	
 	while ( !InpStatus ) {
 		infile.ReadItem(theString, itemCode);
-		Cout<<"Parameter =   "<<itemCode<<"\t\t\t"<<theString<<endl;
-		
+		Cout<<"Parameter =   "<<left<<setw(28)<<itemCode<<theString<<endl;
+
 		if (!strcmp(theString, errr)) {
 			cout<<"\nThe input parameter is either not specified"
 				<<"\nor wrong. Correct the .in file and type 'y'"
