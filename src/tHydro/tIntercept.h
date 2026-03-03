@@ -9,11 +9,11 @@
 
 /***************************************************************************
 **
-**  tIntercept.h: Header file for class tIntercept 
+**  tIntercept.h: Header file for class tIntercept
 **
 **  This class encapsulates the rainfall interception routines
-**  necessary for net precipitation computations. Two interception methods
-**  are currently implemented based on Gray (1970) and Rutter et al (1971).
+**  necessary for net precipitation computations. Interception is computed
+**  using the Rutter et al (1971) method.
 **
 ***************************************************************************/
 
@@ -42,7 +42,6 @@ class tIntercept
   int    getIoption();
   int    IsThereCanopy(tCNode *);
   void   callInterception(tCNode *, double);
-  void   InterceptGray(tCNode *);
   void   InterceptRutter(tCNode *, double);
   void   SetIntercpParameters(tCNode *);
   void   SetIntercpVariables(tInputFile&, tHydroModel*);
@@ -71,9 +70,8 @@ class tIntercept
 
   int maxInterStormPeriod;
   double metTime;
-  double coeffA, coeffB;                 //Gray model 
   double coeffP, coeffS, coeffK, coeffb; //Rutter model
-  double coeffV;                         //Both models
+  double coeffV;
 };
 
 #endif

@@ -176,8 +176,6 @@ private:
   double TotRain{}; 			// Cumulative rainfall value M^3
 
   // SKYnGM2008LU: Land Use Parameters
-  double a_LU{};
-  double b1_LU{};
   double P_LU{};
   double S_LU{};
   double K_LU{};

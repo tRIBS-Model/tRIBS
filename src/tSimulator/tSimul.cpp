@@ -387,18 +387,11 @@ void Simulator::SurfaceHydroProcesses(tEvapoTrans *EvapoTrans,
 		}
 		// 2) Interception ON
 		if (EvapoTrans->getEToption() == 0 && Intercept->getIoption() != 0) {
-			if (Intercept->getIoption() == 1) {
-				if ( timer->getCurrentTime() == eti_hour )
-					EvapoTrans->callEvapoTrans( Intercept, 1 );
-			}
-			else {
-				Cout<<"\nInterception Option "<<Intercept->getIoption()
-				   <<" not valid if "<<endl;
-				Cout<<"Evaporation scheme turned off. \n\tPlease use:"<<endl;
-				Cout<<"\t\t(1) for Gray (1970) Method: Two Parameter Model"<<endl;
-				Cout<<"Exiting Program...\n\n"<<endl;
-				exit(1);
-			}
+			Cout<<"\nInterception Option "<<Intercept->getIoption()
+				<<" not valid if "<<endl;
+			Cout<<"Evaporation scheme turned off. \n"<<endl;
+			Cout<<"Exiting Program...\n\n"<<endl;
+			exit(1);
 		}
 		// 3) ET ON
 		if (EvapoTrans->getEToption() !=0 && Intercept->getIoption() == 0) {
