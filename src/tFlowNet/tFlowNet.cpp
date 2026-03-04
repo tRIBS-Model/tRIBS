@@ -184,7 +184,6 @@ void tFlowNet::SetFlowVariables(tInputFile &infile)
 	dOtp     = timer->getOutputInterval();
 
 	flowout = 0.0;
-	maxttimeInitial = 0.0;
 	return;
 }
 
@@ -197,11 +196,11 @@ void tFlowNet::SetFlowVariables(tInputFile &infile)
 *****************************************************************************/
 int tFlowNet::MaxTravel() 
 {
-	flowboxes = static_cast<int>(ceil( (maxttime + timespan)/dOtp ));
-	Cout<<"Hydrograph array size: \t\t"<<flowboxes<<endl; 
-	if (maxttimeInitial == 0.0)	// added by Ara Ko 2017	
-	   maxttimeInitial=maxttime; // added by Ara Ko 2017	
-	return flowboxes; 
+	// +1 ensures the array has a slot for the final timestep, which is called
+	// after timer->Advance() brings currentTime to exactly the simulation end.
+	flowboxes = static_cast<int>(ceil( timespan/dOtp )) + 1;
+	Cout<<"Hydrograph array size: \t\t"<<flowboxes<<endl;
+	return flowboxes;
 }
 
 /*****************************************************************************

@@ -129,7 +129,6 @@ protected:
   tList< int >       NNodes;     // NODELIST #3 # of nodes in each reach 
 
   int flowboxes; 	        // Size of current discharge array
-  int maxttimeInitial;		// added by Ara Ko in 2017 to keep the minitial maxttime 
   double hillvel;   	        // Hillslope velocity, [m/sec]
   double flowexp;   	        // Power in velocity-discharge relationship
   double baseflow;  	        // Baseflow: leftover from event-based
