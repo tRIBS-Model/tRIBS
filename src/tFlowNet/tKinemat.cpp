@@ -1024,13 +1024,7 @@ void tKinemat::setTravelVelocityKin(double curr_discharge, double CArea) {
     else
         flowout = curr_discharge;
 
-    // Non-linear model
-    if (flowexp > 0.0) {
-        hillvel = kincoef * pow(flowout / CArea, flowexp);
-    }
-        // Linear model
-    else
-        hillvel = velcoef / velratio;
+    hillvel = kincoef * pow(flowout / CArea, flowexp);
 
     return;
 }

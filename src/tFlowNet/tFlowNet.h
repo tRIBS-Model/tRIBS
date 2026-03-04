@@ -71,10 +71,8 @@ public:
   void SortNodesByNetOrder();
   void FillLakes();
   void initializeTravelTime();
-  void initializeTravelTimeOnly();     
   void setTravelTime();
   void setMaxTravelTime();
-  void setTravelVelocity(double);
   void SurfaceFlow();
   void DrainAreaVoronoi();
   void RouteFlowArea(tCNode *, double);
@@ -133,9 +131,6 @@ protected:
   int flowboxes; 	        // Size of current discharge array
   int maxttimeInitial;		// added by Ara Ko in 2017 to keep the minitial maxttime 
   double hillvel;   	        // Hillslope velocity, [m/sec]
-  double streamvel; 	        // Stream velocity, [m/sec]
-  double velratio;  	        // Ratio Stream/Hillslope
-  double velcoef;   	        // Coeffcient velocity-discharge
   double flowexp;   	        // Power in velocity-discharge relationship
   double baseflow;  	        // Baseflow: leftover from event-based
   double dOtp;      	        // Time interval in hydrograph output, [hour]

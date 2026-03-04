@@ -104,8 +104,6 @@ void tPreProcess::CheckInputFile(tInputFile &infile)
 	//IterReadItem(infile, tempVariable,"RAINSEARCH");
 	IterReadItem(infile, tempVariable, "TLINKE");
 	IterReadItem(infile, tempVariable,"BASEFLOW");       //Flow parameters
-	IterReadItem(infile, tempVariable,"VELOCITYCOEF");
-	IterReadItem(infile, tempVariable,"VELOCITYRATIO");
 	IterReadItem(infile, tempVariable,"KINEMVELCOEF");
 	IterReadItem(infile, tempVariable,"FLOWEXP");
 	IterReadItem(infile, tempVariable,"CHANNELROUGHNESS");
