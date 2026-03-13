@@ -125,10 +125,6 @@ int main(int argc, char *argv[]){
 	theOFStream<<"\n-Routing Vars-"<<endl;
 	tempo = ReadItem(tempo, "BASEFLOW");
 	theOFStream<<"BASEFLOW: \t"<<tempo<<endl;
-	tempo = ReadItem(tempo, "VELOCITYCOEF");
-	theOFStream<<"VELOCITYCOEF: \t"<<tempo;
-	tempo = ReadItem(tempo, "VELOCITYRATIO");
-	theOFStream<<"\tVELOCITYRATIO: \t"<<tempo<<endl;
 	tempo = ReadItem(tempo, "KINEMVELCOEF");
 	theOFStream<<"KINEMVELCOEF: \t"<<tempo;
 	tempo = ReadItem(tempo, "FLOWEXP");

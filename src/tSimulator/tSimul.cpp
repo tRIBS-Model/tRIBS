@@ -808,10 +808,8 @@ void Simulator::RunItAgain( tInputFile &InFl, tHydroModel *Moisture,
 	Balance->DeleteWaterBalance();
 	Balance->SetWaterBalance( InFl );
 	
-	// Re-initializing tFlowNet 
+	// Re-initializing tFlowNet
 	Flow->SetFlowVariables( InFl );
-	Flow->setTravelVelocity( 0.0 );
-	Flow->initializeTravelTimeOnly();
 	Flow->UpdateForNewRun( InFl , keep);
 	
 	// Re-initializing tFlowResults 

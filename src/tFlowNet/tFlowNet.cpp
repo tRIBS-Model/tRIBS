@@ -68,8 +68,7 @@ tFlowNet::tFlowNet(SimulationControl *simCtrPtr, tMesh<tCNode> *gridRef,
 	DeriveCurvature();
 	DeriveStreamReaches( infile );
 
-	Cout <<"\nInitialize velocities and time..."<<endl;
-	setTravelVelocity(0.0);  
+	Cout <<"\nInitialize flow paths and travel times..."<<endl;
 	initializeTravelTime();
 
 	Cout <<"\nChecking drainage widths..."<<endl;
@@ -77,9 +76,6 @@ tFlowNet::tFlowNet(SimulationControl *simCtrPtr, tMesh<tCNode> *gridRef,
 
 	Cout <<"\nSet reach numbers..."<<endl;
 	SetReachInformation();
-	
-	Cout<<"\nHillslope velocity: \t\t"<<hillvel<<" m/sec"<<endl;
-	Cout<<"Stream velocity: \t\t"<<streamvel<<" m/sec"<<endl;
 	
 	// Initialize Hydrograph class
 	res = new tFlowResults( simCtrl, infile, timer, MaxTravel() );
@@ -108,10 +104,6 @@ void tFlowNet::ReadFlowNetFromMeshBuilder()
 {
 	fstream flowStr("flow.meshb", ios::in | ios::binary);
 
-	BinaryRead(flowStr, hillvel);
-	BinaryRead(flowStr, streamvel);
-	BinaryRead(flowStr, velratio);
-	BinaryRead(flowStr, velcoef);
 	BinaryRead(flowStr, flowexp);
 	BinaryRead(flowStr, baseflow);
 	BinaryRead(flowStr, flowout);
@@ -186,16 +178,12 @@ void tFlowNet::ReadFlowNetFromMeshBuilder()
 *****************************************************************************/
 void tFlowNet::SetFlowVariables(tInputFile &infile)
 {
-	velratio = infile.ReadItem(velratio, "VELOCITYRATIO");
 	baseflow = infile.ReadItem(baseflow, "BASEFLOW");
-	velcoef  = infile.ReadItem(velcoef,  "VELOCITYCOEF");
 	flowexp  = infile.ReadItem(flowexp,  "FLOWEXP");
 	timespan = timer->RemainingTime(0.0);
 	dOtp     = timer->getOutputInterval();
-	
-	flowout   = 0.0;
-	streamvel = 0.0;
-	maxttimeInitial = 0.0; // added by Ara Ko 2017
+
+	flowout = 0.0;
 	return;
 }
 
@@ -208,11 +196,11 @@ void tFlowNet::SetFlowVariables(tInputFile &infile)
 *****************************************************************************/
 int tFlowNet::MaxTravel() 
 {
-	flowboxes = static_cast<int>(ceil( (maxttime + timespan)/dOtp ));
-	Cout<<"Hydrograph array size: \t\t"<<flowboxes<<endl; 
-	if (maxttimeInitial == 0.0)	// added by Ara Ko 2017	
-	   maxttimeInitial=maxttime; // added by Ara Ko 2017	
-	return flowboxes; 
+	// +1 ensures the array has a slot for the final timestep, which is called
+	// after timer->Advance() brings currentTime to exactly the simulation end.
+	flowboxes = static_cast<int>(ceil( timespan/dOtp )) + 1;
+	Cout<<"Hydrograph array size: \t\t"<<flowboxes<<endl;
+	return flowboxes;
 }
 
 /*****************************************************************************
@@ -496,72 +484,39 @@ void tFlowNet::SortNodesByNetOrder()
 //=========================================================================
 
 /*****************************************************************************
-**  
-**  tFlowNet::setTravelVelocity()
-**  
-**  Sets travel velocities depending on the discharge at the oulet
 **
-*****************************************************************************/
-void tFlowNet::setTravelVelocity(double curr_discharge) 
-{
-	// Get the node velocities first 
-	if ( !curr_discharge )  { 
-		// If it's zero, a baseflow value from the input
-		// file is used to define the stream velocity     
-		if ( !baseflow && flowexp ) {
-			Cout<<"\nWarning: Baseflow is zero and thus the lower "
-			<<"limit of stream velocity is undefined --> Set to 0.001"<<endl;
-			baseflow = 0.001; 
-		}
-		flowout = baseflow; //velocity will correspond to baseflow
-	}
-	else 
-		flowout = curr_discharge;
-	
-	streamvel = velcoef;
-	hillvel   = streamvel/velratio;
-	
-	return;
-}
-
-/*****************************************************************************
-** 
 **  tFlowNet::initializeTravelTime()
 **  
 **  Needed to initialize some of the class members  
 **
 *****************************************************************************/
-void tFlowNet::initializeTravelTime() 
+void tFlowNet::initializeTravelTime()
 {
 	tCNode *cn;
 	tCNode *ctimer;
 	tEdge  *ce;
 	tMeshListIter<tCNode> nodIter( gridPtr->getNodeList() );
-	tMeshListIter<tEdge>  edgIter( gridPtr->getEdgeList() );
-	double hill, stream, tt;
-	
+	double hill, stream;
+
 	// Loop through the nodes and set velocity
 	// Define maximum travel time        
 	BasArea = 0.0;
 	maxttime = 0.0;     		// SECONDS
 	dist_hill_max = 0.0;   	// METERS
 	dist_stream_max = 0.0; 	// METERS
-	
+
 	for ( cn=nodIter.FirstP(); nodIter.IsActive(); cn=nodIter.NextP() ) {
-		
+
 		BasArea += cn->getVArea();
 
-		//Initialize with distance from centroid to node
-		cn->getCentroidX();
-		cn->getCentroidY();
+		// Initialize with distance from centroid to node
 		hill = sqrt(pow(cn->getX()-cn->getCentroidX(),2.0)+pow(cn->getY()-cn->getCentroidY(),2.0));
-		
-		stream = tt = 0.0;
-		
+
+		stream = 0.0;
 		ctimer = cn;
 		assert(ctimer != 0);
-		
-		// If it is an hillslope, it flows at a hillslope velocity
+
+		// Walk downslope to nearest stream node
 		if (ctimer->getBoundaryFlag() == kNonBoundary) {
 			while (ctimer->getBoundaryFlag() == kNonBoundary) {
 				ce = ctimer->getFlowEdg(); //Get the steepest edge
@@ -572,109 +527,50 @@ void tFlowNet::initializeTravelTime()
 			assert(ctimer != 0);
 			cn->setStreamNode(ctimer);
 		}
-		
-		// If it is a streamnode, it flows at a stream velocity
+
 		// Go downstream to the outlet
 		while ( ctimer->getDownstrmNbr() ) {
 			ce = ctimer->getFlowEdg();  // Get the steepest edge
-			if (ctimer->getBoundaryFlag() == kStream || 
+			if (ctimer->getBoundaryFlag() == kStream ||
 				ctimer->getBoundaryFlag() == kOpenBoundary)
 				stream += ce->getLength();            // METERS
 			ctimer = ctimer->getDownstrmNbr();
 		}
-		
+
 		cn->setHillPath(hill);     		// Set the HILLSLOPE path for node
 		cn->setStreamPath(stream); 		// Set the STREAM path for node
-		
-		tt = hill/hillvel + stream/streamvel; // SECONDS 
-		tt /= 3600.;                          // HOURS  
-		
-		// Set travel time: travel time is only suitable for HYDROLOGIC routing 
-		// The KINEMATIC scheme uses independent calculation of travel time
-		
-		cn->setTTime( tt );        		// Set Travel Time in HOURS
-		
-		if (tt > maxttime) {  //MAX values of paths with maxttime
-			maxttime = tt;
-			dist_hill_max = hill;       	// METERS
-			dist_stream_max = stream;   	// METERS
-		}
+
+		if (hill > dist_hill_max)     dist_hill_max = hill;
+		if (stream > dist_stream_max) dist_stream_max = stream;
 	}
+
 	Cout.setf( ios::fixed, ios::floatfield);
 	Cout<<endl;
 	Cout<<"\nFlow Characteristics: "<<endl;
 	Cout<<"\nThe  Total  Basin  Area is   \t"<<BasArea<<" M^2"<<endl;
-	Cout<<"Maximum travel time: \t\t"<<maxttime<<" hours"<<endl;
 	Cout<<"Maximum hillslope path: \t"<<dist_hill_max<<" meters"<<endl;
 	Cout<<"Maximum stream path: \t\t"<<dist_stream_max<<" meters"<<endl;
 	Cout<<endl;
-	
+
 	return;
 }
 
 /*****************************************************************************
-**  
-**  initializeTravelTimeOnly()
-**  
-**  Difference with the preceeding function is that this one does  
-**  not compute distances and deals only with the travel times
-** 
-*****************************************************************************/
-void tFlowNet::initializeTravelTimeOnly() 
-{
-	tCNode *cn;
-	tMeshListIter<tCNode> nodIter( gridPtr->getNodeList() );
-	double hill, stream, tt;
-	
-	// Loop through the nodes and set velocity
-	// Define maximum travel time 
-	maxttime = 0.0;        // HOURS
-	dist_hill_max = 0.0;   // METERS
-	dist_stream_max = 0.0; // METERS
-	
-	for ( cn=nodIter.FirstP(); nodIter.IsActive(); cn=nodIter.NextP() )
-	{
-		hill   = cn->getHillPath();     // Get the HILLSLOPE path for node
-		stream = cn->getStreamPath();   // Get the STREAM path for node
-		tt = hill/hillvel + stream/streamvel;   //SECONDS
-		tt /= 3600.0;                           //HOURS
-		cn->setTTime( tt );             // Set Travel Time in HOURS
-		
-		if (tt > maxttime) {            // MAX values of paths with maxttime
-			maxttime = tt;
-			dist_hill_max = hill;       // METERS
-			dist_stream_max = stream;   // METERS
-		}
-	}
-	
-	Cout<<"\nMaximum Travel Time: \t\t"<<maxttime<<" hours"<<endl;
-	Cout<<"Maximum Hillslope path: \t"<<dist_hill_max<<" meters"<<endl;
-	Cout<<"Maximum Stream path: \t\t"<<dist_stream_max<<" meters"<<endl;
-	
-	return;
-}
-
-/*****************************************************************************
-**  
+**
 **  setMaxTravelTime()
-**  
-**  Needed to set Maximum Travel Time
-**  Assumed that the travel velocities have been set by now!  
+**
+**  Updates iimax to the current output step + 1. With zero travel time
+**  in the mrf, runoff is accumulated into the current output bin only.
 **
 *****************************************************************************/
-void tFlowNet::setMaxTravelTime() 
+void tFlowNet::setMaxTravelTime()
 {
-	// Update the limit time of simulation added Ara Ko in 2017
-	//res->limit = flowboxes = static_cast<int>(ceil( (timer->RemainingTime(0.0) + maxttimeInitial)/dOtp)); 	//WR Debug restart, cause error in restart.
-	
-	maxttime = dist_hill_max/hillvel + dist_stream_max/streamvel; //SECONDS
-	res->iimax = timer->getResStep(maxttime/(3600.0));
-	
-	// Set MAX index in hydrograph
+	res->iimax = timer->getResStep(0.0) + 1;
+
 	if (res->iimax > res->limit || res->iimax < 0) {
-		Cout<<"\nError: setTravelTime(): iimax > limit,  iimax = "
-        <<res->iimax<<"; limit = "<<res->limit
-        <<" Exiting program..."<<endl<<flush;
+		Cout<<"\nError: setMaxTravelTime(): iimax > limit,  iimax = "
+		    <<res->iimax<<"; limit = "<<res->limit
+		    <<" Exiting program..."<<endl<<flush;
 		exit(1);
 	}
 	return;
@@ -716,9 +612,7 @@ double tFlowNet::getCurrDischarge(int ihour)
 **  Second, define routine velocities at this moment
 **  Third, setMaxTravelTime
 **  Fourth, loop through the list of active nodes,
-**         - if the model is non-linear, re-set travel time using
-**           defined velocities and lengths of hillslope and stream path
-**         - get runoff volume and store in appropriate array box  
+**         - accumulate runoff volume into the current output bin (zero delay)
 **         - do the same with runoff types
 **
 *****************************************************************************/
@@ -726,7 +620,6 @@ void tFlowNet::SurfaceFlow()
 {
 	tCNode *cn;
 	tMeshListIter<tCNode> nodIter( gridPtr->getNodeList() );
-	double ttime;           // Travel time for a current node, SECONDS
 	double vRunoff = 0.0;   // Runoff volume, m^3
 	double Area = 0.0;      // Voronoi cell area
 	double AreaF;
@@ -738,44 +631,33 @@ void tFlowNet::SurfaceFlow()
 		Cout<<"\t->Surface flow simulation...\n"<<endl<<flush;
 	}
 	
-	int ihour = (int)timer->getResStep(0.0);
-	
-	setTravelVelocity( getCurrDischarge(ihour-1) );
-	
-	setMaxTravelTime(); 
-	
-	// Runoff Storage in tFlowResults
+	setMaxTravelTime();
+
+	// Runoff Storage in tFlowResults (zero travel time: accumulate in current bin)
 	for ( cn=nodIter.FirstP(); nodIter.IsActive(); cn=nodIter.NextP() ) {
-		
+
 		Area = cn->getVArea();                    // M^2
 		AreaF = Area/BasArea;
-		
+
 		if (cn->getSrf() > 0.0) {
-			
-			if (flowexp > 0.0) { 
-				cn->setTTime((cn->getHillPath()/hillvel + 
-							  cn->getStreamPath()/streamvel)/3600.0);
-			}
-			
-			ttime = cn->getTTime();                        // Travel time in HOURS
 			vRunoff = cn->getSrf()*Area/1000.0;            // Srf, MM to M^3
-			res->store_volume( ttime, vRunoff );           // PSEUDO-Routine function
-			
+			res->store_volume( 0.0, vRunoff );
+
 			if ( cn->getHsrf() ) {
 				vRunoff = cn->getHsrf()*Area/1000.0;         // MM to M^3
-				res->store_volume_Type( ttime, vRunoff, 1 ); // PSEUDO-Routing function
+				res->store_volume_Type( 0.0, vRunoff, 1 );
 			}
 			if ( cn->getSbsrf() ) {
-				vRunoff = cn->getSbsrf()*Area/1000.0;   
-				res->store_volume_Type( ttime, vRunoff, 2 ); 
+				vRunoff = cn->getSbsrf()*Area/1000.0;
+				res->store_volume_Type( 0.0, vRunoff, 2 );
 			}
 			if ( cn->getPsrf() ) {
-				vRunoff = cn->getPsrf()*Area/1000.0;   
-				res->store_volume_Type( ttime, vRunoff, 3 ); 
+				vRunoff = cn->getPsrf()*Area/1000.0;
+				res->store_volume_Type( 0.0, vRunoff, 3 );
 			}
 			if ( cn->getSatsrf() ) {
-				vRunoff = cn->getSatsrf()*Area/1000.0;  
-				res->store_volume_Type( ttime, vRunoff, 4 ); 
+				vRunoff = cn->getSatsrf()*Area/1000.0;
+				res->store_volume_Type( 0.0, vRunoff, 4 );
 			}
 		}
 		 // Fix for converting MDGW sloped depth to vertical depth CJC2025
@@ -3296,9 +3178,6 @@ void tFlowNet::writeRestart(fstream & rStr) const
 {
   BinaryWrite(rStr, flowboxes);
   BinaryWrite(rStr, hillvel);
-  BinaryWrite(rStr, streamvel);
-  BinaryWrite(rStr, velratio);
-  BinaryWrite(rStr, velcoef);
   BinaryWrite(rStr, flowexp);
   BinaryWrite(rStr, baseflow);
   BinaryWrite(rStr, dOtp); 
@@ -3322,9 +3201,6 @@ void tFlowNet::readRestart(fstream & rStr)
 {   
   BinaryRead(rStr, flowboxes);
   BinaryRead(rStr, hillvel);
-  BinaryRead(rStr, streamvel);
-  BinaryRead(rStr, velratio);
-  BinaryRead(rStr, velcoef);
   BinaryRead(rStr, flowexp);
   BinaryRead(rStr, baseflow);
   BinaryRead(rStr, dOtp); 
