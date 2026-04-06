@@ -61,7 +61,7 @@ void tRestart<tSubNode>::writeRestart(fstream & rStr)
   balance->writeRestart(rStr);
   hydro->writeRestart(rStr);
   rainfall->writeRestart(rStr);
-  intercept->readRestart(rStr);
+  intercept->writeRestart(rStr);
   mesh->writeRestart(rStr);
 	// Giuseppe DEBUG Restart 2012 - START 
 	// I have introduced an IF that checks whether
