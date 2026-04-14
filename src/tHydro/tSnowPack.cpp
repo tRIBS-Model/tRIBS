@@ -100,8 +100,10 @@ void tSnowPack::SetSnowInterceptVariables() {
 void tSnowPack::SetSnowVariables(tInputFile &infile) {
     
 
-    //time steps
-    timeStepm = infile.ReadItem(timeStepm, "METSTEP");
+    //time steps: use etistep (= min(metstep, dtRain)) so sub-hourly rainfall is
+    //handled correctly. When dtRain >= metstep (the normal hourly case) this is
+    //identical to reading METSTEP directly.
+    timeStepm = timer->getEtIStep() * 60.0;  // hours -> minutes
     timeSteph = timeStepm / 60.0;
     timeSteps = 60.0 * timeStepm;
     minutelyTimeStep = 0.0;
