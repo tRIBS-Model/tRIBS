@@ -65,14 +65,17 @@ tKinemat::tKinemat(SimulationControl *sPtr, tMesh<tCNode> *gridRef, tInputFile &
 
     percolationOption = infile.ReadItem(percolationOption, "OPTPERCOLATION");
     if (percolationOption != 0) {
+        // Conductivity values are read in mm/hr and converted to m/s for internal use.
         ChannelConduc = infile.ReadItem(ChannelConduc, "CHANNELCONDUCTIVITY");
-        channelPorosity = infile.ReadItem(channelPorosity, "CHANNELPOROSITY");
+        ChannelConduc /= (1000.0 * 3600.0);  // mm/hr -> m/s
         if (percolationOption == 2) {
             TransientConduc = infile.ReadItem(TransientConduc, "TRANSIENTCONDUCTIVITY");
+            TransientConduc /= (1000.0 * 3600.0);  // mm/hr -> m/s
             TransientTime = infile.ReadItem(TransientTime, "TRANSIENTTIME");
         } else if (percolationOption == 3) {
             PoreInd = infile.ReadItem(PoreInd, "CHANPOREINDEX");
             PsiB = infile.ReadItem(PsiB, "CHANPSIB");
+            channelPorosity = infile.ReadItem(channelPorosity, "CHANNELPOROSITY");
         }
     }
     IntStormMax = infile.ReadItem(IntStormMax, "INTSTORMMAX"); //ASM
@@ -80,6 +83,20 @@ tKinemat::tKinemat(SimulationControl *sPtr, tMesh<tCNode> *gridRef, tInputFile &
     Cout << "\nChannel Characteristics:" << endl << endl;
     Cout << "Kinematic velocity coefficient: " << kincoef << endl;
     Cout << "Roughness coefficient: \t\t" << Roughness << endl;
+    if (percolationOption != 0) {
+        Cout << "Transmission loss option: \t" << percolationOption << endl;
+        Cout << "Channel conductivity: \t\t" << ChannelConduc * 1000.0 * 3600.0
+             << " mm/hr" << endl;
+        if (percolationOption == 2)
+            Cout << "Transient conductivity: \t" << TransientConduc * 1000.0 * 3600.0
+                 << " mm/hr  (active for " << TransientTime << " hr)" << endl;
+        if (percolationOption == 3) {
+            cout << "\nError: OPTPERCOLATION = 3 (Green-Ampt) is not functional in this "
+                 << "version of tRIBS and has been disabled. Use OPTPERCOLATION = 1 "
+                 << "(constant loss) or OPTPERCOLATION = 2 (transient loss)." << endl;
+            exit(1);
+        }
+    }
 
     Width = infile.ReadItem(Width, "CHANNELWIDTHCOEFF");
     if (Width <= 0.0) {
@@ -777,6 +794,14 @@ void tKinemat::RunRoutingModel(int it, int *check, double timeStep) {
         else
             KinematWave(C, Y1, Y2, Y3, reis, his, qit, H0, check);
 
+        // Clamp computed water depths to zero. Transmission losses can drive depths
+        // slightly negative during low-flow conditions. Negative depths cause pow(h, 5/3) to produce NaN.
+        // This "post-solve clamp" is a practical approach. The alternative would be bounding
+        // res[i] more tightly before solving so depths never go below zero but we would have 
+        // to know the available water volume per link in advance i.e. its circular.
+        for (int i = 0; i < n; i++)
+            if (his[i] < 0.0) his[i] = 0.0;
+
         // Update computed values of levels & Qs
 
 /********************* Start of modifications by JECR 2015 **************************/
@@ -1071,23 +1096,25 @@ void tKinemat::InitializeStreamReach(int NN, int CountLimit) {
         bis[i] = cmove->getChannelWidth();
         ais[i] = cmove->getFlowEdg()->getLength();
         rifis[i] = cmove->getRoughness();
-        //ASM 2/9/2017
+        // Compute the maximum volumetric loss rate for this link via Darcy's law:
+        //   NodeLoss = K_sat * wetted_area = K_sat * width * length  [m3/s]
+        // CHANNELCONDUCTIVITY must be supplied in m/s.
         if (percolationOption == 1) {
-            //setCoeffstest(cmove);
-            //poro = soilPtr->getSoilProp(9);  // Surface hydraulic conductivity
-            NodeLoss[i] = bis[i] * ais[i] * ChannelConduc * channelPorosity; // ASM testporo; w*l*poro*ksat [m3/s]
-            ChanLength += ais[i]; // ASM
+            // Constant-conductivity loss: K_sat is fixed for the entire simulation.
+            NodeLoss[i] = bis[i] * ais[i] * ChannelConduc;
+            ChanLength += ais[i];
         } else if (percolationOption == 2) {
-            // Need to get time information here
+            // Transient-conductivity loss: use TransientConduc during the initial wetting
+            // period (Count < CountLimit timesteps with active percolation), then switch
+            // to the lower steady-state ChannelConduc once the bed is saturated.
             if (Count > CountLimit - 1) {
-                NodeLoss[i] = bis[i] * ais[i] * ChannelConduc * channelPorosity;
+                NodeLoss[i] = bis[i] * ais[i] * ChannelConduc;
                 ChanLength += ais[i];
             } else {
-                NodeLoss[i] = bis[i] * ais[i] * TransientConduc * channelPorosity;
+                NodeLoss[i] = bis[i] * ais[i] * TransientConduc;
                 ChanLength += ais[i];
             }
         }
-        //end ASM edits
 
         Slope = cmove->getFlowEdg()->getSlope();
 
@@ -1309,14 +1336,27 @@ void tKinemat::AssignLateralInflux() {
                 cmove->setFt(0.0);
                 //}
                 Preach += clis[i];
-            } else if (percolationOption == 1 || percolationOption == 2) {    //ASM constant loss and transient methods
-                reis1 = reis[i] - NodeLoss[i];
-                if (reis1 < 0) {
-                    clis[i] = reis[i];
-                    reis[i] = 0.0;
-                } else {
+            } else if (percolationOption == 1 || percolationOption == 2) {
+                // Apply bed infiltration loss to this interior link.
+                // When water is present (his[i] > 0), the full NodeLoss is applied
+                // even if it exceeds the lateral inflow. reis[i] is allowed to go
+                // negative, which the kinematic wave solver correctly interprets as
+                // a net sink withdrawing water from in-channel flow.
+                // When the channel is dry, loss is capped at available lateral inflow.
+                if (his[i] > 0.0) {
                     clis[i] = NodeLoss[i];
-                    reis[i] = reis1;
+                    reis[i] -= NodeLoss[i];
+                } else if (reis[i] > NodeLoss[i]) {
+                    clis[i] = NodeLoss[i];
+                    reis[i] -= NodeLoss[i];
+                } else {
+                    // Guard because reis[i] should theoretically never be negative at this point in the code
+                    if (reis[i] > 0.0) {
+                        clis[i] = reis[i];
+                    } else {
+                        clis[i] = 0.0;
+                    }
+                    reis[i] = 0.0;
                 }
                 Preach += clis[i]; // ASM 2/16/2017 this sums percolation in the channel
             }
@@ -1378,17 +1418,22 @@ void tKinemat::AssignLateralInflux() {
                 //}
                 Preach += clis[i];
             } else if (percolationOption == 1 || percolationOption == 2) {
-                if (reis[i] > 0) {
-                    reis1 = reis[i] - NodeLoss[i];
-                    if (reis1 < 0) {
+                // Same logic as interior links above applied to the last link in reach.
+                if (his[i] > 0.0) {
+                    clis[i] = NodeLoss[i];
+                    reis[i] -= NodeLoss[i];
+                } else if (reis[i] > NodeLoss[i]) {
+                    clis[i] = NodeLoss[i];
+                    reis[i] -= NodeLoss[i];
+                } else {
+                    // Guard because reis[i] should theoretically never be negative at this point in the code
+                    if (reis[i] > 0.0) {
                         clis[i] = reis[i];
-                        reis[i] = 0.0;
                     } else {
-                        clis[i] = NodeLoss[i];
-                        reis[i] = reis1;
+                        clis[i] = 0.0;
                     }
-                } else
-                    clis[i] = 0.0;
+                    reis[i] = 0.0;
+                }
                 Preach += clis[i]; // ASM 2/16/2017 this sums percolation in the channel reach
             } //end ASM
         }
