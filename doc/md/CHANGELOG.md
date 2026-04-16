@@ -19,6 +19,7 @@ v6.0.0 is a major release focused on simplifying the user experience and streaml
 * **ET Partitioning:** Fixed a scaling bug in `tEvapoTrans` where unscaled vegetation rates were subtracted from potential ET. ([#107](https://github.com/tRIBS-Model/tRIBS/pull/107))
 * **Snow Fluxes:** Removed the vegetation fraction scaling on sublimation and evaporation from the ground snowpack. ([#107](https://github.com/tRIBS-Model/tRIBS/pull/107))
 * **tIntercept Memory Leak:** Resolved a crash occurring at simulation termination due to improper deallocation of grid filenames when interception was disabled. ([#102](https://github.com/tRIBS-Model/tRIBS/pull/102))
+* **Sub-hourly Precipitation:** Resolved a bug when using sub-hourly precipitation inputs with the snow module turned on caused by the snow module using the wrong timestep. ([#111](https://github.com/tRIBS-Model/tRIBS/pull/111))
 
 ### Changed & Refactored
 * **Input Simplification:** Streamlined the `.in` file by removing legacy or unused options including:
