@@ -172,7 +172,7 @@ protected:
 
 /*** Start edits by JECR 2015 ***/
   int optres, checkID, checkNode;
-  double  ChannelConduc, ReachLoss, poro, reis1, Pchannel, Preach, ChanWidth, TotWidth, ChanLength, channelPorosity; //ASM
+  double  ChannelConduc, ReachLoss, poro, reis1, Pchannel, Preach, TotWidth, ChanLength, channelPorosity; //ASM
   double  TransientConduc, TransientTime, TotChanLength; //ASM
   double  ExtraPerc, PotentialPerc, TotalPerc, Qin1; //ASM 2/14/2017 Variables for calculating channel loss
   int percolationOption, CountLimit, Count; //ASM perolcation option
