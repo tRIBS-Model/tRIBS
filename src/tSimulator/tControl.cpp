@@ -43,12 +43,11 @@ SimulationControl::SimulationControl(int argc, char **argv)
 	Cout <<"\n\ntRIBS Version "<< VERSION <<endl<<endl;
 	
 	static char usage[]=
-		"Usage : %s [-A] [-V NodeID] [-K] [-T]\n";
+		"Usage : %s [-A] [-V NodeID] [-T]\n";
 
 	
 	mode = STD_INPUT;       //Default: If file doesn't exist, assume zero rainfall
 	Verbose_label    = 'N';
-	Check_label      = 'Y';    //Default is yes
     debug            = 'N';
     disp_time = 'N';
 	VerbID = -999;
@@ -62,7 +61,6 @@ SimulationControl::SimulationControl(int argc, char **argv)
 		Cout<<"\n\nUsage: " << argv[0] <<" <input file>  [options]"<<endl<<endl;
 		Cout<<"Options: "<<endl;
 		Cout<<"\t-A    Automatic listing of rainfall files (zero if missing)"<<endl;
-		Cout<<"\t-K    Check output"<<endl;
 		Cout<<"\t-V [NodeID] Verbose mode (output run-time information)"<<endl<<endl;
 		Cout<<"Provide name of an input file. Exiting program...\n"<<endl;
 		exit(1);
@@ -105,11 +103,6 @@ SimulationControl::SimulationControl(int argc, char **argv)
 			case 'V':                 //Verbose Output
 			{
 				Verbose_label = 'Y';
-				break;
-			}
-			case 'K':                 //Check Output
-			{
-				Check_label = 'N';
 				break;
 			}
             case 'T':                        //For tGraph debugging output

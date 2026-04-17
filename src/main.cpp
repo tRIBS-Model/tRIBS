@@ -71,7 +71,7 @@ int serialSimulation( int argc, char **argv )
 	tInputFile InputFile( SimCtrl.infile );
 	
 	// Preprocessing meteorological data
-	tPreProcess PreProcessor( &SimCtrl, InputFile );
+	tPreProcess PreProcessor( InputFile );
 	
 	// Timer, checks environmental variables 
 	tRunTimer Timer( InputFile );
@@ -170,7 +170,7 @@ int parallelSimulation(int argc, char **argv)
 	tInputFile InputFile( SimCtrl.infile );
         
 	// Preprocessing meteorological data
-	tPreProcess PreProcessor( &SimCtrl, InputFile );
+	tPreProcess PreProcessor( InputFile );
 
 	// Timer, checks environmental variables 
 	tRunTimer Timer( InputFile );

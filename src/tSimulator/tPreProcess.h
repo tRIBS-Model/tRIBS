@@ -36,14 +36,12 @@ class tPreProcess
 {
  public:
   tPreProcess();
-  tPreProcess(SimulationControl*, tInputFile &);
+  tPreProcess(tInputFile &);
   ~tPreProcess();
-  
-  SimulationControl *simCtrl;
 
   void CheckInputFile(tInputFile &);
-  void CheckFileExists(tInputFile &, char *, const char*);
-  void CheckPathNameCorrect(tInputFile &, char*, const char*);
+  void CheckFileExists(char *, const char*);
+  void CheckPathNameCorrect(char*, const char*);
 
   int    IterReadItem(tInputFile &,    int, const char *);
   void   IterReadItem(tInputFile &, char *, const char *);

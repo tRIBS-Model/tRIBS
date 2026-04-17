@@ -52,7 +52,6 @@ class SimulationControl {
   bool inter_results;     // Write intermediate results Y or N,
   bool GW_model_label;    // Run groundwater model Y or N
   char Verbose_label;     // Verbose screen output Y or N
-  char Check_label;       // Checking input file Y or N
   char *infile;           // Name of input file containing data
   char disp_time;
     // *Do NOT display it in help menu: confusing
