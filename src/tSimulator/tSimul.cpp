@@ -471,9 +471,7 @@ void Simulator::SubSurfaceHydroProcesses(tHydroModel *Moisture)
 **
 *****************************************************************************/
 void Simulator::OutputSimulatedVars(tKinemat *Flow)
-{ 
-	int forenum;
-
+{
 	// If it's necessary -> Output PixelInfo
 	if ( ! (fmod(timer->getCurrentTime(), timer->getEtIStep())) ) {
 		if ( outp->nodeList )
@@ -483,14 +481,6 @@ void Simulator::OutputSimulatedVars(tKinemat *Flow)
 	// Write streamflow for interior outlets
 	// TODO: Need to change this later to get an average flow, i.e., 1-hr step
 	outp->WriteOutletInfo( timer->getCurrentTime() );
-	
-	// If it's time -> Output Hydrograph  
-	if ( timer->CheckOutputTime() ) {
-		if (simCtrl->fore_rain_label == 'N')
-			forenum=0;
-		else 
-			forenum=1;
-	}
 	
 	// Write spatial output
 	if ( timer->CheckSpatialOutputTime() ) {
