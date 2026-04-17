@@ -119,21 +119,7 @@ void tPreProcess::CheckInputFile(tInputFile &infile)
 	//IterReadItem(infile, tempVariable,"OPTRUNON");
 
 	// SKY2008Snow from AJR2007
-	double optsnow = IterReadItem(infile, tempVariable,"OPTSNOW");
-	if (optsnow == 1) {
-		// Check if the keyword exists before trying to read it
-		if (infile.IsItemIn("SNOWFILENAME")) {
-			IterReadItem(infile, tempString, "SNOWFILENAME");
-			CheckFileExists(tempString, "SNOWFILENAME");
-		} else {
-			// If it's not there, we don't crash. 
-			// We just print a warning that defaults will be used.
-			cout << "\n-----------------------------------------------------------------" << endl;
-			cout << " WARNING: 'SNOWFILENAME' not specified in the .in file." << endl;
-			cout << " tRIBS will use the default hardcoded snow parameters." << endl;
-			cout << "-----------------------------------------------------------------\n" << endl;
-		}
-	}
+	IterReadItem(infile, tempVariable,"OPTSNOW");
 	IterReadItem(infile, tempVariable,"OPTRADSHELT");
 
 
@@ -210,7 +196,7 @@ void tPreProcess::CheckInputFile(tInputFile &infile)
 	optradshelt  = IterReadItem(infile, optradshelt ,"OPTRADSHELT");
 	if (optradshelt){
 		IterReadItem(infile,tempString,"DEMFILE");
-		CheckFileExists(infile,tempString,"DEMFILE");
+		CheckFileExists(tempString,"DEMFILE");
 	}
 
 	if (optrain == 1) {                //Rainfall data
