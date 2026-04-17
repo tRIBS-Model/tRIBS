@@ -111,7 +111,6 @@ class tKinemat : public tFlowNet
   void RunHydrologicRouting();
   void SurfaceFlow();
   void setTravelVelocityKin(double, double);
-  void UpdateForNewRun(tInputFile &, int);
   void AssignChannelWidths(tInputFile &);
 
   double fmin(double *, int);

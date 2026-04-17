@@ -69,7 +69,6 @@ class Simulator
   int searchRain;                 // Search threshold (hours)
 
 
-  int  check_mod_status();
   int  checkForecast();
 
   void get_next_mrain(int);
@@ -81,8 +80,6 @@ class Simulator
   void simulation_loop(tHydroModel*, tKinemat*, tEvapoTrans*, 
 		       tIntercept*, tWaterBalance*, tSnowPack*, // SKY2008Snow from AJR2007
 		       tInputFile&); // SKY2008Snow
-  void RunItAgain(tInputFile&, tHydroModel*, tKinemat*, 
-		  tEvapoTrans*, tIntercept*, tWaterBalance*, tPreProcess*,  tSnowPack*); // SKY2008Snow from AJR2007
   void PrintRunTimeVars(tHydroModel *, int);
   void UpdatePrecipitationInput();
   void SurfaceHydroProcesses(tEvapoTrans *, tIntercept *, tSnowPack *); // SKY2008Snow from AJR2007
