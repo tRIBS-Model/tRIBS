@@ -20,6 +20,7 @@ v6.0.0 is a major release focused on simplifying the user experience and streaml
 * **Snow Fluxes:** Removed the vegetation fraction scaling on sublimation and evaporation from the ground snowpack. ([#107](https://github.com/tRIBS-Model/tRIBS/pull/107))
 * **tIntercept Memory Leak:** Resolved a crash occurring at simulation termination due to improper deallocation of grid filenames when interception was disabled. ([#102](https://github.com/tRIBS-Model/tRIBS/pull/102))
 * **Sub-hourly Precipitation:** Resolved a bug when using sub-hourly precipitation inputs with the snow module turned on caused by the snow module using the wrong timestep. ([#111](https://github.com/tRIBS-Model/tRIBS/pull/111))
+* **Channel Transmission Losses:** Refactored and fixed multiple bugs related to the channel transmission losses. Previous versions capped transmission losses to the available volume of lateral fluxes into the stream node at each timestep. ([#112](https://github.com/tRIBS-Model/tRIBS/pull/112))
 
 ### Changed & Refactored
 * **Input Simplification:** Streamlined the `.in` file by removing legacy or unused options including:
@@ -40,6 +41,7 @@ v6.0.0 is a major release focused on simplifying the user experience and streaml
 * Removed legacy code related to changes in Input Changes listed above.
 * Removed unused platform-specific `#ifdef` blocks in headers. ([#107](https://github.com/tRIBS-Model/tRIBS/pull/107))
 * Removed legacy debug printing in `tTriangulator`. ([#107](https://github.com/tRIBS-Model/tRIBS/pull/107))
+* Removed legacy command-line flags that were either never used or obsolete. (([#113](https://github.com/tRIBS-Model/tRIBS/pull/113))
 
 ---
 
