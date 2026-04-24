@@ -186,62 +186,78 @@ void tSnowPack::SetSnowVariables(tInputFile &infile) {
     // If user defined snow parameter file in input then use that
     if (infile.IsItemIn("SNOWFILENAME")) {
 
-        infile.ReadItem(snowParamFile, "SNOWFILENAME"); // the existense of this file has already been check in tPreProcess.cpp
-        // Create a new tInputFile object specifically for the snow parameters
-        tInputFile snowIn(snowParamFile); 
+        infile.ReadItem(snowParamFile, "SNOWFILENAME");
 
-        // Read the parameters using keywords defined in file.
-        // Density
-        rhoSnFreshkg = snowIn.ReadItem(rhoSnFreshkg, "FRESH_SNOW_DENSITY");
+        ifstream testFile(snowParamFile);
+        if (!testFile) {
+            cout << "\n-----------------------------------------------------------------" << endl;
+            cout << " WARNING: Snow parameter file '" << snowParamFile << "' not found." << endl;
+            cout << " tRIBS will use the default hardcoded snow parameters." << endl;
+            cout << "-----------------------------------------------------------------\n" << endl;
+        } else {
+            testFile.close();
 
-        // General
-        snliqfrac = snowIn.ReadItem(snliqfrac,  "IRREDUCIBLE_SAT"); 
-        kSatRef   = snowIn.ReadItem(kSatRef,    "K_SAT_REF");
-        minSnTemp = snowIn.ReadItem(minSnTemp,  "MIN_SNOW_TEMP");
-        canopyWindAtten = snowIn.ReadItem(canopyWindAtten, "CANOPY_WIND_ATTENUATION");
-        snRoughness = snowIn.ReadItem(snRoughness, "ROUGHNESS_LENGTH");
+            // Create a new tInputFile object specifically for the snow parameters
+            tInputFile snowIn(snowParamFile);
 
-        // Albedo
-        snInitialAlbedo = snowIn.ReadItem(snInitialAlbedo, "ALBEDO_FRESH");
-        snLambdaDry     = snowIn.ReadItem(snLambdaDry,     "ALBEDO_DECAY_DRY");
-        snLambdaWet     = snowIn.ReadItem(snLambdaWet,     "ALBEDO_DECAY_WET");
-        snMinAlbedo     = snowIn.ReadItem(snMinAlbedo,     "ALBEDO_MIN");
-        albResetThresh  = snowIn.ReadItem(albResetThresh,  "ALBEDO_RESET_THRESHOLD");
+            // Read the parameters using keywords defined in file.
+            // Density
+            rhoSnFreshkg = snowIn.ReadItem(rhoSnFreshkg, "FRESH_SNOW_DENSITY");
 
-        // Precipitation Partitioning
-        optPartition = snowIn.ReadItem(optPartition, "OPTPRECPARTITION");
-        if (optPartition == 0) { // Wet-bulb method
-            // Check input actually exists
-            if (!snowIn.IsItemIn("MAX_WETBULB_TEMP")) {
-                cout << "\nERROR: You selected Precipitation Partition Option 0 (Wet Bulb)," << endl;
-                cout << "       but the parameter 'MAX_WETBULB_TEMP' is missing from the file." << endl;
+            // General
+            snliqfrac = snowIn.ReadItem(snliqfrac,  "IRREDUCIBLE_SAT"); 
+            kSatRef   = snowIn.ReadItem(kSatRef,    "K_SAT_REF");
+            minSnTemp = snowIn.ReadItem(minSnTemp,  "MIN_SNOW_TEMP");
+            canopyWindAtten = snowIn.ReadItem(canopyWindAtten, "CANOPY_WIND_ATTENUATION");
+            snRoughness = snowIn.ReadItem(snRoughness, "ROUGHNESS_LENGTH");
+
+            // Albedo
+            snInitialAlbedo = snowIn.ReadItem(snInitialAlbedo, "ALBEDO_FRESH");
+            snLambdaDry     = snowIn.ReadItem(snLambdaDry,     "ALBEDO_DECAY_DRY");
+            snLambdaWet     = snowIn.ReadItem(snLambdaWet,     "ALBEDO_DECAY_WET");
+            snMinAlbedo     = snowIn.ReadItem(snMinAlbedo,     "ALBEDO_MIN");
+            albResetThresh  = snowIn.ReadItem(albResetThresh,  "ALBEDO_RESET_THRESHOLD");
+
+            // Precipitation Partitioning
+            optPartition = snowIn.ReadItem(optPartition, "OPTPRECPARTITION");
+            if (optPartition == 0) { // Wet-bulb method
+                // Check input actually exists
+                if (!snowIn.IsItemIn("MAX_WETBULB_TEMP")) {
+                    cout << "\nERROR: You selected Precipitation Partition Option 0 (Wet Bulb)," << endl;
+                    cout << "       but the parameter 'MAX_WETBULB_TEMP' is missing from the file." << endl;
+                    exit(1);
+                }
+
+                maxTempWB = snowIn.ReadItem(maxTempWB, "MAX_WETBULB_TEMP");
+            } else if (optPartition == 1) { // Linear transition method
+                // Check input actually exists
+                if (!snowIn.IsItemIn("MIN_TEMP_RAIN")) {
+                    cout << "\nERROR: You selected Precipitation Partition Option 1 (Linear Transition)," << endl;
+                    cout << "       but the parameter 'MIN_TEMP_RAIN' is missing from the file." << endl;
+                    exit(1);
+                } else if (!snowIn.IsItemIn("MAX_TEMP_SNOW")) {
+                    cout << "\nERROR: You selected Precipitation Partition Option 1 (Linear Transition)," << endl;
+                    cout << "       but the parameter 'MAX_TEMP_SNOW' is missing from the file." << endl;
+                    exit(1);
+                }
+
+                minTempRain = snowIn.ReadItem(minTempRain, "MIN_TEMP_RAIN");
+                maxTempSnow = snowIn.ReadItem(maxTempSnow, "MAX_TEMP_SNOW");
+            } else { // Invalid option
+                cout << "\nPrecipitation Partition Option " << optPartition;
+                cout << " not valid." << endl;
+                cout << "\tPlease use :" << endl;
+                cout << "\t\t(0) for Wet Bulb Threshold" << endl;
+                cout << "\t\t(1) for Linear Transition" << endl;
+                cout << "\nExiting Program..." << endl << endl;
                 exit(1);
             }
-
-            maxTempWB = snowIn.ReadItem(maxTempWB, "MAX_WETBULB_TEMP");
-        } else if (optPartition == 1) { // Linear transition method
-            // Check input actually exists
-            if (!snowIn.IsItemIn("MIN_TEMP_RAIN")) {
-                cout << "\nERROR: You selected Precipitation Partition Option 1 (Linear Transition)," << endl;
-                cout << "       but the parameter 'MIN_TEMP_RAIN' is missing from the file." << endl;
-                exit(1);
-            } else if (!snowIn.IsItemIn("MAX_TEMP_SNOW")) {
-                cout << "\nERROR: You selected Precipitation Partition Option 1 (Linear Transition)," << endl;
-                cout << "       but the parameter 'MAX_TEMP_SNOW' is missing from the file." << endl;
-                exit(1);
-            }
-
-            minTempRain = snowIn.ReadItem(minTempRain, "MIN_TEMP_RAIN");
-            maxTempSnow = snowIn.ReadItem(maxTempSnow, "MAX_TEMP_SNOW");
-        } else { // Invalid option
-            cout << "\nPrecipitation Partition Option " << optPartition;
-            cout << " not valid." << endl;
-            cout << "\tPlease use :" << endl;
-            cout << "\t\t(0) for Wet Bulb Threshold" << endl;
-            cout << "\t\t(1) for Linear Transition" << endl;
-            cout << "\nExiting Program..." << endl << endl;
-            exit(1);
-        }
+        } // end file exists
+    } else {
+        cout << "\n-----------------------------------------------------------------" << endl;
+        cout << " WARNING: 'SNOWFILENAME' not specified in the input file." << endl;
+        cout << " tRIBS will use the default hardcoded snow parameters." << endl;
+        cout << "-----------------------------------------------------------------\n" << endl;
     }
 
     // Initialize the density state variable to the parameter value

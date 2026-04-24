@@ -29,13 +29,8 @@ tPreProcess::tPreProcess()
 
 }
 
-tPreProcess::tPreProcess(SimulationControl *simCtrPtr, tInputFile &infile) {
-	
-simCtrl = simCtrPtr;
-	
-	if (simCtrl->Check_label == 'Y') {
-		CheckInputFile(infile);
-	}
+tPreProcess::tPreProcess(tInputFile &infile) {
+	CheckInputFile(infile);
 }
 
 tPreProcess::~tPreProcess() 
@@ -124,21 +119,7 @@ void tPreProcess::CheckInputFile(tInputFile &infile)
 	//IterReadItem(infile, tempVariable,"OPTRUNON");
 
 	// SKY2008Snow from AJR2007
-	double optsnow = IterReadItem(infile, tempVariable,"OPTSNOW");
-	if (optsnow == 1) {
-		// Check if the keyword exists before trying to read it
-		if (infile.IsItemIn("SNOWFILENAME")) {
-			IterReadItem(infile, tempString, "SNOWFILENAME");
-			CheckFileExists(infile, tempString, "SNOWFILENAME");
-		} else {
-			// If it's not there, we don't crash. 
-			// We just print a warning that defaults will be used.
-			cout << "\n-----------------------------------------------------------------" << endl;
-			cout << " WARNING: 'SNOWFILENAME' not specified in the .in file." << endl;
-			cout << " tRIBS will use the default hardcoded snow parameters." << endl;
-			cout << "-----------------------------------------------------------------\n" << endl;
-		}
-	}
+	IterReadItem(infile, tempVariable,"OPTSNOW");
 	IterReadItem(infile, tempVariable,"OPTRADSHELT");
 
 
@@ -172,7 +153,7 @@ void tPreProcess::CheckInputFile(tInputFile &infile)
 	}
 	else if (optmesh == 2) {
 		IterReadItem   (infile, tempString,"POINTFILENAME");
-		CheckFileExists(infile, tempString,"POINTFILENAME");
+		CheckFileExists(tempString,"POINTFILENAME");
 	}
 	else if (optmesh == 3) {
 		IterReadItem(infile, tempString,"ARCINFOFILENAME");
@@ -181,41 +162,41 @@ void tPreProcess::CheckInputFile(tInputFile &infile)
 	/****************** Start of modifications by JECR 2015 *********************/
 	if (optres == 1) {	
 		IterReadItem   (infile, tempString,"RESPOLYGONID");	//Reservoir polygon ID
-		CheckFileExists(infile, tempString,"RESPOLYGONID");
+		CheckFileExists(tempString,"RESPOLYGONID");
 
 		IterReadItem   (infile, tempString,"RESDATA");    //Reservoir parameters
-		CheckFileExists(infile, tempString,"RESDATA");
+		CheckFileExists(tempString,"RESDATA");
 	}
 
 	if (optsoil == 1) {	 //JorgeGiuseppe2015
 		IterReadItem   (infile, tempString,"SCGRID");    //File with soil grid paths
-		CheckFileExists(infile, tempString,"SCGRID");	
+		CheckFileExists(tempString,"SCGRID");	
 	}
 	
 	/******************** End of modifications by JECR 2015 *********************/ 
 
 	IterReadItem   (infile, tempString,"SOILTABLENAME");    //Watershed grids
-	CheckFileExists(infile, tempString,"SOILTABLENAME"); 
+	CheckFileExists(tempString,"SOILTABLENAME"); 
 	
 	IterReadItem   (infile, tempString,"SOILMAPNAME");
-	CheckFileExists(infile, tempString,"SOILMAPNAME");
+	CheckFileExists(tempString,"SOILMAPNAME");
 	
 	IterReadItem   (infile, tempString,"LANDTABLENAME");
-	CheckFileExists(infile, tempString,"LANDTABLENAME");
+	CheckFileExists(tempString,"LANDTABLENAME");
 	
 	IterReadItem   (infile, tempString,"LANDMAPNAME");
-	CheckFileExists(infile, tempString,"LANDMAPNAME");
+	CheckFileExists(tempString,"LANDMAPNAME");
 	
 	if (!optgw) {
 		IterReadItem   (infile, tempString,"GWATERFILE");   //Groundwater: input as grid
-		CheckFileExists(infile, tempString,"GWATERFILE");
+		CheckFileExists(tempString,"GWATERFILE");
 	}
 
 	// SKY2008Snow from AJR2007
 	optradshelt  = IterReadItem(infile, optradshelt ,"OPTRADSHELT");
 	if (optradshelt){
 		IterReadItem(infile,tempString,"DEMFILE");
-		CheckFileExists(infile,tempString,"DEMFILE");
+		CheckFileExists(tempString,"DEMFILE");
 	}
 
 	if (optrain == 1) {                //Rainfall data
@@ -225,7 +206,7 @@ void tPreProcess::CheckInputFile(tInputFile &infile)
 	}
 	else if (optrain == 2) {
 		IterReadItem   (infile, tempString,"GAUGESTATIONS");
-		CheckFileExists(infile, tempString,"GAUGESTATIONS");
+		CheckFileExists(tempString,"GAUGESTATIONS");
 		IterReadItem   (infile, tempVariable,"RAINDISTRIBUTION");
 	}
 	
@@ -234,22 +215,22 @@ void tPreProcess::CheckInputFile(tInputFile &infile)
 	}
 	else if (optrock == 1) {
 		IterReadItem   (infile, tempString,"BEDROCKFILE");
-		CheckFileExists(infile, tempString,"BEDROCKFILE");
+		CheckFileExists(tempString,"BEDROCKFILE");
 	}
 	
 	if (optmet == 1) {                                          //Meteorological data
 		IterReadItem   (infile, tempString,"HYDROMETSTATIONS");
-		CheckFileExists(infile, tempString,"HYDROMETSTATIONS");
+		CheckFileExists(tempString,"HYDROMETSTATIONS");
 	}
 	else if (optmet == 2) {
 		IterReadItem   (infile, tempString,"HYDROMETGRID");
-		CheckFileExists(infile, tempString,"HYDROMETGRID");
+		CheckFileExists(tempString,"HYDROMETGRID");
 	}
 
 	// SKYnGM2008LU: added by AJR 2007
 	if (optlu == 1) {
 		IterReadItem( infile, tempString,"LUGRID");
-		CheckFileExists(infile, tempString, "LUGRID");
+		CheckFileExists(tempString, "LUGRID");
 	}
 
 	// SKY2008Snow from AJR2007
@@ -261,12 +242,12 @@ void tPreProcess::CheckInputFile(tInputFile &infile)
 
 	IterReadItem(infile, tempString,"OUTFILENAME");        //Output
 #ifndef PARALLEL_TRIBS
-	CheckPathNameCorrect(infile, tempString, "OUTFILENAME");
+	CheckPathNameCorrect(tempString, "OUTFILENAME");
 #endif
 	
 	IterReadItem(infile, tempString,"OUTHYDROFILENAME");
 #ifndef PARALLEL_TRIBS
-	CheckPathNameCorrect(infile, tempString, "OUTHYDROFILENAME");
+	CheckPathNameCorrect(tempString, "OUTHYDROFILENAME");
 #endif
 	
 	IterReadItem(infile, tempString,"NODEOUTPUTLIST");
@@ -315,26 +296,12 @@ void tPreProcess::CheckInputFile(tInputFile &infile)
 ** or structure, just the presence. 
 **
 ***************************************************************************/
-void tPreProcess::CheckFileExists(tInputFile &infile,
-								  char* filename, const char* keyword) 
+void tPreProcess::CheckFileExists(char* filename, const char* keyword)
 {
-	char strg[kName];
-	char tempString[kName];
-	int InpStatus = 0;
-	
-	while ( !InpStatus ) {
-		ifstream readFile(filename);
-		if (!readFile) {
-			cout<<"\nFile "<<filename<<" for parameter "<<keyword<<" not found..."<<endl;
-			cout<<"\nCorrect the .in file and type 'y'"
-				<<"\n\n>>";
-			cin>>strg;
-			infile.CloseOldAndOpenNew(infile.GetInFileName());
-			IterReadItem(infile, tempString, keyword);
-			strcpy(filename, tempString);
-		}
-		else
-			InpStatus = 1;
+	ifstream readFile(filename);
+	if (!readFile) {
+		cerr<<"\nFile '"<<filename<<"' for parameter '"<<keyword<<"' not found. Exiting."<<endl;
+		exit(1);
 	}
 	return;
 }
@@ -346,41 +313,19 @@ void tPreProcess::CheckFileExists(tInputFile &infile,
 ** Function to check the validity if referenced pathname 
 **
 ***************************************************************************/
-void tPreProcess::CheckPathNameCorrect(tInputFile &infile, char* filename,
-									   const char* keyword)
+void tPreProcess::CheckPathNameCorrect(char* filename, const char* keyword)
 {
-	char strg[kName];
 	char bname[kName];
-	char tempString[kName];
-	char lsl[] = "ls -l |";
-	char cat[] = "cat";
-	char rm[]  = "rm";
-	char larger[] = ">";
 	char zero[] = "0";
-	
-	int InpStatus = 0;
-	
-	while ( !InpStatus ) {   
-		// temporary file output 
-		snprintf(bname, sizeof(bname), "%s%s", filename, zero);
-		
-		ofstream readFile(bname);
-		
-		if (!readFile) {
-			cout<<"\nPathname '"<<filename<<"' for parameter '"<<keyword<<"' is incorrect"<<endl;
-			cerr<<"\nCorrect the .in file and type 'y'"
-				<<"\n\n>>";
-			cin>>strg;
-			infile.CloseOldAndOpenNew(infile.GetInFileName());
-			IterReadItem(infile,tempString,keyword);
-			strcpy(filename, tempString);
-		} 
-		else {
-			InpStatus = 1;
-			remove(bname);
-			
-		}
+	snprintf(bname, sizeof(bname), "%s%s", filename, zero);
+
+	ofstream testFile(bname);
+	if (!testFile) {
+		cerr<<"\nOutput path '"<<filename<<"' for parameter '"<<keyword<<"' is not writable. Exiting."<<endl;
+		exit(1);
 	}
+	testFile.close();
+	remove(bname);
 	return;
 }
 
@@ -392,25 +337,14 @@ void tPreProcess::CheckPathNameCorrect(tInputFile &infile, char* filename,
 ** No checking performed of file validity or structure, just the presence
 **
 ***************************************************************************/
-double tPreProcess::IterReadItem(tInputFile &infile, double datType, 
-								 const char *itemCode) 
+double tPreProcess::IterReadItem(tInputFile &infile, double datType,
+								 const char *itemCode)
 {
-	char strg[kName];
-	int InpStatus = 0;
-	
-	while ( !InpStatus ) {
-		datType = infile.ReadItem(datType, itemCode);
-		Cout<<"Parameter =   "<<itemCode<<"\t\t\t"<<datType<<endl;
-		
-		if (datType < -999000.) {
-			cerr<<"\nThe input parameter is either not specified"
-				<<"\nor wrong. Correct the .in file and type 'y'"
-				<<"\n\n>>";
-			cin>>strg;
-			infile.CloseOldAndOpenNew(infile.GetInFileName());
-		}
-		else
-			InpStatus = 1;
+	datType = infile.ReadItem(datType, itemCode);
+	Cout<<"Parameter =   "<<itemCode<<"\t\t\t"<<datType<<endl;
+	if (datType < -999000.) {
+		cerr<<"\nRequired parameter '"<<itemCode<<"' is missing or invalid in the input file. Exiting."<<endl;
+		exit(1);
 	}
 	return datType;
 }
@@ -423,25 +357,14 @@ double tPreProcess::IterReadItem(tInputFile &infile, double datType,
 ** No checking performed of file validity or structure, just the presence
 **
 ***************************************************************************/
-int tPreProcess::IterReadItem(tInputFile &infile, int datType, 
-							  const char *itemCode) 
+int tPreProcess::IterReadItem(tInputFile &infile, int datType,
+							  const char *itemCode)
 {
-	char strg[kName];
-	int InpStatus = 0;
-	
-	while ( !InpStatus ) {
-		datType = infile.ReadItem(datType, itemCode);
-		Cout<<"Parameter =   "<<itemCode<<"\t\t\t"<<datType<<endl;
-		
-		if (datType == -9999) {
-			cout<<"\nThe input parameter is either not specified"
-				<<"\n\tor wrong. Correct the .in file and type 'y'"
-				<<"\n\n>>";
-			cin>>strg;
-			infile.CloseOldAndOpenNew(infile.GetInFileName());
-		}
-		else
-			InpStatus = 1;
+	datType = infile.ReadItem(datType, itemCode);
+	Cout<<"Parameter =   "<<itemCode<<"\t\t\t"<<datType<<endl;
+	if (datType == -9999) {
+		cerr<<"\nRequired parameter '"<<itemCode<<"' is missing or invalid in the input file. Exiting."<<endl;
+		exit(1);
 	}
 	return datType;
 }
@@ -454,26 +377,15 @@ int tPreProcess::IterReadItem(tInputFile &infile, int datType,
 ** No checking performed of file validity or structure, just the presence
 **
 ***************************************************************************/
-void tPreProcess::IterReadItem(tInputFile &infile, char * theString, 
-							   const char *itemCode) 
+void tPreProcess::IterReadItem(tInputFile &infile, char * theString,
+							   const char *itemCode)
 {
-	char strg[kName];
 	char errr[] = "-999";
-	int InpStatus = 0;
-	
-	while ( !InpStatus ) {
-		infile.ReadItem(theString, itemCode);
-		Cout<<"Parameter =   "<<itemCode<<"\t\t\t"<<theString<<endl;
-		
-		if (!strcmp(theString, errr)) {
-			cout<<"\nThe input parameter is either not specified"
-				<<"\nor wrong. Correct the .in file and type 'y'"
-				<<"\n\n>>";
-			cin>>strg;
-			infile.CloseOldAndOpenNew(infile.GetInFileName());
-		}
-		else
-			InpStatus = 1;
+	infile.ReadItem(theString, itemCode);
+	Cout<<"Parameter =   "<<itemCode<<"\t\t\t"<<theString<<endl;
+	if (!strcmp(theString, errr)) {
+		cerr<<"\nRequired parameter '"<<itemCode<<"' is missing or invalid in the input file. Exiting."<<endl;
+		exit(1);
 	}
 	return;
 }

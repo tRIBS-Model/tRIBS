@@ -116,7 +116,6 @@ public:
   void WritePixelInfo(double);
   void WriteNodeData(double);
   void WriteNodeData(double, tResample*); 
-  void UpdateForNewRun(tInputFile &); 
 
   void WriteOutletInfo(double);
   void ReadOutletNodeList(char *);

@@ -71,7 +71,7 @@ int serialSimulation( int argc, char **argv )
 	tInputFile InputFile( SimCtrl.infile );
 	
 	// Preprocessing meteorological data
-	tPreProcess PreProcessor( &SimCtrl, InputFile );
+	tPreProcess PreProcessor( InputFile );
 	
 	// Timer, checks environmental variables 
 	tRunTimer Timer( InputFile );
@@ -143,15 +143,10 @@ int serialSimulation( int argc, char **argv )
 							  &Intercept, &Balance, &SnowPack, // SKY2008Snow from AJR2007
 							  InputFile); // SKY2008Snow
 	Simulant.end_simulation( &Flow );
-	
-	while ( Simulant.check_mod_status() )
-		Simulant.RunItAgain(InputFile, &Moisture, &Flow, &EvapoTrans,
-							&Intercept, &Balance, &PreProcessor, &SnowPack); // SKY2008Snow from AJR2007
-	
 
 	Cout<<"\n\nPart 9: Deleting Objects and Exiting Program"<<endl;
 	Cout<<"------------------------------------------------"<<endl<<endl;
-	return 0; // 04/07/2020 Added this to eliminate warning Clizarraga 
+	return 0; // 04/07/2020 Added this to eliminate warning Clizarraga
 }
 
 //=========================================================================
@@ -175,7 +170,7 @@ int parallelSimulation(int argc, char **argv)
 	tInputFile InputFile( SimCtrl.infile );
         
 	// Preprocessing meteorological data
-	tPreProcess PreProcessor( &SimCtrl, InputFile );
+	tPreProcess PreProcessor( InputFile );
 
 	// Timer, checks environmental variables 
 	tRunTimer Timer( InputFile );
@@ -266,10 +261,6 @@ int parallelSimulation(int argc, char **argv)
                               &Intercept, &Balance, &SnowPack, // SKY2008Snow from AJR2007
                               InputFile); // SKY2008Snow
 		Simulant.end_simulation( &Flow );
-
-		while ( Simulant.check_mod_status() )
-			Simulant.RunItAgain(InputFile, &Moisture, &Flow, &EvapoTrans,
-                            &Intercept, &Balance, &PreProcessor, &SnowPack); // SKY2008Snow from AJR2007
 	}
 
 	// Otherwise all nodes and edges will be read into tMesh so that mesh
@@ -345,10 +336,6 @@ int parallelSimulation(int argc, char **argv)
                               &Intercept, &Balance, &SnowPack, // SKY2008Snow from AJR2007
                               InputFile); // SKY2008Snow  
 		Simulant.end_simulation( &Flow );
-
-		while ( Simulant.check_mod_status() )
-			Simulant.RunItAgain(InputFile, &Moisture, &Flow, &EvapoTrans,
-                          &Intercept, &Balance, &PreProcessor, &SnowPack); // SKY2008Snow from AJR2007
 	}
 
 	Cout<<"\n\nPart 9: Deleting Objects and Exiting Program"<<endl;

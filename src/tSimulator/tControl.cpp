@@ -43,19 +43,13 @@ SimulationControl::SimulationControl(int argc, char **argv)
 	Cout <<"\n\ntRIBS Version "<< VERSION <<endl<<endl;
 	
 	static char usage[]=
-		"Usage : %s [-A] [-V NodeID] [-O] [-K] [-W] [-F] [-T]\n";
+		"Usage : %s [-A] [-V NodeID] [-T]\n";
 
 	
 	mode = STD_INPUT;       //Default: If file doesn't exist, assume zero rainfall
-	fore_rain_label  = 'N';
 	Verbose_label    = 'N';
-	Check_label      = 'Y';    //Default is yes
-	mod_is_on        = 'N';    //Single run is default
-	hydro_visual     = 'N';
-	smooth_weather   = 'N';
     debug            = 'N';
     disp_time = 'N';
-	num_simul = 0;
 	VerbID = -999;
 	
 #ifdef PARALLEL_TRIBS
@@ -67,11 +61,7 @@ SimulationControl::SimulationControl(int argc, char **argv)
 		Cout<<"\n\nUsage: " << argv[0] <<" <input file>  [options]"<<endl<<endl;
 		Cout<<"Options: "<<endl;
 		Cout<<"\t-A    Automatic listing of rainfall files (zero if missing)"<<endl;
-		Cout<<"\t-F    Measured and forecasted rainfall"<<endl;
-		Cout<<"\t-O    On after simulation completion, awaiting user's input"<<endl;
-		Cout<<"\t-K    Check output"<<endl;
-		Cout<<"\t-V [NodeID] Verbose mode (output run-time information)"<<endl;
-        Cout<<"\t-M  Do NOT Write headers in pixel/hydrograph/voronoi output files"<<endl<<endl;
+		Cout<<"\t-V [NodeID] Verbose mode (output run-time information)"<<endl<<endl;
 		Cout<<"Provide name of an input file. Exiting program...\n"<<endl;
 		exit(1);
 	}
@@ -110,36 +100,9 @@ SimulationControl::SimulationControl(int argc, char **argv)
 				mode=AUTO_INPUT;      // if file does not exist -> assumes '0'-s!
 				break; 
 			}
-			case 'F': 		//Measured and forecasted rainfall
-			{ 
-				fore_rain_label = 'Y';
-				inter_results = true;
-
-				break;
-			}
 			case 'V':                 //Verbose Output
 			{
 				Verbose_label = 'Y';
-				break;
-			}
-			case 'K':                 //Check Output
-			{
-				Check_label = 'N';
-				break;
-			}
-			case 'O':                 //On, awaiting user input
-			{ 
-				mod_is_on = 'Y';
-				break;
-			}
-			case 'W':                 //Hydrograph visualization (SGI only)
-			{
-				hydro_visual = 'Y';
-				break;
-			}
-			case 'U':                 //Special option: no randomness in climate 
-			{
-				smooth_weather = 'Y';
 				break;
 			}
             case 'T':                        //For tGraph debugging output
