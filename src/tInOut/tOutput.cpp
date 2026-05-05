@@ -1350,25 +1350,25 @@ void tCOutput<tSubNode>::WriteIntegrVars( double time )
 	cn = ni.FirstP();
 	while (ni.IsActive()) {
 		
-		intofs<<cn->getID()<<','// 1
-        <<cn->getBoundaryFlag()<<',' // 2
-		<<setprecision(4)<<cn->getZ()<<',' // 3
-		<<setprecision(7)<<cn->getVArea()<<',' // 4
-		<<setprecision(7)<<cn->getContrArea()*1.E-6<<',' //5
-		<<setprecision(6)<<cn->getCurvature()<<',' //6
-		<<cn->getFlowEdg()->getLength()<<',' //7
-		<<cn->getFlowEdg()->getSlope()<<',' // 8
-		<<cn->getFlowEdg()->getVEdgLen()<<',' //9
-		<<setprecision(4)<<cn->getAspect()<<',' // 10
-		<<setprecision(7)<<cn->getSheltFact()<<',' // 11
-		<<cn->getLandFact()<<','<<setprecision(4); // 12
+		intofs<<cn->getID()<<','                              //1
+        <<cn->getBoundaryFlag()<<','                          //2
+		<<setprecision(4)<<cn->getZ()<<','                    //3
+		<<setprecision(7)<<cn->getVArea()<<','                //4
+		<<setprecision(7)<<cn->getContrArea()*1.E-6<<','      //5
+		<<setprecision(6)<<cn->getCurvature()<<','            //6
+		<<cn->getFlowEdg()->getLength()<<','                  //7
+		<<cn->getFlowEdg()->getSlope()<<','                   //8
+		<<cn->getFlowEdg()->getVEdgLen()<<','                 //9
+		<<setprecision(4)<<cn->getAspect()<<','               //10
+		<<setprecision(7)<<cn->getSheltFact()<<','            //11
+		<<cn->getLandFact()<<','<<setprecision(4);            //12
 
 
 
 		tmp1 = floor(cn->getAvSoilMoisture())*1.E-4; 
 		tmp2 = (cn->getAvSoilMoisture()-floor(cn->getAvSoilMoisture()))*1.E+1;
-		intofs<<tmp1<<','<< // 13
-        tmp2<<','; //14
+		intofs<<tmp1<<','<<                                   //13
+        tmp2<<',';                                            //14
 		
 		// -----------  seperate runoff mechanism occurrence and rate
 		Occur = (int)((cn->hsrfOccur-floor(cn->hsrfOccur))*1.E+6);
@@ -1382,8 +1382,8 @@ void tCOutput<tSubNode>::WriteIntegrVars( double time )
 			avRate = 0.0;
 			prec = 0;
 		}
-		intofs<<setprecision(6)<<Occur<< // 15
-        setprecision(prec)<<','<<avRate<<','; //16
+		intofs<<setprecision(6)<<Occur<<                      //15
+        setprecision(prec)<<','<<avRate<<',';                 //16
 		
 		// -----------
 		Occur = (int)((cn->sbsrfOccur-floor(cn->sbsrfOccur))*1.E+6);
@@ -1397,8 +1397,8 @@ void tCOutput<tSubNode>::WriteIntegrVars( double time )
 			avRate = 0.0;
 			prec = 0;
 		}
-		intofs<<setprecision(6)<<Occur<< //17
-        setprecision(prec)<<','<<avRate<<','; // 18
+		intofs<<setprecision(6)<<Occur<<                      //17
+        setprecision(prec)<<','<<avRate<<',';                 //18
 		
 		// -----------
 		Occur = (int)((cn->psrfOccur-floor(cn->psrfOccur))*1.E+6);
@@ -1412,8 +1412,8 @@ void tCOutput<tSubNode>::WriteIntegrVars( double time )
 			avRate = 0.0;
 			prec = 0;
 		}
-		intofs<<setprecision(6)<<Occur<< //19
-        setprecision(prec)<<','<<avRate<<','; //20
+		intofs<<setprecision(6)<<Occur<<                      //19
+        setprecision(prec)<<','<<avRate<<',';                 //20
 		
 		// -----------
 		Occur = (int)((cn->satsrfOccur-floor(cn->satsrfOccur))*1.E+6);
@@ -1427,59 +1427,59 @@ void tCOutput<tSubNode>::WriteIntegrVars( double time )
 			avRate = 0.0;
 			prec = 0;
 		}
-		intofs<<setprecision(6)<<Occur<<',' //21
-			<<setprecision(prec)<<avRate<<',' //22
-			<<setprecision(6)<<cn->satOccur<<',' //23
-			<<setprecision(3)<<cn->RechDisch<<',' //24
-			<<setprecision(4)<<cn->getAvET()<<',' //25
-			<<setprecision(4)<<cn->getAvEvapFract()<<',' //26
-            <<setprecision(4)<<cn->getCumTotEvap() <<',' //27
-            <<setprecision(4)<<cn->getCumBarEvap()<<',' //28
-            <<setprecision(7)<<cn->getCumLHF()<<','//29
-			<<setprecision(7)<<cn->getCumMelt()<<','//30
-			<<setprecision(7)<<cn->getCumSHF()<<','//31
-			<<setprecision(7)<<cn->getCumPHF()<<','//32
-			<<setprecision(7)<<cn->getCumRLin()<<','//33
-			<<setprecision(7)<<cn->getCumRLout()<<','//34
-			<<setprecision(7)<<cn->getCumRSin()<<','//35
-			<<setprecision(7)<<cn->getCumGHF()<<','//36
-			<<setprecision(7)<<cn->getCumUerror()<<','//37
-			<<setprecision(7)<<cn->getCumHrsSun()<<','//38
-			<<setprecision(7)<<cn->getCumHrsSnow()<<','//39
-			<<setprecision(7)<<cn->getPersTimeMax()<<',' //40
-			<<setprecision(7)<<cn->getPeakSWE()<<',' //41
-			<<setprecision(7)<<cn->getInitPackTime()<<',' //42
-			<<setprecision(7)<<cn->getPeakPackTime()<<',' //43
-			<<setprecision(7)<<cn->getCumIntSub()<<','//44
-			<<setprecision(7)<<cn->getCumSnSub()<<','//45
-			<<setprecision(7)<<cn->getCumSnEvap()<<','//46
-			<<setprecision(7)<<cn->getCumIntUnl()<<','//47
-			<<setprecision(7)<<cn->getAvThroughFall()<<',' //48
-			<<setprecision(7)<<cn->getAvCanFieldCap()<<',' //49
-			<<setprecision(7)<<cn->getAvDrainCoeff()<<',' //50
-			<<setprecision(7)<<cn->getAvDrainExpPar()<<',' //51
-			<<setprecision(7)<<cn->getAvLandUseAlb()<<',' //52
-			<<setprecision(7)<<cn->getAvVegHeight()<<','  //53
-			<<setprecision(7)<<cn->getAvOptTransmCoeff()<<',' //54
-			<<setprecision(7)<<cn->getAvStomRes()<<',' // 55
-			<<setprecision(7)<<cn->getAvVegFraction()<<',' //56
-			<<setprecision(7)<<cn->getAvLeafAI()<<',' //57
-			<<setprecision(7)<<cn->getAvEvapThresh()<<',' //58
-			<<setprecision(7)<<cn->getAvTransThresh()<<',' //59
-            <<setprecision(7)<<cn->getBedrockDepth()<<',' //60 bedrock depth mm
-           << setprecision(7) << cn->getKs() << ',' // 61
-           << setprecision(7) << cn->getThetaS() << ',' // 62
-           << setprecision(7) << cn->getThetaR() << ',' // 63
-           << setprecision(7) << cn->getPoreSize() << ',' // 64
-           << setprecision(7) << cn->getAirEBubPres() << ',' // 65
-           << setprecision(7) << cn->getDecayF() << ',' // 66
-           << setprecision(7) << cn->getSatAnRatio() << ',' // 67
-           << setprecision(7) << cn->getUnsatAnRatio() << ',' // 68
-           << setprecision(7) << cn->getPorosity() << ',' // 69
-           << setprecision(7) << cn->getVolHeatCond() << ',' // 70
-           << setprecision(7) << cn->getSoilHeatCap() << ',' // 71
-           << setprecision(7) << cn->getSoilID() << ',' //72
-           << setprecision(7) << cn->getLandUse(); // 73
+		intofs<<setprecision(6)<<Occur<<','                   //21
+           << setprecision(prec)<<avRate<<','                 //22
+           << setprecision(6)<<cn->satOccur<<','              //23
+           << setprecision(3)<<cn->RechDisch<<','             //24
+           << setprecision(4)<<cn->getAvET()<<','             //25
+           << setprecision(4)<<cn->getAvEvapFract()<<','      //26
+           << setprecision(4)<<cn->getCumTotEvap() <<','      //27
+           << setprecision(4)<<cn->getCumBarEvap()<<','       //28
+           << setprecision(7)<<cn->getCumLHF()<<','           //29
+           << setprecision(7)<<cn->getCumMelt()<<','          //30
+           << setprecision(7)<<cn->getCumSHF()<<','           //31
+           << setprecision(7)<<cn->getCumPHF()<<','           //32
+           << setprecision(7)<<cn->getCumRLin()<<','          //33
+           << setprecision(7)<<cn->getCumRLout()<<','         //34
+           << setprecision(7)<<cn->getCumRSin()<<','          //35
+           << setprecision(7)<<cn->getCumGHF()<<','           //36
+           << setprecision(7)<<cn->getCumUerror()<<','        //37
+           << setprecision(7)<<cn->getCumHrsSun()<<','        //38
+           << setprecision(7)<<cn->getCumHrsSnow()<<','       //39
+           << setprecision(7)<<cn->getPersTimeMax()<<','      //40
+           << setprecision(7)<<cn->getPeakSWE()<<','          //41
+           << setprecision(7)<<cn->getInitPackTime()<<','     //42
+           << setprecision(7)<<cn->getPeakPackTime()<<','     //43
+           << setprecision(7)<<cn->getCumIntSub()<<','        //44
+           << setprecision(7)<<cn->getCumSnSub()<<','         //45
+           << setprecision(7)<<cn->getCumSnEvap()<<','        //46
+           << setprecision(7)<<cn->getCumIntUnl()<<','        //47
+           << setprecision(7)<<cn->getAvThroughFall()<<','    //48
+           << setprecision(7)<<cn->getAvCanFieldCap()<<','    //49
+           << setprecision(7)<<cn->getAvDrainCoeff()<<','     //50
+           << setprecision(7)<<cn->getAvDrainExpPar()<<','     //51
+           << setprecision(7)<<cn->getAvLandUseAlb()<<','     //52
+           << setprecision(7)<<cn->getAvVegHeight()<<','       //53
+           << setprecision(7)<<cn->getAvOptTransmCoeff()<<',' //54
+           << setprecision(7)<<cn->getAvStomRes()<<','        //55
+           << setprecision(7)<<cn->getAvVegFraction()<<','    //56
+           << setprecision(7)<<cn->getAvLeafAI()<<','         //57
+           << setprecision(7)<<cn->getAvEvapThresh()<<','     //58
+           << setprecision(7)<<cn->getAvTransThresh()<<','    //59
+           << setprecision(7)<<cn->getBedrockDepth()<<','     //60 bedrock depth mm
+           << setprecision(7) << cn->getKs() << ','           //61
+           << setprecision(7) << cn->getThetaS() << ','       //62
+           << setprecision(7) << cn->getThetaR() << ','       //63
+           << setprecision(7) << cn->getPoreSize() << ','     //64
+           << setprecision(7) << cn->getAirEBubPres() << ','  //65
+           << setprecision(7) << cn->getDecayF() << ','       //66
+           << setprecision(7) << cn->getSatAnRatio() << ','   //67
+           << setprecision(7) << cn->getUnsatAnRatio() << ',' //68
+           << setprecision(7) << cn->getPorosity() << ','     //69
+           << setprecision(7) << cn->getVolHeatCond() << ','  //70
+           << setprecision(7) << cn->getSoilHeatCap() << ','  //71
+           << setprecision(7) << cn->getSoilID() << ','       //72
+           << setprecision(7) << cn->getLandUse();            //73
 
         intofs<<"\n";
 		
@@ -1508,9 +1508,9 @@ void tCOutput<tSubNode>::WriteOutletInfo( double time )
 			if ( Outlets[i] && OutletList[i] < this->g->getNodeList()->getActiveSize()) {
 #endif
 				// CJC2025: Use fixed format with 4 decimal places for time
-				outletinfo[i] << std::fixed << std::setprecision(4) << time << "\t"
-				              << setw(10) << Outlets[i]->getQstrm() << "\t"
-				              << setw(6)  << Outlets[i]->getHlevel() << "\n";
+				outletinfo[i] << std::fixed << std::setprecision(4) << time << ","
+				              << Outlets[i]->getQstrm() << ","
+				              << Outlets[i]->getHlevel() << "\n";
 			}
 		}
 	}
@@ -1590,16 +1590,11 @@ void tCOutput<tSubNode>::CreateAndOpenOutlet()
 				
 					if ( !outletinfo[i].good() )
 						cerr<<"File "<<fullName<<"can not be created.";
-					else
-/*SMM
-						Cout<<"Creating Output File: \t '"<<fullName<<"' "<<endl;
-*/
 					
 					// Write Header
-					outletinfo[i]<<"1-Time,hr\t "
-					<<"2-Qstrm,m3/s\t"
-					<<"3-Hlev,m"
-					<<"\n";
+					outletinfo[i] << "Time_hr"  << ","
+					<< "Qstrm_m3/s" << ","
+					<< "Hlev_m"  << "\n";
 				}
 			}
 		}
