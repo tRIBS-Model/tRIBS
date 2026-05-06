@@ -279,89 +279,88 @@ void tOutput<tSubNode>::CreateAndOpenPixel()
 				CreateAndOpenFile( &pixinfo[i], pixelnode );
 				
 				// Write Header
-				pixinfo[i]<<"NodeID "//1
-				<<"Time_hr " //2
-				<<"Nwt_mm " //3
-				<<"Nf_mm " //4
-				<<"Nt_mm " //5
-				<<"Mu_mm " //6
-				<<"Mi_mm " //7
-				<<"QpOut_mm_h " //8
-				<<"QpIn_mm_h " //9
-				<<"Trnsm_m2_h " //10
-				<<"GWflx_m3_h " //11
-				<<"Srf_mm " //12
-				<<"Rain_mm_h " //13
-				<<"SoilMoist_[] " //14
-				<<"RootMoist_[] "  //15
-				<<"AirT_oC " //16
-				<<"DewT_oC " //17
-				<<"SurfT_oC " //18
-				<<"SoilT_oC " //19
-				<<"Press_Pa " //20
-				<<"RelHum_[] " //21
-				<<"SkyCov_[] "  //22
-				<<"Wind_m_s " //23
-				<<"NetRad_W_m2 " //24
-				<<"ShrtRadIn_W_m2 " //25
-				<<"ShortRadInSlope_W_m2 "    //25.5  JB2025 @ ASU
-				<<"ShrtRadIn_dir_W_m2 " //27
-				<<"ShrtRadIn_dif_W_m2 " //28
-				<<"ShortAbsbVeg_W_m2 " //29
-				<<"ShortAbsbSoi_W_m2 " //30
-				<<"LngRadIn_W_m2 " //31
-				<<"LngRadOut_W_m2A " //32
-				<<"PotEvp_mm_h " //33
-				<<"ActEvp_mm_h " //34
-				<<"EvpTtrs_mm_h " //35
-				<<"EvpWetCan_mm_h " //36
-				<<"EvpDryCan_mm_h " //37
-				<<"EvpSoil_mm_h " //38
-				<<"Gflux_W_m2 " //39
-				<<"HFlux_W_m2 " //40
-				<<"Lflux_W_m2 " //41
-				<<"NetPrecip_mm_hr " //42
-				<<"LiqWE_cm " //43
-				<<"IceWE_cm "	//44
-				<<"SnWE_cm "	//45
-				<<"SnSub_cm "	//46
-				<<"SnEvap_cm "	//47
-				<<"U_kJ_m2 "  //48
-				<<"RouteWE_cm " //49
-				<<"SnTemp_C "	//50
-				<<"SurfAge_h "	//51
-				<<"SnDepth_cm "	//52
-				<<"SnDensity_kg_m3 "	//53
-				<<"DU_kJ_m2_etistep " //54
-				<<"snLHF_kJ_m2_etistep " //55
-				<<"snSHF_kJ_m2_etistep " //56
-				<<"snGHF_kJ_m2_etistep " //57
-				<<"snPHF_kJ_m2_etistep " //58
-				<<"snRLout_kJ_m2_etistep " //59
-				<<"snRLin_kJ_m2_etistep " //60
-				<<"snRSin_kJ_m2_etistep " //61
-				<<"Uerror_kJ_m2_etistep " //62
-				<<"IntSWEq_cm "		 //63
-				<<"IntSub_cm "		 //64
-				<<"IntSnUnload_cm "	 //65
-				<<"CanStorage_mm " //66
-				<<"CumIntercept_mm " //67
-				<<"Interception_mm " //68
-				<<"Recharge_mm/hr " //69
-				<<"RunOn_mm " //70
-				<<"Srf_Hour_mm " //71
-				<<"Qstrm_m3_s " //72
-				<<"Hlevel_m " //73
-				<<"ThroughFall_[] " //74
-				<<"CanFieldCap_mm " //75
-				<<"DrainCoeff_mm_hr " //76
-				<<"DrainExpPar_1_mm " //77
-				<<"LandUseAlb_[] " //78
-				<<"VegHeight_m " //79
-				<<"OptTransmCoeff_[] " //80
-				<<"StomRes_s_m " //81
-				<<"VegFraction[] " //82
-				<<"LeafAI_[] " //83
+				pixinfo[i]<<"NodeID,"  //1
+				<<"Time_hr,"
+				<<"Nwt_mm,"
+				<<"Nf_mm,"
+				<<"Nt_mm,"             //5
+				<<"Mu_mm,"
+				<<"Mi_mm,"
+				<<"QpOut_mm_h,"
+				<<"QpIn_mm_h,"
+				<<"Trnsm_m2_h,"        //10
+				<<"GWflx_m3_h,"
+				<<"Srf_Hour_mm,"
+				<<"Rain_mm_h,"
+				<<"SoilMoist_[],"
+				<<"RootMoist_[],"      //15
+				<<"AirT_oC,"
+				<<"DewT_oC,"
+				<<"SurfT_oC,"
+				<<"SoilT_oC,"
+				<<"Press_Pa,"          //20
+				<<"RelHum_[],"
+				<<"SkyCov_[],"
+				<<"Wind_m_s,"
+				<<"NetRad_W_m2,"
+				<<"ShrtRadIn_W_m2,"    //25
+				<<"ShortRadInSlope_W_m2,"    // JB2025 @ ASU
+				<<"ShrtRadIn_dir_W_m2,"
+				<<"ShrtRadIn_dif_W_m2,"
+				<<"ShortAbsbVeg_W_m2,"
+				<<"ShortAbsbSoi_W_m2," //30
+				<<"LngRadIn_W_m2,"
+				<<"LngRadOut_W_m2A,"
+				<<"PotEvp_mm_h,"
+				<<"ActEvp_mm_h,"
+				<<"EvpTtrs_mm_h,"      //35
+				<<"EvpWetCan_mm_h,"
+				<<"EvpDryCan_mm_h,"
+				<<"EvpSoil_mm_h,"
+				<<"Gflux_W_m2,"
+				<<"HFlux_W_m2,"        //40
+				<<"Lflux_W_m2,"
+				<<"NetPrecip_mm_hr,"
+				<<"LiqWE_cm,"
+				<<"IceWE_cm,"
+				<<"SnWE_cm,"           //45
+				<<"SnSub_cm,"
+				<<"SnEvap_cm,"
+				<<"U_kJ_m2,"
+				<<"RouteWE_cm,"
+				<<"SnTemp_C,"          //50
+				<<"SurfAge_h,"
+				<<"SnDepth_cm,"
+				<<"SnDensity_kg_m3,"
+				<<"DU_kJ_m2,"
+				<<"snLHF_kJ_m2,"       //55
+				<<"snSHF_kJ_m2,"
+				<<"snGHF_kJ_m2,"
+				<<"snPHF_kJ_m2,"
+				<<"snRLout_kJ_m2,"
+				<<"snRLin_kJ_m2,"      //60
+				<<"snRSin_kJ_m2,"
+				<<"Uerror_kJ_m2,"
+				<<"IntSWEq_cm,"
+				<<"IntSub_cm,"
+				<<"IntSnUnload_cm,"     //65
+				<<"CanStorage_mm,"
+				<<"CumIntercept_mm,"
+				<<"Interception_mm,"
+				<<"Recharge_mm/hr,"
+				<<"RunOn_mm,"          //70
+				<<"Qstrm_m3_s,"
+				<<"Hlevel_m,"
+				<<"ThroughFall_[],"
+				<<"CanFieldCap_mm,"
+				<<"DrainCoeff_mm_hr,"  //75
+				<<"DrainExpPar_1_mm,"
+				<<"LandUseAlb_[],"
+				<<"VegHeight_m,"
+				<<"OptTransmCoeff_[],"
+				<<"StomRes_s_m,"       //80
+				<<"VegFraction[],"
+				<<"LeafAI_[]"          //82
 				<<"\n";
 				
 				pixinfo[i].setf( ios::right, ios::adjustfield );
@@ -961,115 +960,111 @@ void tCOutput<tSubNode>::WritePixelInfo( double time )
 					if (cos_slope < 1E-9) cos_slope = 1.E-9; 
 				}
 				
-				this->pixinfo[i]<<setw(8)<<this->nodeList[i]
-				<<setw(13)<<extension<<" "
-				/* 3 */   <<setw(10)<<(this->uzel[i]->getNwtNew() / cos_slope)<<" "
-				
-				<<setprecision(7)
-				<<setw(6)<<this->uzel[i]->getNfNew() / cos_slope<<" "
-				/* 5 */	  <<setw(6)<<this->uzel[i]->getNtNew() / cos_slope<<" "
-				
-				<<setprecision(7)
-				<<setw(7)<<this->uzel[i]->getMuNew() / cos_slope<<" "
-				<<setw(7)<<this->uzel[i]->getMiNew() / cos_slope<<"   "
-				
-				<<setprecision(7)
-				<<setw(10)<<this->uzel[i]->getQpout()*1.E-6/this->uzel[i]->getVArea()<<"  "
-				<<setw(10)<<this->uzel[i]->getQpin() *1.E-6/this->uzel[i]->getVArea()<<"   "   
-				/* 10 */  <<setw(10)<<this->uzel[i]->getTransmiss()*1.E-6<<"    "
-				<<setw(10)<<this->uzel[i]->getGwaterChng()*1.E-9<<"  "
-				
-				<<setprecision(7)
-				<<setw(8) <<this->uzel[i]->getSrf()<<"  "//WR debug 02062024, this is a total not a rate--and its reset every loop so every 3.75 minutes in sim time
-				<<setw(10)<<this->uzel[i]->getRain()<<"  "
-				<<setw(10)<<this->uzel[i]->getSoilMoistureSC()<<"  "
-				/* 15 */  <<setw(10)<<this->uzel[i]->getRootMoistureSC()<<" "
-				
-				<<setprecision(7)
-				<<this->uzel[i]->getAirTemp()<<" "
-				<<this->uzel[i]->getDewTemp()<<" "
-				<<this->uzel[i]->getSurfTemp()<<" "
-				<<this->uzel[i]->getSoilTemp()<<" "
-				
-				/* 20 */  <<this->uzel[i]->getAirPressure()<<" "
-				<<this->uzel[i]->getRelHumid()<<" "
-				<<this->uzel[i]->getSkyCover()<<" "
-				<<this->uzel[i]->getWindSpeed()<<" "
-				<<this->uzel[i]->getNetRad()<<" "
-				
-				/* 25 */  <<this->uzel[i]->getShortRadIn()<< " "
-                << this->uzel[i]->getShortRadSlope() << " "  // JB2025 @ ASU
-				<<this->uzel[i]->getShortRadIn_dir()<< " "
-				<<this->uzel[i]->getShortRadIn_dif()<< " "
-				<<this->uzel[i]->getShortAbsbVeg()<< " "
-				/* 30 */ <<this->uzel[i]->getShortAbsbSoi()<< " "
-				
-				<<this->uzel[i]->getLongRadIn()<< " "
-				<<this->uzel[i]->getLongRadOut()<< " "
-				<<this->uzel[i]->getPotEvap()<<" "
-				<<this->uzel[i]->getActEvap()<<" "
-				/* 35 */ <<this->uzel[i]->getEvapoTrans()<<" "
-				
-				<<this->uzel[i]->getEvapWetCanopy()<<" "
-				<<this->uzel[i]->getEvapDryCanopy()<<" "
-				<<this->uzel[i]->getEvapSoil()<<" "
-				<<this->uzel[i]->getGFlux()<<" "
-				/* 40 */ <<this->uzel[i]->getHFlux()<<" "
-				<<this->uzel[i]->getLFlux()<<" "
-				<<this->uzel[i]->getNetPrecipitation()<<" "
+				this->pixinfo[i]<<this->nodeList[i]
+				<<","<<extension
+				/* 3 */   << "," << (this->uzel[i]->getNwtNew() / cos_slope) << ","
 
+				<<setprecision(4)
+				<< this->uzel[i]->getNfNew() / cos_slope << ","
+				/* 5 */   << this->uzel[i]->getNtNew() / cos_slope << ","
+
+				<< this->uzel[i]->getMuNew() / cos_slope << ","
+				<< this->uzel[i]->getMiNew() / cos_slope << ","
+				<< this->uzel[i]->getQpout()*1.E-6/this->uzel[i]->getVArea() << ","
+				<< this->uzel[i]->getQpin() *1.E-6/this->uzel[i]->getVArea() << ","
+				/* 10 */  << this->uzel[i]->getTransmiss()*1.E-6 << ","
+
+				<< this->uzel[i]->getGwaterChng()*1.E-9 << ","
+				<< this->uzel[i]->getSrf_Hr() << ","
+				<< this->uzel[i]->getRain() << ","
+				<< this->uzel[i]->getSoilMoistureSC() << ","
+				/* 15 */  << this->uzel[i]->getRootMoistureSC() << ","
+
+				<< this->uzel[i]->getAirTemp() << ","
+				<< this->uzel[i]->getDewTemp() << ","
+				<< this->uzel[i]->getSurfTemp() << ","
+				<< this->uzel[i]->getSoilTemp() << ","
+				/* 20 */  << this->uzel[i]->getAirPressure() << ","
+
+				<< this->uzel[i]->getRelHumid() << ","
+				<< this->uzel[i]->getSkyCover() << ","
+				<< this->uzel[i]->getWindSpeed() << ","
+				<< this->uzel[i]->getNetRad() << ","
+				/* 25 */  << this->uzel[i]->getShortRadIn() << ","
+
+				<< this->uzel[i]->getShortRadSlope() << "," // JB2025 @ ASU
+				<< this->uzel[i]->getShortRadIn_dir() << ","
+				<< this->uzel[i]->getShortRadIn_dif() << ","
+				<< this->uzel[i]->getShortAbsbVeg() << ","
+				/* 30 */  << this->uzel[i]->getShortAbsbSoi() << ","
+
+				<< this->uzel[i]->getLongRadIn() << ","
+				<< this->uzel[i]->getLongRadOut() << ","
+				<< this->uzel[i]->getPotEvap() << ","
+				<< this->uzel[i]->getActEvap() << ","
+				/* 35 */  << this->uzel[i]->getEvapoTrans() << ","
+
+				<< this->uzel[i]->getEvapWetCanopy() << ","
+				<< this->uzel[i]->getEvapDryCanopy() << ","
+				<< this->uzel[i]->getEvapSoil() << ","
+				<< this->uzel[i]->getGFlux() << ","
+				/* 40 */  << this->uzel[i]->getHFlux() << ","
+
+				<< this->uzel[i]->getLFlux() << ","
+				<< this->uzel[i]->getNetPrecipitation() << ","
 				// SKY2008Snow from AJR2007
-				<<this->uzel[i]->getLiqWE()<<" "	//added by AJR 2007 @ NMT
-				<<this->uzel[i]->getIceWE()<<" "	//added by AJR 2007 @ NMT
-				/* 45 */ <<(this->uzel[i]->getLiqWE()+this->uzel[i]->getIceWE())<<" "    //added by AJR 2007 @ NMT
-				<<this->uzel[i]->getSnSub()<<" "	// added by CJC2020
-				<<this->uzel[i]->getSnEvap()<<" "	// added by CJC2020
-				<<this->uzel[i]->getUnode()<<" "	//added by AJR 2007 @ NMT
-				<<this->uzel[i]->getLiqRouted()<<" "	//added by AJR 2007 @ NMT
-				/* 50 */ <<this->uzel[i]->getSnTempC()<<" "	//added by AJR 2007 @ NMT
-				<<this->uzel[i]->getCrustAge()<<" "	//added by AJR 2007 @ NMT
-				<<this->uzel[i]->getSnDepth()<<" "	// added by CJC2025
-				<<this->uzel[i]->getRhoSn()<<" "	// added by CJC2025
-				<<this->uzel[i]->getDU()<<" "		//added by AJR 2007 @ NMT
-				/* 55 */ <<this->uzel[i]->getSnLHF()<<" "	//added by AJR 2007 @ NMT
-				<<this->uzel[i]->getSnSHF()<<" "	//added by AJR 2007 @ NMT
-				<<this->uzel[i]->getSnGHF()<<" "	//added by AJR 2007 @ NMT
-				<<this->uzel[i]->getSnPHF()<<" "	//added by AJR 2007 @ NMT
-				<<this->uzel[i]->getSnRLout()<<" "	//added by AJR 2007 @ NMT
-				/* 60 */ <<this->uzel[i]->getSnRLin()<<" "	//added by AJR 2007 @ NMT
-				<<this->uzel[i]->getSnRSin()<<" "	//added by AJR 2007 @ NMT
-				<<this->uzel[i]->getUerror()<<" "	//added by AJR 2007 @ NMT
-				<<this->uzel[i]->getIntSWE()<<" "	//added by AJR 2007 @ NMT
-				<<this->uzel[i]->getIntSub()<<" "	//added by AJR 2007 @ NMT
-				/* 65 */ <<this->uzel[i]->getIntSnUnload()<<" " //added by AJR 2007 @ NMT
-			
-				<<this->uzel[i]->getCanStorage()<<" "
-				<<this->uzel[i]->getCumIntercept()<<" "
-				<<this->uzel[i]->getInterceptLoss()<<" "
-				/* 69 */ <<this->uzel[i]->getRecharge()<<" "
-				<<this->uzel[i]->getRunOn()<<" "
-				<<this->uzel[i]->getSrf_Hr()<<" ";
-				 
+				<< this->uzel[i]->getLiqWE() << ","        //added by AJR 2007 @ NMT
+				<< this->uzel[i]->getIceWE() << ","        //added by AJR 2007 @ NMT
+				/* 45 */  << (this->uzel[i]->getLiqWE()+this->uzel[i]->getIceWE()) << "," //added by AJR 2007 @ NMT
+
+				<< this->uzel[i]->getSnSub() << ","        // added by CJC2020
+				<< this->uzel[i]->getSnEvap() << ","       // added by CJC2020
+				<< this->uzel[i]->getUnode() << ","        //added by AJR 2007 @ NMT
+				<< this->uzel[i]->getLiqRouted() << ","    //added by AJR 2007 @ NMT
+				/* 50 */  << this->uzel[i]->getSnTempC() << ","    //added by AJR 2007 @ NMT
+
+				<< this->uzel[i]->getCrustAge() << ","     //added by AJR 2007 @ NMT
+				<< this->uzel[i]->getSnDepth() << ","      // added by CJC2025
+				<< this->uzel[i]->getRhoSn() << ","        // added by CJC2025
+				<< this->uzel[i]->getDU() << ","           //added by AJR 2007 @ NMT
+				/* 55 */  << this->uzel[i]->getSnLHF() << ","      //added by AJR 2007 @ NMT
+
+				<< this->uzel[i]->getSnSHF() << ","        //added by AJR 2007 @ NMT
+				<< this->uzel[i]->getSnGHF() << ","        //added by AJR 2007 @ NMT
+				<< this->uzel[i]->getSnPHF() << ","        //added by AJR 2007 @ NMT
+				<< this->uzel[i]->getSnRLout() << ","      //added by AJR 2007 @ NMT
+				/* 60 */  << this->uzel[i]->getSnRLin() << ","     //added by AJR 2007 @ NMT
+
+				<< this->uzel[i]->getSnRSin() << ","       //added by AJR 2007 @ NMT
+				<< this->uzel[i]->getUerror() << ","       //added by AJR 2007 @ NMT
+				<< this->uzel[i]->getIntSWE() << ","       //added by AJR 2007 @ NMT
+				<< this->uzel[i]->getIntSub() << ","       //added by AJR 2007 @ NMT
+				/* 65 */  << this->uzel[i]->getIntSnUnload() << "," //added by AJR 2007 @ NMT
+
+				<< this->uzel[i]->getCanStorage() << ","
+				<< this->uzel[i]->getCumIntercept() << ","
+				<< this->uzel[i]->getInterceptLoss() << ","
+				/* 69 */  << this->uzel[i]->getRecharge() << ","
+				<< this->uzel[i]->getRunOn() << ",";
+
 				if (this->uzel[i]->getBoundaryFlag() == kStream)
-					this->pixinfo[i]<<setw(10)<<this->uzel[i]->getQstrm()<<" "
-						//<<setw(6)<<this->uzel[i]->getHlevel()<<endl<<flush;
-						<<setw(6)<<this->uzel[i]->getHlevel()<<" ";// SKYnGM2008LU
+					this->pixinfo[i]<<this->uzel[i]->getQstrm() << ","
+					<< this->uzel[i]->getHlevel() << ",";
 				else
-					//this->pixinfo[i]<<"0.0 0.0"<<endl<<flush;
-					this->pixinfo[i]<<"0.0 0.0 "; // SKYnGM2008LU
-				
+					this->pixinfo[i]<<"0.0,0.0,";
+
 				// SKYnGM2008LU
-				this->pixinfo[i]<<setprecision(7)
-				<< this->uzel[i]->getThroughFall()<<" "
-				<< this->uzel[i]->getCanFieldCap()<<" "
-				<< this->uzel[i]->getDrainCoeff()<<" "
-				<< this->uzel[i]->getDrainExpPar()<<" "
-				/* 80 */ << this->uzel[i]->getLandUseAlb()<<" "
-				<< this->uzel[i]->getVegHeight()<<" "
-				<< this->uzel[i]->getOptTransmCoeff()<<" "
-				<< this->uzel[i]->getStomRes()<<" "
-				<< this->uzel[i]->getVegFraction()<<" "
-				<< this->uzel[i]->getLeafAI()<<endl<< flush;
+				this->pixinfo[i]<<setprecision(4)
+				<< this->uzel[i]->getThroughFall() << ","
+				<< this->uzel[i]->getCanFieldCap() << ","
+				/* 75 */ << this->uzel[i]->getDrainCoeff() << ","
+				<< this->uzel[i]->getDrainExpPar() << ","
+				<< this->uzel[i]->getLandUseAlb() << ","
+				<< this->uzel[i]->getVegHeight() << ","
+				<< this->uzel[i]->getOptTransmCoeff() << ","
+				/* 80 */ << this->uzel[i]->getStomRes() << ","
+				<< this->uzel[i]->getVegFraction() << ","
+				<< this->uzel[i]->getLeafAI() << "\n" << flush;
 
 			}
 		}
@@ -1275,103 +1270,103 @@ void tCOutput<tSubNode>::WriteIntegrVars( double time )
 	this->CreateAndOpenFile(&intofs, extension);
 
     
-	intofs << "ID" << ','    // 1
-		   << "BndCd" << ','    // 2
-		   << "Z" << ','    // 3
-		   << "VAr" << ','    // 4
-		   << "CAr" << ','    // 5
-		   << "Curv" << ','    // 6
-		   << "EdgL" << ','    // 7
-		   << "Slp" << ','    // 8
-		   << "FWidth" << ','    // 9
-		   << "Aspect" << ','    // 10
-		   << "SV" << ','    // 11
-		   << "LV" << ','    // 12
-		   << "AvSM" << ','    // 13
-		   << "AvRtM" << ','    // 14
-		   << "HOccr" << ','    // 15
-		   << "HRt" << ','    // 16
-		   << "SbOccr" << ','    // 17
-		   << "SbRt" << ','    // 18
-		   << "POccr" << ','    // 19
-		   << "PRt" << ','    // 20
-		   << "SatOccr" << ','    // 21
-		   << "SatRt" << ','    // 22
-		   << "SoiSatOccr" << ','    // 23
-		   << "RchDsch" << ','    // 24
-		   << "AvET" << ','    // 25
-		   << "EvpFrct" << ','    // 26
-		   << "cET" << ','  // 27
-		   << "cEsoil" << ',' // 28
-		   << "cLHF" << ','    // 29
-		   << "cMelt" << ','    // 30
-		   << "cSHF" << ','    // 31
-		   << "cPHF" << ','    // 32
-		   << "cRLIn" << ','    // 33
-		   << "cRLo" << ','    // 34
-		   << "cRSIn" << ','    // 35
-		   << "cGHF" << ','    // 36
-		   << "cUErr" << ','    // 37
-		   << "cHrsSun" << ','    // 38
-		   << "cHrsSnow" << ','    // 39
-		   << "persTime" << ','    // 40
-		   << "peakWE" << ','    // 41
-		   << "initTime" << ','    // 42
-		   << "peakTime" << ','    // 43
-		   << "cIntSub" << ','    // 44
-		   << "cSnSub" << ','    // 45
-		   << "cSnEvap" << ','    // 46
-		   << "cIntUnl" << ','    // 47
-		   << "AvTF" << ','    // 48
-		   << "AvCanFieldCap" << ','    // 49
-		   << "AvDrainCoeff" << ','    // 50
-		   << "AvDrainExpPar" << ','    // 51
-		   << "AvLUAlb" << ','    // 52
-		   << "AvVegHeight" << ','    // 53
-		   << "AvOTCoeff" << ','    // 54
-		   << "AvStomRes" << ','    // 55
-		   << "AvVegFract" << ','    // 56
-		   << "AvLeafAI" << ','    // 57
-		   << "AvEvapThresh" << ','    // 58
-		   << "AvTransThresh"    // 59
-		   << ',' << "Bedrock_Depth_mm"    // 60
-		   << ',' << "Ks"    // 61
-		   << ',' << "ThetaS"    // 62
-		   << ',' << "ThetaR"    // 63
-		   << ',' << "PoreSize"    // 64
-		   << ',' << "AirEBubPress"    // 65
-		   << ',' << "DecayF"    // 66
-		   << ',' << "SatAnRatio"    // 67
-		   << ',' << "UnsatAnRatio"    // 68
-		   << ',' << "Porosity"    // 69
-		   << ',' << "VolHeatCond"    // 70
-		   << ',' << "SoilHeatCap"    // 71
-		   << ',' << "SoilID"    // 72
-		   << ',' << "LandUseID"    // 73
+	intofs << "ID" << ','                                     // 1
+		   << "BndCd" << ','                                  // 2
+		   << "Z" << ','                                      // 3
+		   << "VAr" << ','                                    // 4
+		   << "CAr" << ','                                    // 5
+		   << "Curv" << ','                                   // 6
+		   << "EdgL" << ','                                   // 7
+		   << "Slp" << ','                                    // 8
+		   << "FWidth" << ','                                 // 9
+		   << "Aspect" << ','                                 // 10
+		   << "SV" << ','                                     // 11
+		   << "LV" << ','                                     // 12
+		   << "AvSM" << ','                                   // 13
+		   << "AvRtM" << ','                                  // 14
+		   << "HOccr" << ','                                  // 15
+		   << "HRt" << ','                                    // 16
+		   << "SbOccr" << ','                                 // 17
+		   << "SbRt" << ','                                   // 18
+		   << "POccr" << ','                                  // 19
+		   << "PRt" << ','                                    // 20
+		   << "SatOccr" << ','                                // 21
+		   << "SatRt" << ','                                  // 22
+		   << "SoiSatOccr" << ','                             // 23
+		   << "RchDsch" << ','                                // 24
+		   << "AvET" << ','                                   // 25
+		   << "EvpFrct" << ','                                // 26
+		   << "cET" << ','                                    // 27
+		   << "cEsoil" << ','                                 // 28
+		   << "cLHF" << ','                                   // 29
+		   << "cMelt" << ','                                  // 30
+		   << "cSHF" << ','                                   // 31
+		   << "cPHF" << ','                                   // 32
+		   << "cRLIn" << ','                                  // 33
+		   << "cRLo" << ','                                   // 34
+		   << "cRSIn" << ','                                  // 35
+		   << "cGHF" << ','                                   // 36
+		   << "cUErr" << ','                                  // 37
+		   << "cHrsSun" << ','                                // 38
+		   << "cHrsSnow" << ','                               // 39
+		   << "persTime" << ','                               // 40
+		   << "peakWE" << ','                                 // 41
+		   << "initTime" << ','                               // 42
+		   << "peakTime" << ','                               // 43
+		   << "cIntSub" << ','                                // 44
+		   << "cSnSub" << ','                                 // 45
+		   << "cSnEvap" << ','                                // 46
+		   << "cIntUnl" << ','                                // 47
+		   << "AvTF" << ','                                   // 48
+		   << "AvCanFieldCap" << ','                          // 49
+		   << "AvDrainCoeff" << ','                           // 50
+		   << "AvDrainExpPar" << ','                          // 51
+		   << "AvLUAlb" << ','                                // 52
+		   << "AvVegHeight" << ','                            // 53
+		   << "AvOTCoeff" << ','                              // 54
+		   << "AvStomRes" << ','                              // 55
+		   << "AvVegFract" << ','                             // 56
+		   << "AvLeafAI" << ','                               // 57
+		   << "AvEvapThresh" << ','                           // 58
+		   << "AvTransThresh" << ','                          // 59
+		   << "Bedrock_Depth_mm" << ','                       // 60
+		   << "Ks" << ','                                     // 61
+		   << "ThetaS" << ','                                 // 62
+		   << "ThetaR" << ','                                 // 63
+		   << "PoreSize" << ','                               // 64
+		   << "AirEBubPress" << ','                           // 65
+		   << "DecayF" << ','                                 // 66
+		   << "SatAnRatio" << ','                             // 67
+		   << "UnsatAnRatio" << ','                           // 68
+		   << "Porosity" << ','                               // 69
+		   << "VolHeatCond" << ','                            // 70
+		   << "SoilHeatCap" << ','                            // 71
+		   << "SoilID" << ','                                 // 72
+		   << "LandUseID"                                     // 73
 		   << "\n";
 	
 	cn = ni.FirstP();
 	while (ni.IsActive()) {
 		
-		intofs<<cn->getID()<<','// 1
-        <<cn->getBoundaryFlag()<<',' // 2
-		<<setprecision(4)<<cn->getZ()<<',' // 3
-		<<setprecision(7)<<cn->getVArea()<<',' // 4
-		<<setprecision(7)<<cn->getContrArea()*1.E-6<<',' //5
-		<<setprecision(6)<<cn->getCurvature()<<',' //6
-		<<cn->getFlowEdg()->getLength()<<',' //7
-		<<cn->getFlowEdg()->getSlope()<<',' // 8
-		<<cn->getFlowEdg()->getVEdgLen()<<',' //9
-		<<setprecision(4)<<cn->getAspect()<<',' // 10
-		<<setprecision(7)<<cn->getSheltFact()<<',' // 11
-		<<cn->getLandFact()<<','<<setprecision(4); // 12
+		intofs<<cn->getID()<<','                              //1
+        <<cn->getBoundaryFlag()<<','                          //2
+		<<setprecision(4)<<cn->getZ()<<','                    //3
+		<<setprecision(7)<<cn->getVArea()<<','                //4
+		<<setprecision(7)<<cn->getContrArea()*1.E-6<<','      //5
+		<<setprecision(6)<<cn->getCurvature()<<','            //6
+		<<cn->getFlowEdg()->getLength()<<','                  //7
+		<<cn->getFlowEdg()->getSlope()<<','                   //8
+		<<cn->getFlowEdg()->getVEdgLen()<<','                 //9
+		<<setprecision(4)<<cn->getAspect()<<','               //10
+		<<setprecision(7)<<cn->getSheltFact()<<','            //11
+		<<cn->getLandFact()<<','<<setprecision(4);            //12
 
 
 
 		tmp1 = floor(cn->getAvSoilMoisture())*1.E-4; 
 		tmp2 = (cn->getAvSoilMoisture()-floor(cn->getAvSoilMoisture()))*1.E+1;
-		intofs<<tmp1<<','<< // 13
-        tmp2<<','; //14
+		intofs<<tmp1<<','<<                                   //13
+        tmp2<<',';                                            //14
 		
 		// -----------  seperate runoff mechanism occurrence and rate
 		Occur = (int)((cn->hsrfOccur-floor(cn->hsrfOccur))*1.E+6);
@@ -1385,8 +1380,8 @@ void tCOutput<tSubNode>::WriteIntegrVars( double time )
 			avRate = 0.0;
 			prec = 0;
 		}
-		intofs<<setprecision(6)<<Occur<< // 15
-        setprecision(prec)<<','<<avRate<<','; //16
+		intofs<<setprecision(6)<<Occur<<                      //15
+        setprecision(prec)<<','<<avRate<<',';                 //16
 		
 		// -----------
 		Occur = (int)((cn->sbsrfOccur-floor(cn->sbsrfOccur))*1.E+6);
@@ -1400,8 +1395,8 @@ void tCOutput<tSubNode>::WriteIntegrVars( double time )
 			avRate = 0.0;
 			prec = 0;
 		}
-		intofs<<setprecision(6)<<Occur<< //17
-        setprecision(prec)<<','<<avRate<<','; // 18
+		intofs<<setprecision(6)<<Occur<<                      //17
+        setprecision(prec)<<','<<avRate<<',';                 //18
 		
 		// -----------
 		Occur = (int)((cn->psrfOccur-floor(cn->psrfOccur))*1.E+6);
@@ -1415,8 +1410,8 @@ void tCOutput<tSubNode>::WriteIntegrVars( double time )
 			avRate = 0.0;
 			prec = 0;
 		}
-		intofs<<setprecision(6)<<Occur<< //19
-        setprecision(prec)<<','<<avRate<<','; //20
+		intofs<<setprecision(6)<<Occur<<                      //19
+        setprecision(prec)<<','<<avRate<<',';                 //20
 		
 		// -----------
 		Occur = (int)((cn->satsrfOccur-floor(cn->satsrfOccur))*1.E+6);
@@ -1430,59 +1425,59 @@ void tCOutput<tSubNode>::WriteIntegrVars( double time )
 			avRate = 0.0;
 			prec = 0;
 		}
-		intofs<<setprecision(6)<<Occur<<',' //21
-			<<setprecision(prec)<<avRate<<',' //22
-			<<setprecision(6)<<cn->satOccur<<',' //23
-			<<setprecision(3)<<cn->RechDisch<<',' //24
-			<<setprecision(4)<<cn->getAvET()<<',' //25
-			<<setprecision(4)<<cn->getAvEvapFract()<<',' //26
-            <<setprecision(4)<<cn->getCumTotEvap() <<',' //27
-            <<setprecision(4)<<cn->getCumBarEvap()<<',' //28
-            <<setprecision(7)<<cn->getCumLHF()<<','//29
-			<<setprecision(7)<<cn->getCumMelt()<<','//30
-			<<setprecision(7)<<cn->getCumSHF()<<','//31
-			<<setprecision(7)<<cn->getCumPHF()<<','//32
-			<<setprecision(7)<<cn->getCumRLin()<<','//33
-			<<setprecision(7)<<cn->getCumRLout()<<','//34
-			<<setprecision(7)<<cn->getCumRSin()<<','//35
-			<<setprecision(7)<<cn->getCumGHF()<<','//36
-			<<setprecision(7)<<cn->getCumUerror()<<','//37
-			<<setprecision(7)<<cn->getCumHrsSun()<<','//38
-			<<setprecision(7)<<cn->getCumHrsSnow()<<','//39
-			<<setprecision(7)<<cn->getPersTimeMax()<<',' //40
-			<<setprecision(7)<<cn->getPeakSWE()<<',' //41
-			<<setprecision(7)<<cn->getInitPackTime()<<',' //42
-			<<setprecision(7)<<cn->getPeakPackTime()<<',' //43
-			<<setprecision(7)<<cn->getCumIntSub()<<','//44
-			<<setprecision(7)<<cn->getCumSnSub()<<','//45
-			<<setprecision(7)<<cn->getCumSnEvap()<<','//46
-			<<setprecision(7)<<cn->getCumIntUnl()<<','//47
-			<<setprecision(7)<<cn->getAvThroughFall()<<',' //48
-			<<setprecision(7)<<cn->getAvCanFieldCap()<<',' //49
-			<<setprecision(7)<<cn->getAvDrainCoeff()<<',' //50
-			<<setprecision(7)<<cn->getAvDrainExpPar()<<',' //51
-			<<setprecision(7)<<cn->getAvLandUseAlb()<<',' //52
-			<<setprecision(7)<<cn->getAvVegHeight()<<','  //53
-			<<setprecision(7)<<cn->getAvOptTransmCoeff()<<',' //54
-			<<setprecision(7)<<cn->getAvStomRes()<<',' // 55
-			<<setprecision(7)<<cn->getAvVegFraction()<<',' //56
-			<<setprecision(7)<<cn->getAvLeafAI()<<',' //57
-			<<setprecision(7)<<cn->getAvEvapThresh()<<',' //58
-			<<setprecision(7)<<cn->getAvTransThresh()<<',' //59
-            <<setprecision(7)<<cn->getBedrockDepth()<<',' //60 bedrock depth mm
-           << setprecision(7) << cn->getKs() << ',' // 61
-           << setprecision(7) << cn->getThetaS() << ',' // 62
-           << setprecision(7) << cn->getThetaR() << ',' // 63
-           << setprecision(7) << cn->getPoreSize() << ',' // 64
-           << setprecision(7) << cn->getAirEBubPres() << ',' // 65
-           << setprecision(7) << cn->getDecayF() << ',' // 66
-           << setprecision(7) << cn->getSatAnRatio() << ',' // 67
-           << setprecision(7) << cn->getUnsatAnRatio() << ',' // 68
-           << setprecision(7) << cn->getPorosity() << ',' // 69
-           << setprecision(7) << cn->getVolHeatCond() << ',' // 70
-           << setprecision(7) << cn->getSoilHeatCap() << ',' // 71
-           << setprecision(7) << cn->getSoilID() << ',' //72
-           << setprecision(7) << cn->getLandUse(); // 73
+		intofs<<setprecision(6)<<Occur<<','                   //21
+           << setprecision(prec)<<avRate<<','                 //22
+           << setprecision(6)<<cn->satOccur<<','              //23
+           << setprecision(3)<<cn->RechDisch<<','             //24
+           << setprecision(4)<<cn->getAvET()<<','             //25
+           << setprecision(4)<<cn->getAvEvapFract()<<','      //26
+           << setprecision(4)<<cn->getCumTotEvap() <<','      //27
+           << setprecision(4)<<cn->getCumBarEvap()<<','       //28
+           << setprecision(7)<<cn->getCumLHF()<<','           //29
+           << setprecision(7)<<cn->getCumMelt()<<','          //30
+           << setprecision(7)<<cn->getCumSHF()<<','           //31
+           << setprecision(7)<<cn->getCumPHF()<<','           //32
+           << setprecision(7)<<cn->getCumRLin()<<','          //33
+           << setprecision(7)<<cn->getCumRLout()<<','         //34
+           << setprecision(7)<<cn->getCumRSin()<<','          //35
+           << setprecision(7)<<cn->getCumGHF()<<','           //36
+           << setprecision(7)<<cn->getCumUerror()<<','        //37
+           << setprecision(7)<<cn->getCumHrsSun()<<','        //38
+           << setprecision(7)<<cn->getCumHrsSnow()<<','       //39
+           << setprecision(7)<<cn->getPersTimeMax()<<','      //40
+           << setprecision(7)<<cn->getPeakSWE()<<','          //41
+           << setprecision(7)<<cn->getInitPackTime()<<','     //42
+           << setprecision(7)<<cn->getPeakPackTime()<<','     //43
+           << setprecision(7)<<cn->getCumIntSub()<<','        //44
+           << setprecision(7)<<cn->getCumSnSub()<<','         //45
+           << setprecision(7)<<cn->getCumSnEvap()<<','        //46
+           << setprecision(7)<<cn->getCumIntUnl()<<','        //47
+           << setprecision(7)<<cn->getAvThroughFall()<<','    //48
+           << setprecision(7)<<cn->getAvCanFieldCap()<<','    //49
+           << setprecision(7)<<cn->getAvDrainCoeff()<<','     //50
+           << setprecision(7)<<cn->getAvDrainExpPar()<<','     //51
+           << setprecision(7)<<cn->getAvLandUseAlb()<<','     //52
+           << setprecision(7)<<cn->getAvVegHeight()<<','       //53
+           << setprecision(7)<<cn->getAvOptTransmCoeff()<<',' //54
+           << setprecision(7)<<cn->getAvStomRes()<<','        //55
+           << setprecision(7)<<cn->getAvVegFraction()<<','    //56
+           << setprecision(7)<<cn->getAvLeafAI()<<','         //57
+           << setprecision(7)<<cn->getAvEvapThresh()<<','     //58
+           << setprecision(7)<<cn->getAvTransThresh()<<','    //59
+           << setprecision(7)<<cn->getBedrockDepth()<<','     //60 bedrock depth mm
+           << setprecision(7) << cn->getKs() << ','           //61
+           << setprecision(7) << cn->getThetaS() << ','       //62
+           << setprecision(7) << cn->getThetaR() << ','       //63
+           << setprecision(7) << cn->getPoreSize() << ','     //64
+           << setprecision(7) << cn->getAirEBubPres() << ','  //65
+           << setprecision(7) << cn->getDecayF() << ','       //66
+           << setprecision(7) << cn->getSatAnRatio() << ','   //67
+           << setprecision(7) << cn->getUnsatAnRatio() << ',' //68
+           << setprecision(7) << cn->getPorosity() << ','     //69
+           << setprecision(7) << cn->getVolHeatCond() << ','  //70
+           << setprecision(7) << cn->getSoilHeatCap() << ','  //71
+           << setprecision(7) << cn->getSoilID() << ','       //72
+           << setprecision(7) << cn->getLandUse();            //73
 
         intofs<<"\n";
 		
@@ -1511,9 +1506,9 @@ void tCOutput<tSubNode>::WriteOutletInfo( double time )
 			if ( Outlets[i] && OutletList[i] < this->g->getNodeList()->getActiveSize()) {
 #endif
 				// CJC2025: Use fixed format with 4 decimal places for time
-				outletinfo[i] << std::fixed << std::setprecision(4) << time << "\t"
-				              << setw(10) << Outlets[i]->getQstrm() << "\t"
-				              << setw(6)  << Outlets[i]->getHlevel() << "\n";
+				outletinfo[i] << std::fixed << std::setprecision(4) << time << ","
+				              << Outlets[i]->getQstrm() << ","
+				              << Outlets[i]->getHlevel() << "\n";
 			}
 		}
 	}
@@ -1593,16 +1588,9 @@ void tCOutput<tSubNode>::CreateAndOpenOutlet()
 				
 					if ( !outletinfo[i].good() )
 						cerr<<"File "<<fullName<<"can not be created.";
-					else
-/*SMM
-						Cout<<"Creating Output File: \t '"<<fullName<<"' "<<endl;
-*/
 					
 					// Write Header
-					outletinfo[i]<<"1-Time,hr\t "
-					<<"2-Qstrm,m3/s\t"
-					<<"3-Hlev,m"
-					<<"\n";
+					outletinfo[i] << "Time_hr,Qstrm_m3_s,Hlev_m\n";
 				}
 			}
 		}
