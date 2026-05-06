@@ -458,26 +458,28 @@ void tFlowResults::writeAndUpdate( double time, int forenum )
 }
 
 /***************************************************************************
-** 
+**
 **  tFlowResults: write_inter_hyd(char *filename, char *identification,
 **                               int foreNum)
 **
-**  Write hydrographs corresponding to measured rain
-** 
+**  Write the mean response file (*.mrf) containing basin-wide state 
+**  variables at each output time step as a CSV. In parallel mode, 
+**  distributed arrays are reduced across processors before the 
+**  master writes the file.
+**
 **  Algorithm:
-**	open hydro file
-**	get maximum range in array
-**	if forecasted rain is active
-**	   write headings for three variables
-**	else
-**	   write headings for two variables
-**	for index in array range:
-**	   write type tag 0
-**         write streamflow corresponding to previous step
-**      for index in array range:
-**	   write type tag 1
-**         write streamflowcorresponding to current step
-**      copy hydro file name as last hydro file
+**      assign forecast state flag if forecast option is active
+**      [parallel] reduce all basin-state arrays across processors
+**                 (sum for fluxes/states, min/max for rainfall)
+**      [parallel] restrict file writing to master processor
+**      write CSV header (variable_unit format, 32 columns)
+**      for each output time step:
+**          write decimal time, outlet streamflow, mean areal
+**          precipitation with spatial min/max, forecast state,
+**          mean soil moisture at multiple depths, mean ET and
+**          groundwater level, saturation and rain coverage fractions,
+**          snow pack states and energy fluxes, snow interception,
+**          snow covered area, channel percolation, and unsaturated flow
 **
 ***************************************************************************/
 void tFlowResults::write_inter_hyd(char *filename, char *identification,
@@ -781,7 +783,7 @@ void tFlowResults::write_Runoff_Types(char *filename, char *)
 		cout<<"Exiting Program..."<<endl;
 		exit(2);
 	}
-	ifile << fixed << setprecision(6);
+	ifile << fixed << setprecision(3);
 
 	// Write header
 	ifile << "Time_hr,"      // 1
