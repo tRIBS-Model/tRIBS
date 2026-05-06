@@ -290,7 +290,7 @@ void tOutput<tSubNode>::CreateAndOpenPixel()
 				<<"QpIn_mm_h,"
 				<<"Trnsm_m2_h,"        //10
 				<<"GWflx_m3_h,"
-				<<"Srf_mm,"
+				<<"Srf_Hour_mm,"
 				<<"Rain_mm_h,"
 				<<"SoilMoist_[],"
 				<<"RootMoist_[],"      //15
@@ -349,19 +349,18 @@ void tOutput<tSubNode>::CreateAndOpenPixel()
 				<<"Interception_mm,"
 				<<"Recharge_mm/hr,"
 				<<"RunOn_mm,"          //70
-				<<"Srf_Hour_mm,"
 				<<"Qstrm_m3_s,"
 				<<"Hlevel_m,"
 				<<"ThroughFall_[],"
-				<<"CanFieldCap_mm,"    //75
-				<<"DrainCoeff_mm_hr,"
+				<<"CanFieldCap_mm,"
+				<<"DrainCoeff_mm_hr,"  //75
 				<<"DrainExpPar_1_mm,"
 				<<"LandUseAlb_[],"
 				<<"VegHeight_m,"
-				<<"OptTransmCoeff_[]," //80
-				<<"StomRes_s_m,"
+				<<"OptTransmCoeff_[],"
+				<<"StomRes_s_m,"       //80
 				<<"VegFraction[],"
-				<<"LeafAI_[]"          //83
+				<<"LeafAI_[]"          //82
 				<<"\n";
 				
 				pixinfo[i].setf( ios::right, ios::adjustfield );
@@ -976,7 +975,7 @@ void tCOutput<tSubNode>::WritePixelInfo( double time )
 				/* 10 */  << this->uzel[i]->getTransmiss()*1.E-6 << ","
 
 				<< this->uzel[i]->getGwaterChng()*1.E-9 << ","
-				<< this->uzel[i]->getSrf() << "," //WR debug 02062024, this is a total not a rate--and its reset every loop so every 3.75 minutes in sim time
+				<< this->uzel[i]->getSrf_Hr() << ","
 				<< this->uzel[i]->getRain() << ","
 				<< this->uzel[i]->getSoilMoistureSC() << ","
 				/* 15 */  << this->uzel[i]->getRootMoistureSC() << ","
@@ -1046,9 +1045,8 @@ void tCOutput<tSubNode>::WritePixelInfo( double time )
 				<< this->uzel[i]->getCumIntercept() << ","
 				<< this->uzel[i]->getInterceptLoss() << ","
 				/* 69 */  << this->uzel[i]->getRecharge() << ","
-				<< this->uzel[i]->getRunOn() << ","
+				<< this->uzel[i]->getRunOn() << ",";
 
-				<< this->uzel[i]->getSrf_Hr() << ",";
 				if (this->uzel[i]->getBoundaryFlag() == kStream)
 					this->pixinfo[i]<<this->uzel[i]->getQstrm() << ","
 					<< this->uzel[i]->getHlevel() << ",";
@@ -1059,12 +1057,12 @@ void tCOutput<tSubNode>::WritePixelInfo( double time )
 				this->pixinfo[i]<<setprecision(4)
 				<< this->uzel[i]->getThroughFall() << ","
 				<< this->uzel[i]->getCanFieldCap() << ","
-				<< this->uzel[i]->getDrainCoeff() << ","
+				/* 75 */ << this->uzel[i]->getDrainCoeff() << ","
 				<< this->uzel[i]->getDrainExpPar() << ","
-				/* 80 */ << this->uzel[i]->getLandUseAlb() << ","
+				<< this->uzel[i]->getLandUseAlb() << ","
 				<< this->uzel[i]->getVegHeight() << ","
 				<< this->uzel[i]->getOptTransmCoeff() << ","
-				<< this->uzel[i]->getStomRes() << ","
+				/* 80 */ << this->uzel[i]->getStomRes() << ","
 				<< this->uzel[i]->getVegFraction() << ","
 				<< this->uzel[i]->getLeafAI() << "\n" << flush;
 
