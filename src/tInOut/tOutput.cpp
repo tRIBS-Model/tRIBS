@@ -1592,9 +1592,7 @@ void tCOutput<tSubNode>::CreateAndOpenOutlet()
 						cerr<<"File "<<fullName<<"can not be created.";
 					
 					// Write Header
-					outletinfo[i] << "Time_hr"  << ","
-					<< "Qstrm_m3/s" << ","
-					<< "Hlev_m"  << "\n";
+					outletinfo[i] << "Time_hr,Qstrm_m3_s,Hlev_m\n";
 				}
 			}
 		}

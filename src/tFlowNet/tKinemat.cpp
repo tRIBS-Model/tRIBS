@@ -147,7 +147,7 @@ tKinemat::tKinemat(SimulationControl *sPtr, tMesh<tCNode> *gridRef, tInputFile &
              << "\nExiting Program..." << endl << flush;
         exit(2);
     }
-    theOFStream << "1-Time,hr\t " << "2-Qstrm,m3/s\t" << "3-Hlev,m" << "\n";
+    theOFStream << "Time_hr,Qstrm_m3_s,Hlev_m\n";
 #endif
 
     // Allocate memory for stacks in stream nodes
@@ -573,9 +573,8 @@ void tKinemat::SurfaceFlow() {
     // If running in parallel, only partition with last reach writes
     if (tGraph::hasLastReach())
 #endif
-    // CJC2025: Use stream manipulators for proper floating point formatting
     theOFStream << std::fixed << std::setprecision(4) << currentTime
-                << "\t" << Qout << "\t" << OutletNode->getHlevel() << "\n";
+                << "," << Qout << "," << OutletNode->getHlevel() << "\n";
     return;
 }
 
@@ -2365,7 +2364,7 @@ void tKinemat::openOutletFile(tInputFile &infile)
       exit(2);
     }
 
-    theOFStream<<"1-Time,hr\t "<<"2-Qstrm,m3/s\t"<<"3-Hlev,m"<<"\n";
+    theOFStream << "Time_hr,Qstrm_m3_s,Hlev_m\n";
   }
 
 }
