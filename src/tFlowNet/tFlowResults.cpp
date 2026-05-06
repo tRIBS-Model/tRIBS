@@ -332,94 +332,7 @@ void tFlowResults::free_results()
 //=========================================================================
 
 /***************************************************************************
-** 
-**  tFlowResults: read_prev_hyd(char *filename, int index)
 **
-**  Read hydrographs
-**
-**  Algorithm:
-**    open hydro file
-**    read headings
-**    until end of file:
-**     if type tag is index
-**        read streamflow corresponding to previous step
-**     else
-**        discard data
-**    close file
-**
-***************************************************************************/
-void tFlowResults::read_prev_hyd(char *filename, int index) 
-{ 
-	int j,ii,jl;
-	FILE *ifile;
-	char str[80];
-	float flt1, flt2;
-	
-	if ((ifile=fopen(filename,"r")) == NULL) {  
-		cout<<"\nError: Unable to open *.mrf file: "<<filename<<endl;
-		cout<<"Exiting Program..."<<endl;
-		exit(2);
-	}
-	
-	fscanf(ifile,"%d",&jl);
-	for (j=0;j<jl;j++) { 
-		fscanf(ifile,"%s",str);
-	}
-	
-	ii=0;
-	while (!feof(ifile)) { 
-		fscanf(ifile,"%d",&jl);
-		if (jl==index) { 
-			fscanf(ifile,"%s %f %f",str,&flt1,&flt2);
-			phydro[ii]=(double)flt1;
-			crr[ii]=prr[ii]=(double)flt2;
-			ii++;
-		}
-		else fscanf(ifile,"%s %f %f",str,&flt1,&flt2);
-	}
-	
-	iimax=ii;
-	fclose(ifile);
-	return;
-}
-
-/***************************************************************************
-** 
-**  tFlowResults: add_fore_hyd(filename, index)
-**
-**  Write hydrograph corresponding to forecasted rain
-**
-**  Algorithm:
-**    open hydro file
-**    get maximum range in array
-**    for index in array range:
-**      write streamflow corresponding to current step
-**
-***************************************************************************/
-void tFlowResults::add_fore_hyd(char *filename, int index) 
-{
-	FILE *ifile;
-	int ii;              	// Loop counter 
-	int it_hour,it_min;  	// Hours and minutes to print results
-	
-	if ((ifile=fopen(filename,"a")) == NULL) {
-		cout<<"\nError: Unable to open *.mrf file: "<<filename<<endl;
-		cout<<"Exiting Program..."<<endl;
-		exit(2);
-	}
-	for (ii=0; ii<iimax; ii++) { 
-		timer->res_time_mid(ii, &it_hour, &it_min);
-		fprintf(ifile," %d %d_%d %f %f\n",
-				index+2, it_hour, it_min,
-				phydro[ii]+mhydro[ii],
-				crr[ii]);
-	}
-	fclose(ifile);     
-	return;         
-}
-
-/***************************************************************************
-** 
 **  tFlowResults: writeAndUpdate(inter_hour, dt_rain)
 **
 **  Write basin state variables, output and result hydrographs
@@ -698,44 +611,6 @@ void tFlowResults::write_inter_hyd(char *filename, char *identification,
 		prr[ii] = crr[ii];
 	
 	count++;
-	return;
-}
-
-/***************************************************************************
-** 
-**  tFlowResults: write_extra_hyd(name, identification)
-**
-**  Write hydrographs for the extra gauge. The extra gauge is used to store
-**  virtual variables for the user interface. Values stored are not neccessarily
-**  hydrographs
-**
-**  Algorithm:
-**     open hydro file
-**     get maximum range in array
-**     write headings for one variable
-**     for index in array range:
-**       write streamflow corresponding to current step
-**
-***************************************************************************/
-void tFlowResults::write_extra_hyd(char *name, char *identification)
-{
-	FILE *ifile;
-	int ii;               // Loop counter 
-	int it_hour, it_min;  // Hours and minutes to print results 
-	
-	if ((ifile=fopen(name,"w")) == NULL) {
-		cout<<"\nError: Unable to open extra hydro file: "<<name<<endl;
-		cout<<"Exiting Program..."<<endl;
-		exit(2);
-	}
-	
-	fprintf(ifile,"  1  \n%s\n", identification);
-	for (ii=0; ii < iimax; ii++) {
-		timer->res_time_mid(ii, &it_hour, &it_min);
-		fprintf(ifile," 0 %04d.%02d %f %f\n",
-				it_hour, it_min, phydro[ii]+mhydro[ii], crr[ii]);
-	}
-	fclose(ifile);   
 	return;
 }
 
@@ -1112,7 +987,10 @@ void tFlowResults::store_maxminrain(double time, double value, int flag)
 /***************************************************************************
 ** 
 **  tFlowResults: store_saturation(double time, double value)
-** TODO is it possible to optimize this part of the code?
+**  TODO is it possible to optimize this part of the code?
+**  dcalc, dres, and init are invariant across all store_saturation calls
+**  in the node loop, could be computed once per time step in tFlowNet::SurfaceFlow()?
+**
 ***************************************************************************/
 void tFlowResults::store_saturation(double time, double value, int flag) 
 {   

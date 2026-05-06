@@ -39,7 +39,6 @@
 #include <iostream>
 #include <fstream>
 #include <iomanip>
-#include <cstdio>
 
 //=========================================================================
 //
@@ -117,10 +116,7 @@ public:
   void  store_maxminrain(double,double, int);
   void  store_saturation(double,double, int);
   void  free_results();
-  void  read_prev_hyd(char *, int);
-  void  add_fore_hyd(char *, int);
   void  write_inter_hyd(char *, char *, int);
-  void  write_extra_hyd(char *, char *);
   void  write_Runoff_Types(char *, char *);
   void  whenTimeIsOver( double );
   void  store_volume(double, double);          
