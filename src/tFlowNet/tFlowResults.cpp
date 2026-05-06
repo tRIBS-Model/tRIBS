@@ -563,7 +563,7 @@ void tFlowResults::write_inter_hyd(char *filename, char *identification,
 			      << intunl[ii]                   << ","  // 29 AvInUn_cm
 			      << sca[ii]                      << ","  // 30 SCA_[]
 			      << Perc[ii]                     << ","  // 31 ChannelPerc_m3
-			      << qunsat[ii]                   << "\n"; // 32 Qunsat_mm_hr
+			      << qunsat[ii ]                   << "\n"; // 32 Qunsat_mm_hr
 #endif
 		}
 
@@ -584,8 +584,8 @@ void tFlowResults::write_inter_hyd(char *filename, char *identification,
    delete [] pFrac;
    delete [] pSwe;
    delete [] pMelt;
-   delete [] pSnSub;
-   delete [] pSnEvap;
+   delete [] pSnSub; // CJC2020
+   delete [] pSnEvap; // CJC2020
    delete [] pStC;
    delete [] pDUint;
    delete [] pSlhf;
@@ -599,8 +599,8 @@ void tFlowResults::write_inter_hyd(char *filename, char *identification,
    delete [] pIntsub;
    delete [] pIntunl;
    delete [] pSca;
-   delete [] pPerc;
-   delete [] pQunsat;
+   delete [] pPerc; //ASM percolation option
+   delete [] pQunsat; // CJC2020
 
 #endif
 
