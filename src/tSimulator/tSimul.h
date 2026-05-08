@@ -57,9 +57,8 @@ class Simulator
   tCOutput<tCNode>  *outp;        // Pointer to output object
   tRestart<tCNode>  *restart;     // Pointer to restart object
 
-  int count, fState;
-  double dt_rain;                 // Time step of rain 
-  double lfr_hour;                // Time tag of last forecasted rainfall 
+  int count;
+  double dt_rain;                 // Time step of rain
   double lmr_hour;                // Time tag of last measured rainfall 
   double begin_hour;              // Time tag of initial time
   double met_hour;                // Time tag of last measured met
@@ -68,8 +67,6 @@ class Simulator
   
   int searchRain;                 // Search threshold (hours)
 
-
-  int  checkForecast();
 
   void get_next_mrain(int);
   void get_next_met();

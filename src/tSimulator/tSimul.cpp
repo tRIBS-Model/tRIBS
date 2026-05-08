@@ -44,9 +44,6 @@ Simulator::Simulator(SimulationControl *simctrlptr, tRainfall *rainptr,
 	// Time tag of initial time, hour
 	begin_hour = timer->getCurrentTime(); 
 	
-	// For forecasted rainfall, turned off
-	lfr_hour = 0; 
-	
 	// Counter of time, used for GW model
 	GW_label = 0.;
 
@@ -118,11 +115,6 @@ void Simulator::initialize_simulation(tEvapoTrans *EvapoTrans, tSnowPack *SnowPa
 
 	// Prepare rainfall input
 	if (rainIn->rainfallType == 1) {
-		
-		// Check if time for rainfall forecast 
-		if (fmod(timer->getCurrentTime(), timer->getRainDT())==0 &&
-			timer->getoptForecast()!=0)
-			fState = checkForecast();
 		
 		// Compose rainfall file name
 		while ( !(rainIn->Compose_In_Mrain_Name(timer)) ) { 
@@ -260,11 +252,6 @@ void Simulator::simulation_loop(tHydroModel *Moisture, tKinemat *Flow,
       tGraph::resetOverlap();
 #endif
 
-		// End simulation beyond forecast interval
-		if (timer->getoptForecast() != 0 && fState == 3) {
-			break; 
-		}
-
       // Write restart files
       if ( optrestart > 0 && timer->getCurrentTime() == nextRestartDump) {
           writeRestart(restartDir);
@@ -284,7 +271,7 @@ void Simulator::simulation_loop(tHydroModel *Moisture, tKinemat *Flow,
 void Simulator::end_simulation(tKinemat *Flow) 
 { 
 	Flow->getResultsPtr()->
-			writeAndUpdate( timer->getCurrentTime(), 0 );
+			writeAndUpdate( timer->getCurrentTime() );
 	
 	Flow->getResultsPtr()->
 		whenTimeIsOver( timer->getCurrentTime() );
@@ -341,12 +328,7 @@ void Simulator::PrintRunTimeVars(tHydroModel *Moisture, int opt)
 *****************************************************************************/
 void Simulator::UpdatePrecipitationInput()
 {
-	// Check if time for rainfall forecast
-	if (fmod(timer->getCurrentTime(), timer->getRainDT())==0 && 
-		timer->getoptForecast()!=0)
-		fState = checkForecast();
-	
-	// Options for radar or rain gauges 
+	// Options for radar or rain gauges
 	if (rainIn->rainfallType == 1)
 		get_next_mrain(simCtrl->mode);
 	
@@ -616,38 +598,6 @@ void Simulator::get_next_gaugerain()
 	return;
 }
 
-/*****************************************************************************
-**  
-**  Simulator::checkForecast()
-**  
-**  Check the forecast state. Returns integer representing state:
-**  
-**  0 = Before and up to forecast time, Use QPE
-**  1 = In Forecast Period and up to lead time, Use QPF
-**  2 = In Forecast Period and after lead time, Use Average Rainfall
-**  3 = After Forecast Period, End simulation
-**
-*****************************************************************************/
-int Simulator::checkForecast() 
-{
-	int state;
-	
-	if (timer->getCurrentTime() < timer->getfTime())
-		state = 0;
-	else if (timer->getCurrentTime() < (timer->getfTime() + timer->getfLead()) &&
-			 timer->getCurrentTime() >= timer->getfTime())
-		state = 1;
-	else if (timer->getCurrentTime() < (timer->getfTime() + timer->getfLength()) &&
-			 timer->getCurrentTime() >= timer->getfLead())
-		state = 2;
-	else if (timer->getCurrentTime() >= (timer->getfTime() + timer->getfLength()))
-		state = 3;
-	
-	rainIn->setfState(state);
-	
-	return state;
-}
-
 /***************************************************************************
 **
 ** Simulator::writeRestart() Function
@@ -672,9 +622,7 @@ void Simulator::writeRestart(char* directory) const
 
   // Dump local simulator information
   BinaryWrite(rStr, count);
-  BinaryWrite(rStr, fState);
   BinaryWrite(rStr, dt_rain);
-  BinaryWrite(rStr, lfr_hour);
   BinaryWrite(rStr, lmr_hour);
   BinaryWrite(rStr, begin_hour);
   BinaryWrite(rStr, met_hour);
@@ -712,9 +660,7 @@ void Simulator::readRestart(tInputFile &InFl)
 
   // Read local simulator information
   BinaryRead(rStr, count);
-  BinaryRead(rStr, fState);
   BinaryRead(rStr, dt_rain);
-  BinaryRead(rStr, lfr_hour);
   BinaryRead(rStr, lmr_hour);
   BinaryRead(rStr, begin_hour);
   BinaryRead(rStr, met_hour);

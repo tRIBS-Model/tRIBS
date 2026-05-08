@@ -70,9 +70,6 @@ public:
   double  res_hour_begin(int);
   double  res_hour_end(int);
   double  get_abs_hour(double);
-  double  getfTime();
-  double  getfLength();
-  double  getfLead();
   double  getMetTime(int);
   double  getStormTime();
   double  getPrevStormTime();	
@@ -87,7 +84,6 @@ public:
   int     CheckOutputTime();
   int     CheckSpatialOutputTime();
   int     isGaugeTime(double);
-  int     getoptForecast();
 
   void    InitializeTimer( tInputFile &infile );
   void    Start( double, double );
@@ -122,8 +118,6 @@ private:
   double outputInterval; 	// time step for output 
   double SPOutputInterval; 	// time step for spatial output
   double RainTime;  	        // keeps track of rainfall input time
-  int    optForecast;           // Rainfall forecasting option
-  double fTime, fLength, fLead; // Forecasting parameters
   double etistep;               // time step for ET and I comp.
   double MetTime;               // keeps track of met time
   double EtITime;               // keeps track of eti time

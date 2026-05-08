@@ -71,7 +71,7 @@ void tPreProcess::CheckInputFile(tInputFile &infile)
 	// SKY2008Snow from AJR2007
 	int optradshelt; //, optwindshelt;
 
-	int optfrcst, optgw;
+	int optgw;
    int optpar, optgraph, optrest, optv;
 	char tempString[kName];
 
@@ -123,7 +123,7 @@ void tPreProcess::CheckInputFile(tInputFile &infile)
 	IterReadItem(infile, tempVariable,"OPTRADSHELT");
 
 
-	optmesh=optrain=optrock=optmet=optfrcst=optgw=0; //Int
+	optmesh=optrain=optrock=optmet=optgw=0; //Int
   	optpar=optgraph=optrest=0;
 
 	optres=0; // JECR 2015
@@ -142,7 +142,6 @@ void tPreProcess::CheckInputFile(tInputFile &infile)
 	}
 
 	optrock  = IterReadItem(infile, optrock ,"OPTBEDROCK");
-	optfrcst = IterReadItem(infile, optfrcst,"FORECASTMODE");
 	//optgw    = IterReadItem(infile, optgw,   "OPTGWFILE");
 	
 	optres = IterReadItem(infile, tempVariable,"OPTRESERVOIR"); // JECR 2015
@@ -254,16 +253,6 @@ void tPreProcess::CheckInputFile(tInputFile &infile)
 	IterReadItem(infile, tempString,"HYDRONODELIST");
 	IterReadItem(infile, tempString,"OUTLETNODELIST");
 
-	if (optfrcst != 0 ) {                //Forecasting
-		IterReadItem(infile, tempVariable,"FORECASTTIME");
-		IterReadItem(infile, tempVariable,"FORECASTLEADTIME");
-		IterReadItem(infile, tempVariable,"FORECASTLENGTH");
-	}
-	else if (optfrcst == 1)
-		IterReadItem(infile, tempString,  "FORECASTFILE");
-	else if (optfrcst == 3)
-		IterReadItem(infile, tempVariable,"CLIMATOLOGY");
-	
    // Restart options
    optrest = IterReadItem(infile, optrest, "RESTARTMODE");
    if (optrest > 0) {
