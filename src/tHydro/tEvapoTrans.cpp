@@ -2630,7 +2630,7 @@ void tEvapoTrans::DeriveAspect()
 ***************************************************************************/
 void tEvapoTrans::EvapPenmanMonteith(tCNode* cNode) 
 {
-	potEvap = 3600.0*energyBalance(cNode);   // Actual rate, including resistances
+	potEvap = 3600.0*energyBalance(cNode);   // Reference rate (rs=0); stomatal resistance applied later in ComputeETComponents via transFactor
 	actEvap = 3600.0*(lFlux/(latentHeat()));  
 }
 
