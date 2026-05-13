@@ -195,9 +195,6 @@ void tFlowResults::SetFlowResVariables(tInputFile &infile, double add_time)
 	if ((frac = (double*)calloc(limit,sizeof(double)))==NULL)
 		cout<<"\ntFlowResults: frac failed..."<<endl;
 	
-	if ((fState = (int*)calloc(limit,sizeof(int)))==NULL)
-		cout<<"\ntFlowResults: fState failed..."<<endl;
-	
 	if ((qunsat = (double*)calloc(limit,sizeof(double)))==NULL) // CJC2025
 		cout<<"\ntFlowResults: qunsat failed..."<<endl;
 
@@ -209,7 +206,6 @@ void tFlowResults::SetFlowResVariables(tInputFile &infile, double add_time)
 		prr[i] = crr[i] = 0.0;
 		HsrfRout[i] = SbsrfRout[i] = 0.0;
 		PsrfRout[i] = SatsrfRout[i] = 0.0;
-		fState[i] = 0;
 		max[i]=sat[i]=msm[i]=mgw[i]=msmU[i]=msmRt[i]=met[i]=frac[i]=0.0;
 		      
 		// SKY2008Snow from AJR2007
@@ -255,7 +251,6 @@ void tFlowResults::free_results()
 	free(mgw);
 	free(met);
 	free(frac);
-	free(fState);
 	// SKY2008Snow from AJR2007
 	free(swe);
 	free(melt);
@@ -287,7 +282,6 @@ void tFlowResults::free_results()
 	SbsrfRout=NULL;
 	PsrfRout=NULL;
 	SatsrfRout=NULL;
-	fState=NULL;
 	max = NULL;
 	min = NULL;
 	msm = NULL;
@@ -333,7 +327,7 @@ void tFlowResults::free_results()
 
 /***************************************************************************
 **
-**  tFlowResults: writeAndUpdate(inter_hour, dt_rain)
+**  tFlowResults: writeAndUpdate(time)
 **
 **  Write basin state variables, output and result hydrographs
 **
@@ -345,16 +339,16 @@ void tFlowResults::free_results()
 **	call network model to write state and outputAlgorithm:
 **
 ***************************************************************************/
-void tFlowResults::writeAndUpdate( double time, int forenum )
-{ 
+void tFlowResults::writeAndUpdate( double time )
+{
 	int  hour, minute;
 	char timetag[20];
 	writeFlag = 0;
-	
+
 	if (simCtrl->Verbose_label == 'Y')
 		cout<<"\n\ttFlowResults: Time to write hydrograph; time = "
 			<<time<<endl<<flush;
-	
+
 	hour   = (int)floor(time);
 	minute = (int)floor((time-hour)*60);
 
@@ -362,8 +356,8 @@ void tFlowResults::writeAndUpdate( double time, int forenum )
 	strcpy( currHydroName, baseHydroName );
 	strcat( currHydroName, timetag );
 	strcat( currHydroName, Extension);
-	
-	write_inter_hyd(currHydroName, outlet, forenum);
+
+	write_inter_hyd(currHydroName, outlet);
 	
 	update_prev_hyd();
 	
@@ -381,29 +375,23 @@ void tFlowResults::writeAndUpdate( double time, int forenum )
 **  master writes the file.
 **
 **  Algorithm:
-**      assign forecast state flag if forecast option is active
 **      [parallel] reduce all basin-state arrays across processors
 **                 (sum for fluxes/states, min/max for rainfall)
 **      [parallel] restrict file writing to master processor
 **      write CSV header (variable_unit format, 32 columns)
 **      for each output time step:
 **          write decimal time, outlet streamflow, mean areal
-**          precipitation with spatial min/max, forecast state,
+**          precipitation with spatial min/max, 
 **          mean soil moisture at multiple depths, mean ET and
 **          groundwater level, saturation and rain coverage fractions,
 **          snow pack states and energy fluxes, snow interception,
 **          snow covered area, channel percolation, and unsaturated flow
 **
 ***************************************************************************/
-void tFlowResults::write_inter_hyd(char *filename, char *identification,
-								   int foreNum)
+void tFlowResults::write_inter_hyd(char *filename, char *identification)
 {
 	int ii;              //Loop counter 
 	int it_hour, it_min;  //Hours and minutes to print results 
-
-	// Assign Forecast State if Option != 0
-	if (timer->getoptForecast()!=0)
-		fState[count] = checkForecast();
 
 #ifdef PARALLEL_TRIBS
 
@@ -465,33 +453,32 @@ void tFlowResults::write_inter_hyd(char *filename, char *identification,
 		      << "MAP_mm_hr,"        // 3
 		      << "RainMax_mm_hr,"    // 4
 		      << "RainMin_mm_hr,"    // 5
-		      << "FState_[],"        // 6
-		      << "MSM100_[],"        // 7
-		      << "MSMRt_[],"         // 8
-		      << "MSMU_[],"          // 9
-		      << "MDGW_mm,"          // 10
-		      << "MET_mm,"           // 11
-		      << "SatPercent_[],"    // 12
-		      << "RainPercent_[],"   // 13
-		      << "AvSWE_cm,"         // 14
-		      << "AvMelt_cm,"        // 15
-		      << "AvSnSub_cm,"       // 16
-		      << "AvSnEvap_cm,"      // 17
-		      << "AvSTC_C,"          // 18
-		      << "AvDUInt_kJ_m2,"    // 19
-		      << "AvSLHF_kJ_m2,"     // 20
-		      << "AvSSHF_kJ_m2,"     // 21
-		      << "AvSPHF_kJ_m2,"     // 22
-		      << "AvSGHF_kJ_m2,"     // 23
-		      << "AvSRLI_kJ_m2,"     // 24
-		      << "AvSRLO_kJ_m2,"     // 25
-		      << "AvSRSI_kJ_m2,"     // 26
-		      << "AvInSn_cm,"        // 27
-		      << "AvInSu_cm,"        // 28
-		      << "AvInUn_cm,"        // 29
-		      << "SCA_[],"           // 30
-		      << "ChannelPerc_m3,"   // 31
-		      << "Qunsat_mm_hr\n";   // 32
+		      << "MSM100_[],"        // 6
+		      << "MSMRt_[],"         // 7
+		      << "MSMU_[],"          // 8
+		      << "MDGW_mm,"          // 9
+		      << "MET_mm,"           // 10
+		      << "SatPercent_[],"    // 11
+		      << "RainPercent_[],"   // 12
+		      << "AvSWE_cm,"         // 13
+		      << "AvMelt_cm,"        // 14
+		      << "AvSnSub_cm,"       // 15
+		      << "AvSnEvap_cm,"      // 16
+		      << "AvSTC_C,"          // 17
+		      << "AvDUInt_kJ_m2,"    // 18
+		      << "AvSLHF_kJ_m2,"     // 19
+		      << "AvSSHF_kJ_m2,"     // 20
+		      << "AvSPHF_kJ_m2,"     // 21
+		      << "AvSGHF_kJ_m2,"     // 22
+		      << "AvSRLI_kJ_m2,"     // 23
+		      << "AvSRLO_kJ_m2,"     // 24
+		      << "AvSRSI_kJ_m2,"     // 25
+		      << "AvInSn_cm,"        // 26
+		      << "AvInSu_cm,"        // 27
+		      << "AvInUn_cm,"        // 28
+		      << "SCA_[],"           // 29
+		      << "ChannelPerc_m3,"   // 30
+		      << "Qunsat_mm_hr\n";   // 31
 		writeFlag = 1;
 
 		for (ii=0; ii < iimax; ii++) {
@@ -504,66 +491,64 @@ void tFlowResults::write_inter_hyd(char *filename, char *identification,
 			      << pCrr[ii]                     << ","  // 3  MAP_mm_hr
 			      << pMax[ii]                     << ","  // 4  RainMax_mm_hr
 			      << pMin[ii]                     << ","  // 5  RainMin_mm_hr
-			      << fState[ii]                   << ","  // 6  FState_[]
-			      << pMsm[ii]                     << ","  // 7  MSM100_[]
-			      << pMsmRt[ii]                   << ","  // 8  MSMRt_[]
-			      << pMsmU[ii]                    << ","  // 9  MSMU_[]
-			      << pMgw[ii]                     << ","  // 10 MDGW_mm
-			      << pMet[ii]                     << ","  // 11 MET_mm
-			      << pSat[ii]                     << ","  // 12 SatPercent_[]
-			      << pFrac[ii]                    << ","  // 13 RainPercent_[]
-			      << pSwe[ii]                     << ","  // 14 AvSWE_cm
-			      << pMelt[ii]                    << ","  // 15 AvMelt_cm
-			      << pSnSub[ii]                   << ","  // 16 AvSnSub_cm
-			      << pSnEvap[ii]                  << ","  // 17 AvSnEvap_cm
-			      << pStC[ii]                     << ","  // 18 AvSTC_C
-			      << pDUint[ii]                   << ","  // 19 AvDUInt_kJ_m2
-			      << pSlhf[ii]                    << ","  // 20 AvSLHF_kJ_m2
-			      << pSshf[ii]                    << ","  // 21 AvSSHF_kJ_m2
-			      << pSphf[ii]                    << ","  // 22 AvSPHF_kJ_m2
-			      << pSghf[ii]                    << ","  // 23 AvSGHF_kJ_m2
-			      << pSrli[ii]                    << ","  // 24 AvSRLI_kJ_m2
-			      << pSrlo[ii]                    << ","  // 25 AvSRLO_kJ_m2
-			      << pSrsi[ii]                    << ","  // 26 AvSRSI_kJ_m2
-			      << pIntsn[ii]                   << ","  // 27 AvInSn_cm
-			      << pIntsub[ii]                  << ","  // 28 AvInSu_cm
-			      << pIntunl[ii]                  << ","  // 29 AvInUn_cm
-			      << pSca[ii]                     << ","  // 30 SCA_[]
-			      << pPerc[ii]                    << ","  // 31 ChannelPerc_m3
-			      << pQunsat[ii]                  << "\n"; // 32 Qunsat_mm_hr
+			      << pMsm[ii]                     << ","  // 6  MSM100_[]
+			      << pMsmRt[ii]                   << ","  // 7  MSMRt_[]
+			      << pMsmU[ii]                    << ","  // 8  MSMU_[]
+			      << pMgw[ii]                     << ","  // 9  MDGW_mm
+			      << pMet[ii]                     << ","  // 10 MET_mm
+			      << pSat[ii]                     << ","  // 11 SatPercent_[]
+			      << pFrac[ii]                    << ","  // 12 RainPercent_[]
+			      << pSwe[ii]                     << ","  // 13 AvSWE_cm
+			      << pMelt[ii]                    << ","  // 14 AvMelt_cm
+			      << pSnSub[ii]                   << ","  // 15 AvSnSub_cm
+			      << pSnEvap[ii]                  << ","  // 16 AvSnEvap_cm
+			      << pStC[ii]                     << ","  // 17 AvSTC_C
+			      << pDUint[ii]                   << ","  // 18 AvDUInt_kJ_m2
+			      << pSlhf[ii]                    << ","  // 19 AvSLHF_kJ_m2
+			      << pSshf[ii]                    << ","  // 20 AvSSHF_kJ_m2
+			      << pSphf[ii]                    << ","  // 21 AvSPHF_kJ_m2
+			      << pSghf[ii]                    << ","  // 22 AvSGHF_kJ_m2
+			      << pSrli[ii]                    << ","  // 23 AvSRLI_kJ_m2
+			      << pSrlo[ii]                    << ","  // 24 AvSRLO_kJ_m2
+			      << pSrsi[ii]                    << ","  // 25 AvSRSI_kJ_m2
+			      << pIntsn[ii]                   << ","  // 26 AvInSn_cm
+			      << pIntsub[ii]                  << ","  // 27 AvInSu_cm
+			      << pIntunl[ii]                  << ","  // 28 AvInUn_cm
+			      << pSca[ii]                     << ","  // 29 SCA_[]
+			      << pPerc[ii]                    << ","  // 30 ChannelPerc_m3
+			      << pQunsat[ii]                  << "\n"; // 31 Qunsat_mm_hr
 #else
 			ifile << time_hr                      << ","  // 1  Time_hr
 			      << phydro[ii]+mhydro[ii]        << ","  // 2  Srf_m3_s
 			      << crr[ii]                      << ","  // 3  MAP_mm_hr
 			      << max[ii]                      << ","  // 4  RainMax_mm_hr
 			      << min[ii]                      << ","  // 5  RainMin_mm_hr
-			      << fState[ii]                   << ","  // 6  FState_[]
-			      << msm[ii]                      << ","  // 7  MSM100_[]
-			      << msmRt[ii]                    << ","  // 8  MSMRt_[]
-			      << msmU[ii]                     << ","  // 9  MSMU_[]
-			      << mgw[ii]                      << ","  // 10 MDGW_mm
-			      << met[ii]                      << ","  // 11 MET_mm
-			      << sat[ii]                      << ","  // 12 SatPercent_[]
-			      << frac[ii]                     << ","  // 13 RainPercent_[]
-			      << swe[ii]                      << ","  // 14 AvSWE_cm
-			      << melt[ii]                     << ","  // 15 AvMelt_cm
-			      << snsub[ii]                    << ","  // 16 AvSnSub_cm
-			      << snevap[ii]                   << ","  // 17 AvSnEvap_cm
-			      << stC[ii]                      << ","  // 18 AvSTC_C
-			      << DUint[ii]                    << ","  // 19 AvDUInt_kJ_m2
-			      << slhf[ii]                     << ","  // 20 AvSLHF_kJ_m2
-			      << sshf[ii]                     << ","  // 21 AvSSHF_kJ_m2
-			      << sphf[ii]                     << ","  // 22 AvSPHF_kJ_m2
-			      << sghf[ii]                     << ","  // 23 AvSGHF_kJ_m2
-			      << srli[ii]                     << ","  // 24 AvSRLI_kJ_m2
-			      << srlo[ii]                     << ","  // 25 AvSRLO_kJ_m2
-			      << srsi[ii]                     << ","  // 26 AvSRSI_kJ_m2
-			      << intsn[ii]                    << ","  // 27 AvInSn_cm
-			      << intsub[ii]                   << ","  // 28 AvInSu_cm
-			      << intunl[ii]                   << ","  // 29 AvInUn_cm
-			      << sca[ii]                      << ","  // 30 SCA_[]
-			      << Perc[ii]                     << ","  // 31 ChannelPerc_m3
-			      << qunsat[ii ]                   << "\n"; // 32 Qunsat_mm_hr
+			      << msm[ii]                      << ","  // 6  MSM100_[]
+			      << msmRt[ii]                    << ","  // 7  MSMRt_[]
+			      << msmU[ii]                     << ","  // 8  MSMU_[]
+			      << mgw[ii]                      << ","  // 9  MDGW_mm
+			      << met[ii]                      << ","  // 10 MET_mm
+			      << sat[ii]                      << ","  // 11 SatPercent_[]
+			      << frac[ii]                     << ","  // 12 RainPercent_[]
+			      << swe[ii]                      << ","  // 13 AvSWE_cm
+			      << melt[ii]                     << ","  // 14 AvMelt_cm
+			      << snsub[ii]                    << ","  // 15 AvSnSub_cm
+			      << snevap[ii]                   << ","  // 16 AvSnEvap_cm
+			      << stC[ii]                      << ","  // 17 AvSTC_C
+			      << DUint[ii]                    << ","  // 18 AvDUInt_kJ_m2
+			      << slhf[ii]                     << ","  // 19 AvSLHF_kJ_m2
+			      << sshf[ii]                     << ","  // 20 AvSSHF_kJ_m2
+			      << sphf[ii]                     << ","  // 21 AvSPHF_kJ_m2
+			      << sghf[ii]                     << ","  // 22 AvSGHF_kJ_m2
+			      << srli[ii]                     << ","  // 23 AvSRLI_kJ_m2
+			      << srlo[ii]                     << ","  // 24 AvSRLO_kJ_m2
+			      << srsi[ii]                     << ","  // 25 AvSRSI_kJ_m2
+			      << intsn[ii]                    << ","  // 26 AvInSn_cm
+			      << intsub[ii]                   << ","  // 27 AvInSu_cm
+			      << intunl[ii]                   << ","  // 28 AvInUn_cm
+			      << sca[ii]                      << ","  // 29 SCA_[]
+			      << Perc[ii]                     << ","  // 30 ChannelPerc_m3
+			      << qunsat[ii ]                   << "\n"; // 31 Qunsat_mm_hr
 #endif
 		}
 
@@ -1063,36 +1048,6 @@ void tFlowResults::store_saturation(double time, double value, int flag)
 	return;
 }
 
-/*****************************************************************************
-**  
-**  tFlowResults::checkForecast()
-**  
-**  Check the forecast state. Returns integer representing state:
-**  
-**  0 = Before and up to forecast time, Use QPE
-**  1 = In Forecast Period and up to lead time, Use QPF
-**  2 = In Forecast Period and after lead time, Use Average Rainfall
-**  3 = After Forecast Period, End simulation
-**
-*****************************************************************************/
-int tFlowResults::checkForecast() 
-{
-	int state {};
-	
-	if (timer->getCurrentTime() < timer->getfTime())
-		state = 0;
-	else if (timer->getCurrentTime() < (timer->getfTime() + timer->getfLead()) &&
-			 timer->getCurrentTime() >= timer->getfTime())
-		state = 1;
-	else if (timer->getCurrentTime() < (timer->getfTime() + timer->getfLength()) &&
-			 timer->getCurrentTime() >= timer->getfLead())
-		state = 2;
-	else if (timer->getCurrentTime() >= (timer->getfTime() + timer->getfLength()))
-		state = 3;
-	
-	return state;
-}
-
 /***************************************************************************
 **
 ** tFlowResults::writeRestart() Function
@@ -1107,8 +1062,6 @@ void tFlowResults::writeRestart(fstream & rStr) const
   BinaryWrite(rStr, iimax);
   BinaryWrite(rStr, writeFlag);
   BinaryWrite(rStr, count);
-  for (int i = 0; i < limit; i++)
-    BinaryWrite(rStr, fState[i]);
 
   for (int i = 0; i < limit; i++) {
     BinaryWrite(rStr, prr[i]);
@@ -1162,8 +1115,6 @@ void tFlowResults::readRestart(fstream & rStr)
   BinaryRead(rStr, iimax);
   BinaryRead(rStr, writeFlag);
   BinaryRead(rStr, count);
-  for (int i = 0; i < limit; i++)
-    BinaryRead(rStr, fState[i]);
 
   for (int i = 0; i < limit; i++) {
     BinaryRead(rStr, prr[i]);

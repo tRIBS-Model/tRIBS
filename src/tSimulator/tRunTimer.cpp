@@ -179,14 +179,6 @@ void tRunTimer::InitializeTimer( tInputFile &infile )
 	else
 		etistep = dtRain;
 
-	// Rainfall Forecast Times
-	optForecast = infile.ReadItem(optForecast, "FORECASTMODE");
-	if (optForecast != 0) {
-		fTime = infile.ReadItem(fTime, "FORECASTTIME");
-		fLength = infile.ReadItem(fLength, "FORECASTLENGTH");
-		fLead = infile.ReadItem(fLead, "FORECASTLEADTIME");
-	}
-	
 	// Adjustments to Time with Rainfall Input
 	
 	double help;
@@ -534,21 +526,6 @@ double tRunTimer::res_hour_end(int it)
 
 /***************************************************************************
 **
-** tRunTimer::Get Rainfall Forecasting Functions
-**
-**
-***************************************************************************/
-
-double tRunTimer::getfTime() { return fTime; }
-
-double tRunTimer::getfLength() { return fLength; }
-
-double tRunTimer::getfLead() { return fLead; }
-
-int tRunTimer::getoptForecast() { return optForecast; }
-
-/***************************************************************************
-**
 ** tWaterBalance::writeRestart() Function
 ** 
 ** Called from tSimulator during simulation loop
@@ -576,7 +553,6 @@ void tRunTimer::writeRestart(fstream & rStr) const
   BinaryWrite(rStr, dayS);
   BinaryWrite(rStr, monthS);
   BinaryWrite(rStr, yearS);
-  BinaryWrite(rStr, optForecast);
   BinaryWrite(rStr, dtRain);
   BinaryWrite(rStr, startHour);
   BinaryWrite(rStr, currentTime);
@@ -588,9 +564,6 @@ void tRunTimer::writeRestart(fstream & rStr) const
   BinaryWrite(rStr, outputInterval);
   BinaryWrite(rStr, SPOutputInterval);
   BinaryWrite(rStr, RainTime);
-  BinaryWrite(rStr, fTime);
-  BinaryWrite(rStr, fLength);
-  BinaryWrite(rStr, fLead);
   BinaryWrite(rStr, etistep);
   BinaryWrite(rStr, MetTime);
   BinaryWrite(rStr, EtITime);
@@ -623,7 +596,6 @@ void tRunTimer::readRestart(fstream & rStr)
   BinaryRead(rStr, dayS);
   BinaryRead(rStr, monthS);
   BinaryRead(rStr, yearS);
-  BinaryRead(rStr, optForecast);
   BinaryRead(rStr, dtRain);
   BinaryRead(rStr, startHour);
   BinaryRead(rStr, currentTime);
@@ -635,9 +607,6 @@ void tRunTimer::readRestart(fstream & rStr)
   BinaryRead(rStr, outputInterval);
   BinaryRead(rStr, SPOutputInterval);
   BinaryRead(rStr, RainTime);
-  BinaryRead(rStr, fTime);
-  BinaryRead(rStr, fLength);
-  BinaryRead(rStr, fLead);
   BinaryRead(rStr, etistep);
   BinaryRead(rStr, MetTime);
   BinaryRead(rStr, EtITime);

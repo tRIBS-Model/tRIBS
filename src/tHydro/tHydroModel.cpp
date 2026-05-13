@@ -1361,8 +1361,13 @@ void tHydroModel::UnSaturatedZone(double dt)
 									BB = -dt*(qn - R1)/(Ths-Thr) - Eps/F*exp(-F*NtOld/Eps);
 									AA = -exp(F*(BB-NtOld)/Eps);
 									NtNew = NtOld + (Eps/F*LambertW(AA) - BB);
-									if (AA < (-1/exp(1.0)))
-										cout<<"\nWarning: Value for LAMBERT f-n is too small\n\n";
+									if (AA < (-1/exp(1.0))) {
+										static int warnLambert1 = 0;
+										if (++warnLambert1 <= 10)
+											cout<<"\nWarning: Value for LAMBERT f-n is too small\n\n";
+										else if (warnLambert1 == 11)
+											cout<<"\nWarning: Value for LAMBERT f-n is too small (further warnings suppressed)\n\n";
+									}
 									RuNew = Ksat*exp(-F*NtNew);
 								}
 							}
@@ -1512,12 +1517,21 @@ void tHydroModel::UnSaturatedZone(double dt)
 
 						if ((RiNew-RuNew) < 1.0E-2 && (RiNew - RuNew) > 0.0)
 							RuNew = RiNew;
-						else if ((RiNew-RuNew) > 1.0E-2)
-							cout<<"\nWarning: UNSAT: RuNew < RiNew: id = "<<cn->getID()<<"\n";
+						else if ((RiNew-RuNew) > 1.0E-2) {
+							static int warnRuRi = 0;
+							if (++warnRuRi <= 10)
+								cout<<"\nWarning: UNSAT: RuNew < RiNew: id = "<<cn->getID()<<"\n";
+							else if (warnRuRi == 11)
+								cout<<"\nWarning: UNSAT: RuNew < RiNew (further warnings suppressed)\n";
+						}
 
 						if (RuNew > Ksat) {
-							cout<<"\nWarning: UNSAT: RuNew > Ksat: id = "
-							<<cn->getID()<<"\n\tRuNew = "<<RuNew<<"\tKsat = "<<Ksat<<"\n";
+							static int warnRuKsat = 0;
+							if (++warnRuKsat <= 10)
+								cout<<"\nWarning: UNSAT: RuNew > Ksat: id = "
+								<<cn->getID()<<"\n\tRuNew = "<<RuNew<<"\tKsat = "<<Ksat<<"\n";
+							else if (warnRuKsat == 11)
+								cout<<"\nWarning: UNSAT: RuNew > Ksat (further warnings suppressed)\n";
 						}
                     }
 				}
@@ -1543,9 +1557,14 @@ void tHydroModel::UnSaturatedZone(double dt)
                                 hsrf += (R1 - (qn - RiOld*Cos));
                                 R1 -= hsrf;
                             }
-                            else
-                                cout<<"\nWarning: Wrong state def.: R < Keqviv-RiOld*Cos: id = "
-                                <<cn->getID()<<"\n\n";
+                            else {
+                                static int warnStateDef1 = 0;
+                                if (++warnStateDef1 <= 10)
+                                    cout<<"\nWarning: Wrong state def.: R < Keqviv-RiOld*Cos: id = "
+                                    <<cn->getID()<<"\n\n";
+                                else if (warnStateDef1 == 11)
+                                    cout<<"\nWarning: Wrong state def.: R < Keqviv-RiOld*Cos (further warnings suppressed)\n\n";
+                            }
 
                             NtNew = 0.0;
                             MuNew = MuOld + R1*dt;
@@ -1754,8 +1773,13 @@ void tHydroModel::UnSaturatedZone(double dt)
                         else {
                             BB = -dt*(qn - R1)/(Ths-Thr) - Eps/F*exp(-F*NtOld/Eps);
                             AA = -exp(F*(BB-NtOld)/Eps);
-                            if (AA < (-1.0/exp(1.0)))
-                                cout<<"\n\n\t\tWarning: Value for LAMBERT f-n is too small\n\n";
+                            if (AA < (-1.0/exp(1.0))) {
+                                static int warnLambert2 = 0;
+                                if (++warnLambert2 <= 10)
+                                    cout<<"\n\n\t\tWarning: Value for LAMBERT f-n is too small\n\n";
+                                else if (warnLambert2 == 11)
+                                    cout<<"\n\n\t\tWarning: Value for LAMBERT f-n is too small (further warnings suppressed)\n\n";
+                            }
                             NtNew = NtOld + (Eps/F*LambertW(AA) - BB);
                             RuNew = Ksat*exp(-F*NtNew);
                         }
@@ -1845,8 +1869,12 @@ void tHydroModel::UnSaturatedZone(double dt)
 							}
 
 							else {
-						    	    cout<<"\nWarning: WRONG state def.: R < Keqviv-RiOld*Cos: id = "
-								<<cn->getID()<<"\n\n";
+								static int warnStateDef2 = 0;
+								if (++warnStateDef2 <= 10)
+									cout<<"\nWarning: WRONG state def.: R < Keqviv-RiOld*Cos: id = "
+									<<cn->getID()<<"\n\n";
+								else if (warnStateDef2 == 11)
+									cout<<"\nWarning: WRONG state def.: R < Keqviv-RiOld*Cos (further warnings suppressed)\n\n";
                             }
 
 							NtNew = 0.0;

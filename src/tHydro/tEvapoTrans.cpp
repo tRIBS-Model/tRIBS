@@ -2330,11 +2330,15 @@ double tEvapoTrans::rtsafe_mod_energy(tCNode* cNode, double x1, double x2,
 		else
 			xh=rts;
 	}
-	cerr<<"\n\t\ttEvapotrans: Energy balance: NO convergence in "<<MAXITER<<"\n";
-	cerr<<"\t ERROR = "<<f
-		<<";  Initial = "<<xguess
-		<<";  Last estimate = "<<rts<<";  ID = "<<ID
-		<<"\n\t##### Initial value is kept."<<endl<<endl<<flush;
+	static int warnEBconv = 0;
+	if (++warnEBconv <= 10)
+		cerr<<"\n\t\ttEvapotrans: Energy balance: NO convergence in "<<MAXITER<<"\n"
+			<<"\t ERROR = "<<f
+			<<";  Initial = "<<xguess
+			<<";  Last estimate = "<<rts<<";  ID = "<<ID
+			<<"\n\t##### Initial value is kept."<<endl<<endl<<flush;
+	else if (warnEBconv == 11)
+		cerr<<"\n\t\ttEvapotrans: Energy balance: NO convergence (further warnings suppressed)"<<endl<<flush;
 	return xguess;
 }
 #undef MAXITER
@@ -2630,7 +2634,7 @@ void tEvapoTrans::DeriveAspect()
 ***************************************************************************/
 void tEvapoTrans::EvapPenmanMonteith(tCNode* cNode) 
 {
-	potEvap = 3600.0*energyBalance(cNode);   // Actual rate, including resistances
+	potEvap = 3600.0*energyBalance(cNode);   // Reference rate (rs=0); stomatal resistance applied later in ComputeETComponents via transFactor
 	actEvap = 3600.0*(lFlux/(latentHeat()));  
 }
 

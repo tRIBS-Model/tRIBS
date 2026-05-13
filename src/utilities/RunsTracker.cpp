@@ -200,35 +200,6 @@ int main(int argc, char *argv[]){
 	tempo = ReadItem(tempo, "GFLUXOPTION");
 	theOFStream<<"GFLUXOPTION:\t"<<(int)tempo<<endl;
 	
-	theOFStream<<"\n-Forecast Options-"<<endl;
-	BRoption = ReadItem(BRoption, "FORECASTMODE");
-	theOFStream<<"FORECASTMODE:\t";
-	if (BRoption == 0)
-		theOFStream<<"NO FORECAST"<<endl;
-	else if (BRoption == 1)
-		theOFStream<<"QPF"<<endl;
-	else if (BRoption == 2)
-		theOFStream<<"PERSISTENCE"<<endl;
-	else if (BRoption == 3)
-		theOFStream<<"CLIMATOLOGY"<<endl;
-	else
-		theOFStream<<"-- Unknown --"<<endl;
-	if (BRoption >= 1 && BRoption <= 3) {
-		tempo = ReadItem(tempo, "FORECASTTIME");
-		theOFStream<<"FORECASTTIME:    \t"<<tempo<<endl;
-		tempo = ReadItem(tempo, "FORECASTLEADTIME");
-		theOFStream<<"FORECASTLEADTIME:\t"<<tempo<<endl;
-		tempo = ReadItem(tempo, "FORECASTLENGTH");
-		theOFStream<<"FORECASTLENGTH:  \t"<<tempo<<endl;
-		tempo = ReadItem(tempo, "CLIMATOLOGY");
-		theOFStream<<"CLIMATOLOGY:     \t"<<tempo<<endl;
-		BRoption = ReadItem(BRoption, "RAINDISTRIBUTION");
-		theOFStream<<"RAINDISTRIBUTION:\t";
-		if (BRoption == 0)
-			theOFStream<<"SPATIAL"<<endl;
-		else if (BRoption == 1)
-			theOFStream<<"MAP"<<endl;
-	}
 	theOFStream<<endl<<endl;
 	return 0;
 }

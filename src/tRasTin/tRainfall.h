@@ -54,7 +54,6 @@ public:
   void assignStationToNode();
   void callRainGauge(tRunTimer *);
   void setToNode();
-  void setfState(int);
   void writeRestart(fstream &) const;
   void readRestart(fstream &);
   
@@ -68,7 +67,7 @@ protected:
   tMesh<tCNode> *gridPtr;
   tResample     *respPtr;
   tRainGauge * rainGauges;
-  int numStations, arraySize, hourlyTimeStep, numRains;
+  int numStations, arraySize, hourlyTimeStep;
   int *assignedRain, *currentTime;
   double *curRain, *latitude, *longitude, *gaugeRain; 
 
@@ -76,11 +75,9 @@ protected:
   double precLapseRate;//AJR @ NMT 2007
 
   char inputname[kMaxNameSize];
-  char forecastname[kMaxNameSize];
   char stationFile[kName];
-  char extension[20]; 
-  double aveMAP, cumMAP, climate;   
-  int optForecast, fState, optMAP;
+  char extension[20];
+  int optMAP;
   ifstream infile; 
 };
 

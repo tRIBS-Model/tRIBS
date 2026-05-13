@@ -107,16 +107,13 @@ public:
   double *Perc; 	// Percolation from the channel bottom ASM percolation option
   double *qunsat;		// Mean net flow froom unsaturated zone CJC2025
 
-  int *fState;                  // Forecast state
-
-  int   checkForecast();
-  void  SetFlowResVariables(tInputFile &, double); 
-  void  writeAndUpdate(double, int);
+  void  SetFlowResVariables(tInputFile &, double);
+  void  writeAndUpdate(double);
   void  store_rain(double,double);
   void  store_maxminrain(double,double, int);
   void  store_saturation(double,double, int);
   void  free_results();
-  void  write_inter_hyd(char *, char *, int);
+  void  write_inter_hyd(char *, char *);
   void  write_Runoff_Types(char *, char *);
   void  whenTimeIsOver( double );
   void  store_volume(double, double);          

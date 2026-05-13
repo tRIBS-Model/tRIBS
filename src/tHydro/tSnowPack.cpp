@@ -519,6 +519,7 @@ void tSnowPack::callSnowPack(tIntercept *Intercept, int flag) {
             liqRoute = 0.0;
             iceWE = 0.0;
             liqWE = 0.0;
+            snDepthm = 0.0;
             Utot = 0.0;
             Usn = 0.0;
             Uwat = 0.0;
@@ -1221,7 +1222,7 @@ void tSnowPack::setToNodeSnP(tCNode *node) {
     node->setSnDepth(snDepthm * 100.0); 
 
     //cumulative outputs
-    node->addLatHF(L);
+    node->addLatHF(L * timeSteps);
     node->addSnSub(snSub); // cumulative snow sublimation CJC2020
     node->addSnEvap(snEvap); // cumulative snow evaporation CJC2020
     node->addMelt(liqRoute);
@@ -1565,12 +1566,12 @@ double tSnowPack::precipitationHFCalc() {
     liqPrec = ((1 - snowFracCalc()) * (rain + ctom * snUnload)) * mtoc; //convert from mm to cm
 
     if (airTemp > 0) {
-        phf = (cmtonaught * snPrec * 0 * rholiqkg * cpicekJ +
-               cmtonaught * liqPrec * (latFreezekJ + airTemp * rholiqkg * cpwaterkJ)) / 3600;
+        // snPrec term is zero (ice assumed to be at 0C on arrival)
+        phf = (cmtonaught * liqPrec * rholiqkg * (latFreezekJ + airTemp * cpwaterkJ)) / 3600;
 
-    } else if (airTemp <= 0) {
+    } else {
         phf = (cmtonaught * snPrec * airTemp * rholiqkg * cpicekJ +
-               cmtonaught * liqPrec * latFreezekJ * rholiqkg) / 3600;
+               cmtonaught * liqPrec * rholiqkg * latFreezekJ) / 3600;
 
     }
 
@@ -1764,10 +1765,9 @@ void tSnowPack::computeSub() {
     acoefficient = beta * coeffLAI;
 
     //find windspeed
-    if (windSpeed == 0.0) {
-        windSpeedC = 0.1; // WR 01032024 switched to windSpeedC since that is what is set to node.
-    }
-    windSpeedC = windSpeed * exp(-acoefficient * 0.4);// WR 01032024 switched to windSpeedC since that is what is set to node.
+    windSpeedC = windSpeed * exp(-acoefficient * 0.4);
+    if (windSpeedC == 0.0)
+        windSpeedC = 0.1;
 
     //Calculate Reynolds number
     Re = 2 * iceRad * windSpeedC / nu;

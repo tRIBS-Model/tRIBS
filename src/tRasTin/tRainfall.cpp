@@ -53,11 +53,8 @@ void tRainfall::SetRainVariables(tInputFile &inFile)
 { 
 	rainfallType = inFile.ReadItem(rainfallType, "RAINSOURCE");
 	rainDt = inFile.ReadItem(rainDt, "RAININTRVL");
-	fState = 0;     //Default values
-	optMAP = 0;  
-	climate = 0.0; 
-	optForecast = 0;  
-	
+	optMAP = 0;
+
 	// If data are used as the model forcing
 	if (rainfallType == 1)
 		Cout<<"Rainfall Source: \t\tGridded Rainfall [mm/hr]\n";
@@ -105,20 +102,6 @@ void tRainfall::SetRainVariables(tInputFile &inFile)
 		exit(1);
 	}
 	
-	// Get Forecast File Directory, use same extension
-	optForecast = inFile.ReadItem(optForecast, "FORECASTMODE"); 
-
-	if (optForecast == 1) {
-		inFile.ReadItem(forecastname, "FORECASTFILE");
-	}
-	else if (optForecast == 3) {
-		climate = inFile.ReadItem(climate, "CLIMATOLOGY");
-	}
-	
-	// Re-initialize average, cumulative MAP and # rainfall files
-	numRains = 0;
-	aveMAP = 0.0;
-	cumMAP = 0.0;
 }
 
 // Destructor
@@ -163,42 +146,15 @@ int tRainfall::Compose_In_Mrain_Name(tRunTimer *t)
     if ( infile.is_open() )
 		infile.close();
 	
-	// Read rainfall file depending on forecast state
-	if (fState == 0) {
-		
-		if (t->minuteRn || t->dtRain < 1) //If 'minute' is NOT equal to '0'  
-			snprintf(mrainfileIn,sizeof(mrainfileIn), "%s%02d%02d%04d%02d%02d.%s", inputname,
-					t->monthRn, t->dayRn, t->yearRn, t->hourRn, t->minuteRn, extension);//WR--09192023:'sprintf' is deprecated: This function is provided for compatibility reasons only.
-		else {           //If 'minute' IS equal to '0'
-			snprintf(mrainfileIn,sizeof(mrainfileIn),"%s%02d%02d%04d%02d.%s", inputname,
-					t->monthRn, t->dayRn, t->yearRn, t->hourRn, extension);//WR--09192023:'sprintf' is deprecated: This function is provided for compatibility reasons only.
-		}
-		infile.open(mrainfileIn);
+	if (t->minuteRn || t->dtRain < 1)
+		snprintf(mrainfileIn,sizeof(mrainfileIn), "%s%02d%02d%04d%02d%02d.%s", inputname,
+				t->monthRn, t->dayRn, t->yearRn, t->hourRn, t->minuteRn, extension);
+	else {
+		snprintf(mrainfileIn,sizeof(mrainfileIn),"%s%02d%02d%04d%02d.%s", inputname,
+				t->monthRn, t->dayRn, t->yearRn, t->hourRn, extension);
 	}
-	
-	else if (fState == 1) {
-		
-		if (t->getoptForecast() == 1) {
-			if (t->minuteRn || t->dtRain < 1) //If 'minute' is NOT equal to '0'  
-				snprintf(mrainfileIn,sizeof(mrainfileIn), "%s%02d%02d%04d%02d%02d.%s", forecastname,
-						t->monthRn, t->dayRn, t->yearRn, t->hourRn, t->minuteRn, extension); //WR--09192023:'sprintf' is deprecated: This function is provided for compatibility reasons only.
-			else {           //If 'minute' IS equal to '0'
-				snprintf(mrainfileIn,sizeof(mrainfileIn),"%s%02d%02d%04d%02d.%s", forecastname,
-						t->monthRn, t->dayRn, t->yearRn, t->hourRn, extension);//WR--09192023:'sprintf' is deprecated: This function is provided for compatibility reasons only.
-			}
-			infile.open(mrainfileIn);
-		}
-		else if (t->getoptForecast() == 2) {   //Persistence
-			infile.open(mrainfileIn);
-		}
-		else if (t->getoptForecast() == 3) {  //Climatology
-			return 1;
-		}
-	}
-	
-	else if (fState == 2)
-		return 1;
-	
+	infile.open(mrainfileIn);
+
 	// Check if file opened
     if ( !(infile.is_open()) )
 		return 0;
@@ -273,68 +229,27 @@ void tRainfall::NewRain(tRunTimer *t)
 	
 	id = 0;
 	cn = nodeIter.FirstP();
-	
-	// FSTATE == 0 OR 1
-	if (fState == 0 || fState == 1) {
-		
-		curRain = respPtr->doIt(mrainfileIn, 1);
-		
-		// Check Valid Rainfall and Compute MAP 
-		while( nodeIter.IsActive() ) {
-			if (curRain[id] < 0.0 || curRain[id] > maxRain*t->getRainDT())
-				curRain[id] = 0.0;
-			sumRain = sumRain + cn->getVArea()*curRain[id];   
-			sumArea = sumArea + cn->getVArea();
-			cn = nodeIter.NextP();
-			id++; 
-		}
-		
-		// Compute cum and ave MAPs over time prior to forecast
-		// conditioned on rain occuring (sumRain > 0)
-		if (fState == 0 && sumRain > 0) {
-			numRains++;
-			cumMAP += sumRain/sumArea;
-			aveMAP = cumMAP/numRains;
-		}
-		
-		// Assign Rainfall Values
-		id = 0;
-		cn = nodeIter.FirstP();
-		while( nodeIter.IsActive() ) { 
-			// Assign MAP to curRain for optMAP = 1
-			if (optMAP == 1)
-				curRain[id]=sumRain/sumArea;
-			if (rainfallType == 1)
-				cn->setRain( curRain[id]/t->getRainDT());      //Gridded - mm/hour
-			cn = nodeIter.NextP();
-			id++;
-		}
-		
-		// Climatological forecast for FState == 1
-		cn = nodeIter.FirstP();
-		if (fState == 1 && t->getoptForecast() == 3) {
-			while( nodeIter.IsActive() ) {
-				cn->setRain( climate ); 
-				cn = nodeIter.NextP();
-			}
-		}
+
+	curRain = respPtr->doIt(mrainfileIn, 1);
+
+	while( nodeIter.IsActive() ) {
+		if (curRain[id] < 0.0 || curRain[id] > maxRain*t->getRainDT())
+			curRain[id] = 0.0;
+		sumRain = sumRain + cn->getVArea()*curRain[id];
+		sumArea = sumArea + cn->getVArea();
+		cn = nodeIter.NextP();
+		id++;
 	}
-	
-	// FSTATE == 2
-	else if (fState == 2) {
-		if (t->getoptForecast() != 3) {
-			while( nodeIter.IsActive() ) {    
-				if (rainfallType == 1)
-					cn->setRain( aveMAP );      //Gridded - mm/hour
-				cn = nodeIter.NextP();
-			}
-		}
-		else {    //Climatological forecast
-			while( nodeIter.IsActive() ) {    
-				cn->setRain( climate ); 
-				cn = nodeIter.NextP();
-			}
-		}
+
+	id = 0;
+	cn = nodeIter.FirstP();
+	while( nodeIter.IsActive() ) {
+		if (optMAP == 1)
+			curRain[id]=sumRain/sumArea;
+		if (rainfallType == 1)
+			cn->setRain( curRain[id]/t->getRainDT());
+		cn = nodeIter.NextP();
+		id++;
 	}
 
 	return;
@@ -818,18 +733,6 @@ void tRainfall::setToNode()
 
 /***************************************************************************
 **
-** tRainfall::setfState() Function
-**
-** Functions used to set the values of fState
-**
-***************************************************************************/
-void tRainfall::setfState(int state) 
-{ 
-	fState = state;
-}
-
-/***************************************************************************
-**
 ** tRainfall::writeRestart() Function
 ** 
 ** Called from tSimulator during simulation loop
@@ -842,9 +745,6 @@ void tRainfall::writeRestart(fstream & rStr) const
   BinaryWrite(rStr, numStations);
   BinaryWrite(rStr, arraySize);
   BinaryWrite(rStr, hourlyTimeStep);
-  BinaryWrite(rStr, numRains);
-  BinaryWrite(rStr, optForecast);
-  BinaryWrite(rStr, fState);
   BinaryWrite(rStr, optMAP);
   BinaryWrite(rStr, rainDt);
 
@@ -861,9 +761,6 @@ void tRainfall::writeRestart(fstream & rStr) const
   }
 
   BinaryWrite(rStr, precLapseRate);
-  BinaryWrite(rStr, aveMAP);
-  BinaryWrite(rStr, cumMAP);
-  BinaryWrite(rStr, climate);
 }
 
 /***************************************************************************
@@ -878,9 +775,6 @@ void tRainfall::readRestart(fstream & rStr)
   BinaryRead(rStr, numStations);
   BinaryRead(rStr, arraySize);
   BinaryRead(rStr, hourlyTimeStep);
-  BinaryRead(rStr, numRains);
-  BinaryRead(rStr, optForecast);
-  BinaryRead(rStr, fState);
   BinaryRead(rStr, optMAP);
   BinaryRead(rStr, rainDt);
 
@@ -897,9 +791,6 @@ void tRainfall::readRestart(fstream & rStr)
   }
 
   BinaryRead(rStr, precLapseRate);
-  BinaryRead(rStr, aveMAP);
-  BinaryRead(rStr, cumMAP);
-  BinaryRead(rStr, climate);
 }
 
 //=========================================================================
