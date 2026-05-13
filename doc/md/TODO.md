@@ -15,6 +15,7 @@
 - [ ] Integrate stomatal resistance changes from Becerra branch
 - [ ] Simplify humidity input. Only keep RH an remove others
 - [ ] Generalize restart functionality
+- [ ] Update input timeseries and raster forcing files to use ISO 8601 timestamp format. No chnage to outputs for now, will still be elasped simulation hours. Example from `_MMddYYYYhh.asc` to `_20240615T1200.asc`
 
 ### Finished
 - [x] Finalize updated benchmarks
