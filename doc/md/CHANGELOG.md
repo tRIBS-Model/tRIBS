@@ -14,6 +14,7 @@ v6.0.0 is a major release focused on simplifying the user experience and streaml
     * **Liquid Water Routing:** Added a physically-based routing scheme accounting for holding capacity and conductivity (Colbeck 1972).
     * **Phase Partitioning:** Added user-selectable thresholds for Wet-bulb or Air Temperature to determine precipitation phase.
 * **Snow Outputs:** Added `Snow Depth` and `Snow Density` to standard pixel and dynamic output routines. ([#104](https://github.com/tRIBS-Model/tRIBS/pull/104))
+* **Standardized Hydrologic Outputs:** All output files that report hydrologic variables have been standardized to CSV format with a single header line. ([#114](https://github.com/tRIBS-Model/tRIBS/pull/114))
 
 ### Fixed
 * **ET Partitioning:** Fixed a scaling bug in `tEvapoTrans` where unscaled vegetation rates were subtracted from potential ET. ([#107](https://github.com/tRIBS-Model/tRIBS/pull/107))
@@ -32,13 +33,16 @@ v6.0.0 is a major release focused on simplifying the user experience and streaml
     * Simplified `OPTEVAPOTRANS` to support only the Penman-Monteith method for calculating ET. ([#107](https://github.com/tRIBS-Model/tRIBS/pull/107))
     * Simplified `OPTMESHINPUT` to support only pre-generated 4-mesh files or points files. ([#107](https://github.com/tRIBS-Model/tRIBS/pull/107))
     * Simplified `OPTINTERCEPT` to support only the Rutter method for calculating canopy interception. ([#109](https://github.com/tRIBS-Model/tRIBS/pull/109))
+    * Removed multiple command line options that were either dead code or neaver used in practice. ([#113](https://github.com/tRIBS-Model/tRIBS/pull/113))
+    * Removed legacy forecat module. ([#115](https://github.com/tRIBS-Model/tRIBS/pull/115))
 * **C++ Performance Optimizations:** ([#107](https://github.com/tRIBS-Model/tRIBS/pull/107))
     * **Memory Management:** Refactored geometry functions (`FindIntersectionCoords`, `PlaneFit`, and `setRVtx`) to pass `tArray<double>` by `const` reference, eliminating massive heap allocation overhead.
     * **Math:** Replaced `pow()` calls with `x*x` and `sqrt()` in core physics loops to reduce CPU cycles.
     * **Standardization:** Unified platform-specific headers and replaced `sprintf` with `snprintf` for modern compiler compatibility.
+* **Error Warning Outputs:** While running the modle in parallel there were many error messages that would be duplicated across all processors or other issues resulting in massive log files. Many error messsages modified to only print 10 times before being silenced. 
 
 ### Removed
-* Removed legacy code related to changes in Input Changes listed above.
+* Removed legacy code related to changes in mian input file listed above.
 * Removed unused platform-specific `#ifdef` blocks in headers. ([#107](https://github.com/tRIBS-Model/tRIBS/pull/107))
 * Removed legacy debug printing in `tTriangulator`. ([#107](https://github.com/tRIBS-Model/tRIBS/pull/107))
 * Removed legacy command-line flags that were either never used or obsolete. (([#113](https://github.com/tRIBS-Model/tRIBS/pull/113))
