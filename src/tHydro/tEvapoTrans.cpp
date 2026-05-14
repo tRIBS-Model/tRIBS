@@ -402,7 +402,7 @@ void tEvapoTrans::initializeVariables()
 	SunRisHrLoc=SunSetHrLoc=deltaT=0.0;
 	coeffAl = 0.0; coeffH = 0.0; coeffKt = 0.0;
 	coeffRs = 0.0; coeffKs = 0.0; coeffCs = 0.0; coeffV = 0.0;
-	panEvap = 0.0; coeffPan = 0.0; // Giuseppe June 2012	
+	panEvap = 0.0;
 
 	coeffLAI = 0.0; //RINEHART 2007 @ NMT
 	//Horizon angles
@@ -2620,21 +2620,15 @@ void tEvapoTrans::EvapPenmanMonteith(tCNode* cNode)
 **
 ** EvapPan() Function
 **
-** Calculates actual pan evaporation given the measurements from point
-** locations (treated as Meteorological Stations). Pan coefficient used
-** to correct for artifacts of pan geometry. This coefficient is inputed
-** through the station file otherVariable column. User must use mm/hr
-** for pan evaporation in MDF format.
+** Calculates actual evapotranspiration from measurements at point
+** locations (treated as Meteorological Stations) or from gridded ET.
+** Data must be provided in mm/hr. No pan coefficient is applied;
+** users should apply any pan-to-ET conversion before providing data.
 **
 ***************************************************************************/
-void tEvapoTrans::EvapPan() 
+void tEvapoTrans::EvapPan()
 {
-	if (metdataOption == 1) {
-		potEvap = coeffPan*panEvap;
-	}
-	else if (metdataOption == 2) {
-		potEvap = panEvap;
-	}
+	potEvap = panEvap;
 	
 	// Very approximate: we would need stomatal resistance 
 	// to obtain the transpiration component right
@@ -3808,9 +3802,6 @@ void tEvapoTrans::newHydroMetData(int time)
 			}
 			else {
 				panEvap = weatherStations[i].getPanEvap(time);
-				if (time == 0) {
-					coeffPan = weatherStations[i].getOther();
-				}
 			}
 		}
 	}
@@ -5139,7 +5130,6 @@ void tEvapoTrans::writeRestart(fstream & rStr) const
   BinaryWrite(rStr, coeffV);
   BinaryWrite(rStr, coeffKs);
   BinaryWrite(rStr, coeffCs);
-  BinaryWrite(rStr, coeffPan);
   BinaryWrite(rStr, potEvap);
   BinaryWrite(rStr, actEvap);
   BinaryWrite(rStr, panEvap);
@@ -5301,7 +5291,6 @@ void tEvapoTrans::readRestart(fstream & rStr)
   BinaryRead(rStr, coeffV);
   BinaryRead(rStr, coeffKs);
   BinaryRead(rStr, coeffCs);
-  BinaryRead(rStr, coeffPan);
   BinaryRead(rStr, potEvap);
   BinaryRead(rStr, actEvap);
   BinaryRead(rStr, panEvap);

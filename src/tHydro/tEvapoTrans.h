@@ -157,7 +157,7 @@ class tEvapoTrans
   double metHour{}, etHour{}, rainInt{}; // SKY2008Snow from AJR2007
 
   double coeffH{}, coeffKt{}, coeffAl{}, coeffRs{}, coeffV{};
-  double coeffKs{}, coeffCs{}, coeffPan{};
+  double coeffKs{}, coeffCs{};
   // SKY2008Snow from AJR2007
   double coeffLAI{};
   double Rah{}, Rstm{};
