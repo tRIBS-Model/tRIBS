@@ -426,92 +426,81 @@ void tRainfall::NewRainData(int time, tRunTimer *timer)
 ** the raingauges used for rainfall input. Creates an array of tRainGauge
 ** for storing data. (see tRainGauge.h)
 **
-** Format for RainGaugeStation File:
+** Format for RainGaugeStation File (CSV):
 **
-** Header:
-** nStations nParams (6)
+** Header (required, 5 columns):
+** ID,DataFile,Northing,Easting,Elevation
 **
-** Body:
-** StationID# FilePath Latitude Longitude RecordLength NumParm
-**
-** The file should have N rows corresponding to the N number of stations.
-** and M columns corresponding to the data for each station.
-**
-** StationID  (int)         1->N
-** FilePath   (string)      File name and path for the station datafile
-** Reference Latitude  (double)  Station latitude  (basin projection)
-** Reference Longitude (double)  Station longitude (basin projection)
-** RecordLength  (int)      Number records for each station
-** NumParm (int)            Number of parameter in each station record
+** Body (one row per station):
+** ID        (int)     Station identifier
+** DataFile  (string)  Path to the station MDF data file
+** Northing  (double)  Station northing coordinate (basin projection)
+** Easting   (double)  Station easting coordinate (basin projection)
+** Elevation (double)  Station elevation in meters
 **
 ***************************************************************************/
-void tRainfall::readGaugeStat(char *stationfile) 
+void tRainfall::readGaugeStat(char *stationfile)
 {
-	int nStations, nParams;
-	int stationID, numTimes, numParams;
-	double rlat, rlong;
+	Cout<<"\nReading Rain Gauge Station File '"
+	    << stationfile <<"'..."<<endl<<flush;
 
-	// SKY2008Snow from AJR2007
-	double elevation; // AJR @ NMT 2007
-
-	char fileName[kName];
-
-	// SKY2008Snow from AJR2007
-	//assert(fileName != 0); //WR--09192023: comparison of array 'fileName' not equal to a null pointer is always true
-	
-	Cout<<"\nReading Rain Gauge Station File '";
-	Cout<< stationfile<<"'..."<<endl<<flush;
-	
-	ifstream readFile(stationfile); 
+	ifstream readFile(stationfile);
 	if (!readFile) {
 		cout << "File "<<stationfile<<" not found." << endl;
 		cout<<"Exiting Program...\n\n"<<endl;
 		exit(1);
 	}
-	
-	readFile >> nStations;
-	readFile >> nParams;
 
-	rainGauges = new tRainGauge[nStations];
-	assert(rainGauges != 0);
-	numStations = nStations;
-	
-	for (int count=0;count<nStations;count++) {
-		for (int ct=0;ct<nParams;ct++) {
-			if (ct==0) {
-				readFile >> stationID;
-				rainGauges[count].setStation(stationID);
-			}
-			if (ct==1) {
-				readFile >> fileName;
-				rainGauges[count].setFileName(fileName);
-			}
-			if (ct==2) {
-				readFile >> rlat;
-				rainGauges[count].setLat(rlat);
-			}
-			if (ct==3) {
-				readFile >> rlong;
-				rainGauges[count].setLong(rlong);
-			}
-			if (ct==4) {
-				readFile >> numTimes;
-				rainGauges[count].setTime(numTimes);
-			}
-			if (ct==5) {
-				readFile >> numParams;
-				rainGauges[count].setParm(numParams);
-			}
-
-			// SKY2008Snow from AJR2007
-			if(ct==6){
-				readFile >> elevation;
-				rainGauges[count].setElev(elevation);
-			}
-
+	// Validate CSV header: ID,DataFile,Northing,Easting,Elevation
+	std::string headerLine;
+	std::getline(readFile, headerLine);
+	{
+		std::istringstream hss(headerLine);
+		std::string token;
+		int ncols = 0;
+		while (std::getline(hss, token, ',')) ncols++;
+		if (ncols != 5) {
+			cerr << "\nError: Rain gauge station file '" << stationfile
+			     << "' header must have 5 columns "
+			        "(ID,DataFile,Northing,Easting,Elevation)." << endl;
+			exit(1);
 		}
 	}
+
+	// Read all data rows
+	std::vector<std::string> rows;
+	std::string line;
+	while (std::getline(readFile, line)) {
+		if (!line.empty()) rows.push_back(line);
+	}
 	readFile.close();
+
+	numStations = static_cast<int>(rows.size());
+	rainGauges  = new tRainGauge[numStations];
+	assert(rainGauges != 0);
+
+	for (int count = 0; count < numStations; count++) {
+		std::istringstream ss(rows[count]);
+		std::string token;
+		char fileName[kName];
+
+		std::getline(ss, token, ',');
+		rainGauges[count].setStation(std::stoi(token));
+
+		std::getline(ss, token, ',');
+		strncpy(fileName, token.c_str(), kName - 1);
+		fileName[kName - 1] = '\0';
+		rainGauges[count].setFileName(fileName);
+
+		std::getline(ss, token, ',');
+		rainGauges[count].setLat(std::stod(token));
+
+		std::getline(ss, token, ',');
+		rainGauges[count].setLong(std::stod(token));
+
+		std::getline(ss, token, ',');
+		rainGauges[count].setElev(std::stod(token));
+	}
 }
 
 /***************************************************************************
@@ -519,91 +508,80 @@ void tRainfall::readGaugeStat(char *stationfile)
 ** tRainfall::readGaugeData() Function
 **
 **
-** Reads and assigns data values to tRainGauge objects. 
-** File Format:
-** 
-** Description Line: 
-**      Abbreviations of Parameters as character strings
-**      Ex. Y M D H R     
+** Reads and assigns data values to tRainGauge objects.
+** File Format (CSV):
 **
-** Body Lines:
-**      Values for each parameters. Read in as ints and doubles
-**      Ex. Year (4 digit number), Month, Day, Hour (int)
-**          Rain (double) in mm/hr
+** Header (required, 5 columns):
+** Year,Month,Day,Hour,Rain_mm/hr
 **
-**      No Data Flag as 9999.99 for doubles
+** Body Lines (one row per timestep):
+**      Year  (int)    4-digit year
+**      Month (int)    Month (1-12)
+**      Day   (int)    Day of month
+**      Hour  (int)    Hour of day
+**      Rain  (double) Rainfall rate in mm/hr; values <0 or >200 flagged as NO_DATA (9999.99)
 **
 ***************************************************************************/
-void tRainfall::readGaugeData(int num) 
+void tRainfall::readGaugeData(int num)
 {
-	int numParams, numTimes;
 	char fileName[kMaxNameSize];
-	int *year, *month, *day, *hour;
-	double *Rain;
-	double tempo;
-	char *tmpstr;
-	
-	tmpstr = rainGauges[num].getFileName();
-    snprintf(fileName,sizeof(fileName),"%s", tmpstr);//WR--09192023: 'sprintf' is deprecated: This function is provided for compatibility reasons only.
-	numParams = rainGauges[num].getParm();
-	numTimes  = rainGauges[num].getTime();
-	
-	cout<<"\nReading RainGauge Data File '";
-	cout<< fileName<<"'..."<<endl<<flush;
+	snprintf(fileName, sizeof(fileName), "%s", rainGauges[num].getFileName());
+
+	cout<<"\nReading RainGauge Data File '"<<fileName<<"'..."<<endl<<flush;
 
 	ifstream readDataFile(fileName);
 	if (!readDataFile) {
 		cout << "\nFile " <<fileName<<" not found!" << endl;
 		cout << "Exiting Program...\n\n"<<endl;
-		exit(2);}
-
-	char paramNames[10];
-	year  = new int[numTimes];
-	month = new int[numTimes];
-	day   = new int[numTimes];
-	hour  = new int[numTimes];
-
-	Rain  = new double[numTimes];
-	
-	for (int cnt = 0; cnt<numParams; cnt++) {
-		readDataFile >> paramNames;
+		exit(2);
 	}
-	
-	for (int count = 0;count<numTimes;count++) {
-		for (int ct = 0;ct<numParams;ct++) {
-			if (ct==0) {
-				readDataFile >> year[count];}
-			else if (ct==1) {
-				readDataFile >> month[count];}
-			else if (ct==2) {
-				readDataFile >> day[count];}
-			else if (ct==3) {
-				readDataFile >> hour[count];
-			}
-			else if (ct==4) {
-				readDataFile >> tempo;
-				if (tempo < 0  || tempo > 200)
-					Rain[count] = 9999.99;
-				else
-					Rain[count] = tempo;
-			}
+
+	// Validate CSV header: Year,Month,Day,Hour,Rain_mm/hr
+	std::string headerLine;
+	std::getline(readDataFile, headerLine);
+	{
+		std::istringstream hss(headerLine);
+		std::string token;
+		int ncols = 0;
+		while (std::getline(hss, token, ',')) ncols++;
+		if (ncols != 5) {
+			cerr << "\nError: Rain gauge data file '" << fileName
+			     << "' header must have 5 columns "
+			        "(Year,Month,Day,Hour,Rain_mm/hr)." << endl;
+			exit(1);
 		}
 	}
 
+	std::vector<int>    Year, Month, Day, Hour;
+	std::vector<double> Rain;
+
+	std::string line;
+	while (std::getline(readDataFile, line)) {
+		if (line.empty()) continue;
+		std::istringstream ss(line);
+		std::string token;
+
+		std::getline(ss, token, ',');
+		Year.push_back(std::stoi(token));
+		std::getline(ss, token, ',');
+		Month.push_back(std::stoi(token));
+		std::getline(ss, token, ',');
+		Day.push_back(std::stoi(token));
+		std::getline(ss, token, ',');
+		Hour.push_back(std::stoi(token));
+		std::getline(ss, token, ',');
+		double tempo = std::stod(token);
+		Rain.push_back((tempo < 0 || tempo > 200) ? 9999.99 : tempo);
+	}
 	readDataFile.close();
-	
-	rainGauges[num].setYear(year);
-	rainGauges[num].setMonth(month);
-	rainGauges[num].setDay(day);
-	rainGauges[num].setHour(hour);
 
-	robustNess(Rain, numTimes);
-	
+	robustNess(Rain.data(), static_cast<int>(Rain.size()));
+
+	rainGauges[num].setYear(Year);
+	rainGauges[num].setMonth(Month);
+	rainGauges[num].setDay(Day);
+	rainGauges[num].setHour(Hour);
 	rainGauges[num].setRain(Rain);
-
-	delete [] Rain; delete [] hour;
-	delete [] year; delete [] month; delete [] day;
-
 }
 
 /***************************************************************************
