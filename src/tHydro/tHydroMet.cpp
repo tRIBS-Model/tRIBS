@@ -55,13 +55,11 @@ tHydroMet::~tHydroMet()
 		else {
 			if (airTemp){
 				delete [] airTemp;
-				delete [] dewTemp;
 				delete [] surfTemp;
 				delete [] rHumidity;
 				delete [] skyCover;
 				delete [] windSpeed;
 				delete [] atmPress;
-				delete [] vaporPress;
 				delete [] RadGlobal;
 			}
 			if (numParams >= 11) {
@@ -249,18 +247,6 @@ double tHydroMet::getMeanTemp(){
 	return meanTemp;
 }
 
-void tHydroMet::setDewTemp(double *dew){
-	dewTemp = new double[numTimes];
-	for(int ct=0;ct<numTimes;ct++){
-		dewTemp[ct] = dew[ct];
-	}
-}
-
-double tHydroMet::getDewTemp(int time){
-	return dewTemp[time];
-}
-
-
 void tHydroMet::setSurfTemp(double *surf){
 	surfTemp = new double[numTimes];
 	for(int ct=0;ct<numTimes;ct++){
@@ -305,17 +291,6 @@ double tHydroMet::getRHumidity(int time){
 	return rHumidity[time];
 }
 
-
-void tHydroMet::setVaporPress(double *rh){
-	vaporPress= new double[numTimes];
-	for(int ct=0;ct<numTimes;ct++){
-		vaporPress[ct] = rh[ct];
-	}
-}
-
-double tHydroMet::getVaporPress(int time){
-	return vaporPress[time];
-}
 
 void tHydroMet::setWindSpeed(double *wind){
 	windSpeed = new double[numTimes];
@@ -431,18 +406,12 @@ void tHydroMet::writeRestart(fstream & rStr) const
 	else {// Giuseppe DEBUG Restart 2012 - END	
 		for (int i = 0; i < numTimes; i++) {
 			BinaryWrite(rStr, airTemp[i]);
-			BinaryWrite(rStr, dewTemp[i]);
 			BinaryWrite(rStr, surfTemp[i]);
 			BinaryWrite(rStr, rHumidity[i]);
 			BinaryWrite(rStr, skyCover[i]);
 			BinaryWrite(rStr, windSpeed[i]);
 			BinaryWrite(rStr, atmPress[i]);
-			BinaryWrite(rStr, vaporPress[i]);
 			BinaryWrite(rStr, RadGlobal[i]);
-			//BinaryWrite(rStr, RadDirect[i]);
-			//BinaryWrite(rStr, RadDiffuse[i]);
-			//BinaryWrite(rStr, RainMet[i]);
-			//BinaryWrite(rStr, panEvap[i]);
 			if (numParams >= 11)
 				BinaryWrite(rStr, netRad[i]);
 		}
@@ -484,18 +453,12 @@ void tHydroMet::readRestart(fstream & rStr)
   else {// Giuseppe DEBUG Restart 2012 - END	
 	  for (int i = 0; i < numTimes; i++) {
 		  BinaryRead(rStr, airTemp[i]);
-		  BinaryRead(rStr, dewTemp[i]);
 		  BinaryRead(rStr, surfTemp[i]);
 		  BinaryRead(rStr, rHumidity[i]);
 		  BinaryRead(rStr, skyCover[i]);
 		  BinaryRead(rStr, windSpeed[i]);
 		  BinaryRead(rStr, atmPress[i]);
-		  BinaryRead(rStr, vaporPress[i]);
 		  BinaryRead(rStr, RadGlobal[i]);
-		  //BinaryRead(rStr, RadDirect[i]);
-		  //BinaryRead(rStr, RadDiffuse[i]);
-		  //BinaryRead(rStr, RainMet[i]);
-		  //BinaryRead(rStr, panEvap[i]);
 		  if (numParams >= 11)
 			  BinaryRead(rStr, netRad[i]);
 	  }

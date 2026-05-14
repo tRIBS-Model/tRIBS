@@ -416,7 +416,7 @@ void tEvapoTrans::initializeVariables()
 	ha3150 = 0.0; ha3375 = 0.0;
 
 	hourlyTimeStep = 0; thisStation = 0; oldTimeStep = 0;
-	vapOption = tsOption = nrOption = 0;
+	tsOption = nrOption = 0;
 	
 	currentTime = new int[4];
 	for (int count=0;count<4;count++) {
@@ -1185,46 +1185,19 @@ double tEvapoTrans::satVaporPress(double toC)
 ** and vice versa, assigns to corrected arrays.
 **
 ***************************************************************************/
-double tEvapoTrans::vaporPress() 
+double tEvapoTrans::vaporPress()
 {
 	double dewTempK;
 	double rv = 461.5;
 	double eo = 6.112;
 	double to = 273.15;
-	
-	if (dewHumFlag == 0) {
-		vPressC = satVaporPress()*rHumidity/100.0;
-		dewTempK = 1.0/((1.0/to) - (log(vPressC/eo)*rv/latentHeat()));
-		dewTempC = dewTempK - 273.15;
-		rHumidityC = rHumidity;
 
-		// AJR2008, SKY2008Snow
-		dewTemp = dewTempC;
-		vPress = vPressC;
-
-	}
-	else if (dewHumFlag == 1) {
-		dewTempK = dewTemp + 273.15;
-		dewTempC = dewTemp;
-		vPressC = eo*exp((latentHeat()/rv)*((1.0/to)-(1.0/dewTempK)));
-		rHumidityC = 100.0*vPressC/satVaporPress();
-		
-		// AJR2008, SKY2008Snow
-		rHumidity = rHumidityC;
-		vPress = vPressC;
-
-	}
-	else if (dewHumFlag == 2) {
-		vPressC = vPress;
-		rHumidityC = 100.0*vPressC/satVaporPress();		
-		dewTempK = 1.0/((1.0/to) - (log(vPressC/eo)*rv/latentHeat()));
-		dewTempC = dewTempK - 273.15;
-
-		// AJR2008, SKY2008Snow
-		rHumidity = rHumidityC;
-		dewTemp = dewTempC;
-
-	}
+	vPressC = satVaporPress()*rHumidity/100.0;
+	dewTempK = 1.0/((1.0/to) - (log(vPressC/eo)*rv/latentHeat()));
+	dewTempC = dewTempK - 273.15;
+	rHumidityC = rHumidity;
+	dewTemp = dewTempC;
+	vPress = vPressC;
 
 	return vPressC;
 }
@@ -2820,19 +2793,8 @@ int tEvapoTrans::getEToption()
 ***************************************************************************/
 void tEvapoTrans::setToNode(tCNode* cNode) 
 { 
-	if (dewHumFlag == 0) {
-		cNode->setDewTemp(dewTempC);
-		cNode->setVapPressure(vPressC);
-	}
-	else if (dewHumFlag == 1) {
-		cNode->setVapPressure(vPressC);
-		cNode->setRelHumid(rHumidityC);
-	}
-	else if (dewHumFlag == 2) {
-		cNode->setDewTemp(dewTempC);
-		cNode->setRelHumid(rHumidityC);
-	}
-	
+	cNode->setDewTemp(dewTempC);
+	cNode->setVapPressure(vPressC);
 	cNode->setPotEvap(potEvap);
 	cNode->setActEvap(actEvap);
 	cNode->setAirTemp(airTemp);
@@ -3013,9 +2975,8 @@ void tEvapoTrans::readHydroMetStat(char *stationfile)
 ** Body Lines:
 **      Values for each parameters. Read in as ints and doubles
 **      Ex. Year (4 digit number), Month, Day, Hour (int)
-**          AtmPressure (mb)  double     
-**          RelativeHumidity (%) double   | either
-**          DewTemperature (C)  double    |   or
+**          AtmPressure (mb)  double
+**          RelativeHumidity (%) double
 **          SkyCover (tenths) double
 **          WindSpeed (m/s) double
 **          AirTemperature (C) double
@@ -3034,15 +2995,14 @@ void tEvapoTrans::readHydroMetData(int num)
 {
 	int numParams, numTimes;
 	char fileName[kName];
-	char paramNames[10] = {};
 	char notUsed[10];
 	char paramNames2[10] = {};
 	char paramNames3[10] = {};
 	char *tmpstr;
-	
+
 	int *year, *month, *day, *hour;
-	double *AtmPressure, *DewTemperature, *AirTemperature;
-	double *SkyCover, *WindSpeed, *RelativeHumidity, *VaporPressure;
+	double *AtmPressure, *AirTemperature;
+	double *SkyCover, *WindSpeed, *RelativeHumidity;
 	double *NetRadiation, *SurfTemperature, *PanEvap;
 	double *GlobRadiation;
 	double tempo;
@@ -3062,24 +3022,14 @@ void tEvapoTrans::readHydroMetData(int num)
 		exit(2);}
 	
 	for (int cnt = 0; cnt<numParams; cnt++) {
-		if (cnt==5)
-			readDataFile >> paramNames; 
-		else if (cnt==9) 
+		if (cnt==9)
 			readDataFile >> paramNames2;
 		else if (cnt==10)
 			readDataFile >> paramNames3;
 		else
 			readDataFile >> notUsed;
 	}
-	
-	// "6th" data element in the input data (air humidity in some form)
-	if (strcmp(paramNames,"RH")==0)
-		vapOption = 1;
-	else if (strcmp(paramNames,"TD")==0)
-		vapOption = 2;
-	else if (strcmp(paramNames,"VP")==0)
-		vapOption = 3;
-	
+
 	if (strcmp(paramNames2,"TS")==0)
 		tsOption = 1;
 	else
@@ -3097,14 +3047,12 @@ void tEvapoTrans::readHydroMetData(int num)
 	
 	if (evapotransOption != 2) {
 		AtmPressure = new double[numTimes];
-		DewTemperature= new double[numTimes];
 		AirTemperature = new double[numTimes];
 		SkyCover = new double[numTimes];
 		WindSpeed = new double[numTimes];
 		RelativeHumidity = new double[numTimes];
 		NetRadiation= new double[numTimes];
 		SurfTemperature = new double[numTimes];
-		VaporPressure = new double[numTimes];
 		GlobRadiation = new double[numTimes];
 		
 		for (int count = 0; count < numTimes; count++) {
@@ -3130,33 +3078,8 @@ void tEvapoTrans::readHydroMetData(int num)
 						AtmPressure[count] = tempo;
 				}
 				else if (ct==5) {
-					if (vapOption == 1) {
-						readDataFile >> tempo;
-						if (tempo < 0 || tempo > 100)
-							RelativeHumidity[count]= 9999.99;
-						else 
-							RelativeHumidity[count] = tempo;
-						DewTemperature[count] = 9999.99;
-						VaporPressure[count] = 9999.99;
-					}
-					else if (vapOption == 2) {
-						readDataFile >> tempo;
-						if (tempo < -50 || tempo > 60)
-							DewTemperature[count] = 9999.99;
-						else 
-							DewTemperature[count] = tempo;
-						RelativeHumidity[count] = 9999.99;
-						VaporPressure[count] = 9999.99;
-					}
-					else if (vapOption == 3) {
-						readDataFile >> tempo;
-						if (tempo < 0  || tempo > 200)
-							VaporPressure[count] = 9999.99;
-						else 
-							VaporPressure[count] = tempo;
-						RelativeHumidity[count] = 9999.99;
-						DewTemperature[count] = 9999.99;
-					}
+					readDataFile >> tempo;
+					RelativeHumidity[count] = (tempo < 0 || tempo > 100) ? 9999.99 : tempo;
 				}
 				else if (ct==6) {
 					readDataFile >> tempo;
@@ -3328,23 +3251,19 @@ void tEvapoTrans::readHydroMetData(int num)
 	
 	if (evapotransOption != 2) {
 		robustNess(AirTemperature, numTimes);
-		robustNess(DewTemperature, numTimes);
 		robustNess(AtmPressure, numTimes);
 		robustNess(SkyCover, numTimes);
 		robustNess(RelativeHumidity, numTimes);
 		robustNess(WindSpeed, numTimes);
 		robustNess(SurfTemperature, numTimes);
-		robustNess(VaporPressure, numTimes);
 		robustNess(GlobRadiation, numTimes);
-		
+
 		weatherStations[num].setAirTemp(AirTemperature);
-		weatherStations[num].setDewTemp(DewTemperature);
 		weatherStations[num].setAtmPress(AtmPressure);
 		weatherStations[num].setSkyCover(SkyCover);
 		weatherStations[num].setRHumidity(RelativeHumidity);
 		weatherStations[num].setWindSpeed(WindSpeed);
 		weatherStations[num].setSurfTemp(SurfTemperature);
-		weatherStations[num].setVaporPress(VaporPressure);
 		weatherStations[num].setRadGlobal(GlobRadiation);
 		
 		//cout << "\treadHydroMetData GlobRadiation: " << GlobRadiation<<endl;
@@ -3354,15 +3273,13 @@ void tEvapoTrans::readHydroMetData(int num)
 			weatherStations[num].setNetRad(NetRadiation);
 		}
 		
-		delete [] AtmPressure; 
-		delete [] DewTemperature; 
+		delete [] AtmPressure;
 		delete [] AirTemperature;
-		delete [] RelativeHumidity; 
+		delete [] RelativeHumidity;
 		delete [] SkyCover;
 		delete [] WindSpeed;
-		delete [] NetRadiation; 
+		delete [] NetRadiation;
 		delete [] SurfTemperature;
-		delete [] VaporPressure;
 		delete [] GlobRadiation;
 	}
 	else {
@@ -3871,41 +3788,22 @@ void tEvapoTrans::newHydroMetData(int time)
 				// SKY2008Snow from AJR2007
 				airTemp += tempLapseRate*(elevation - weatherStations[i].getOther()); //lapse rate added by AJR 2007 @ NMT
 
-				dewTemp = weatherStations[i].getDewTemp(time);
 				surfTemp = weatherStations[i].getSurfTemp(time);
 				rHumidity = weatherStations[i].getRHumidity(time);
-				vPress = weatherStations[i].getVaporPress(time);
 				atmPress = weatherStations[i].getAtmPress(time);
 				windSpeed = weatherStations[i].getWindSpeed(time);
 				skyCover = weatherStations[i].getSkyCover(time);
-                inShortR = weatherStations[i].getRadGlobal(time);
+				inShortR = weatherStations[i].getRadGlobal(time);
 
-				// For run-time checks of input data
-				if (false) {
-					cout<<"\t---> Time = "<<time<<"; Station ID = "<<i<<endl;
-					cout<<"\t---> Tair = "<<airTemp<<"; dewTemp = "<<dewTemp<<";"<<endl;
-					cout<<"\trHumidity = "<<rHumidity<<"; vapPress = "<<vPress<<";"<<endl;
-					cout<<"\tatmPress = "<<atmPress<<"; windSpeed = "<<windSpeed
-						<<"; skyCover = "<<skyCover<<";"<<endl;
-				}
-				
 				if (weatherStations[i].getParm() >= 11)
 					netRad = weatherStations[i].getNetRad(time);
-				
+
 				if (time == 0) {
 					latitude = weatherStations[i].getLat(1);
 					longitude = weatherStations[i].getLong(1);
 					gmt = weatherStations[i].getGmt();
 					Tso = weatherStations[i].getAirTemp(time) + 273.15;
 					Tlo = Tso;
-					
-					//Find the Available Humidity Data
-					if (fabs(dewTemp-9999.99)<1.0E-3 && fabs(vPress-9999.99)<1.0E-3){
-						dewHumFlag = 0;}
-					else if (fabs(rHumidity-9999.99)<1.0E-3 && fabs(vPress-9999.99)<1.0E-3){
-						dewHumFlag = 1;}
-					else if (fabs(rHumidity-9999.99)<1.0E-3 && fabs(dewTemp-9999.99)<1.0E-3){
-						dewHumFlag = 2;} 
 				}
 			}
 			else {
@@ -3929,31 +3827,21 @@ void tEvapoTrans::newHydroMetData(int time)
 void tEvapoTrans::newHydroMetGridData(tCNode * cNode) {   
 	if (evapotransOption != 2) {
 		airTemp = cNode->getAirTemp();
-		dewTemp = cNode->getDewTemp();
 		surfTemp = cNode->getSurfTemp();
 		rHumidity = cNode->getRelHumid();
 		atmPress = cNode->getAirPressure();
 		windSpeed = cNode->getWindSpeed();
 		skyCover = cNode->getSkyCover();
 		netRad = cNode->getNetRad();
-        inShortR = cNode->getShortRadIn(); //E.R.V 3/6/2012
-		vPress = cNode->getVapPressure();
+		inShortR = cNode->getShortRadIn();
 		nodeHour = timer->hour;
 
 		if (timeCount == 0) {
 			latitude = gridlat;
 			longitude = gridlong;
 			gmt = gridgmt;
-			Tso = cNode->getAirTemp() + 273.15; 
-			Tlo = Tso; 
-			
-			//Find the Available Humidity Data
-			if (fabs(dewTemp-9999.99)<1.0E-3 && fabs(vPress-9999.99)<1.0E-3){
-				dewHumFlag = 0;}
-			else if (fabs(rHumidity-9999.99)<1.0E-3 && fabs(vPress-9999.99)<1.0E-3){
-				dewHumFlag = 1;}
-			else if (fabs(rHumidity-9999.99)<1.0E-3 && fabs(dewTemp-9999.99)<1.0E-3) {
-				dewHumFlag = 2;}
+			Tso = cNode->getAirTemp() + 273.15;
+			Tlo = Tso;
 		}
 	}
 	else {
@@ -5208,7 +5096,6 @@ void tEvapoTrans::Debug(int time, int flag)
 void tEvapoTrans::writeRestart(fstream & rStr) const
 { 
   BinaryWrite(rStr, VerbID);
-  BinaryWrite(rStr, vapOption);
   BinaryWrite(rStr, tsOption);
   BinaryWrite(rStr, nrOption);
   BinaryWrite(rStr, Rah);
@@ -5233,7 +5120,6 @@ void tEvapoTrans::writeRestart(fstream & rStr) const
   BinaryWrite(rStr, metdataOption);
   BinaryWrite(rStr, Ioption);
   BinaryWrite(rStr, gFluxOption);
-  BinaryWrite(rStr, dewHumFlag);
   BinaryWrite(rStr, ID);
   BinaryWrite(rStr, gmt);
   BinaryWrite(rStr, nodeHour);
@@ -5372,7 +5258,6 @@ void tEvapoTrans::writeRestart(fstream & rStr) const
 void tEvapoTrans::readRestart(fstream & rStr)
 {
   BinaryRead(rStr, VerbID);
-  BinaryRead(rStr, vapOption);
   BinaryRead(rStr, tsOption);
   BinaryRead(rStr, nrOption);
   BinaryRead(rStr, Rah);
@@ -5397,7 +5282,6 @@ void tEvapoTrans::readRestart(fstream & rStr)
   BinaryRead(rStr, metdataOption);
   BinaryRead(rStr, Ioption);
   BinaryRead(rStr, gFluxOption);
-  BinaryRead(rStr, dewHumFlag);
   BinaryRead(rStr, ID);
   BinaryRead(rStr, gmt);
   BinaryRead(rStr, nodeHour);

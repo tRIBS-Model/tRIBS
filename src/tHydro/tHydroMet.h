@@ -48,7 +48,6 @@ class tHydroMet
   void setDay(int *);
   void setHour(int *);
   void setAirTemp(double *);
-  void setDewTemp(double *);
   void setSurfTemp(double *);
   void setAtmPress(double *);
   void setSkyCover(double *);
@@ -56,7 +55,6 @@ class tHydroMet
   void setWindSpeed(double *);
   void setNetRad(double *);
   void setPanEvap(double *);
-  void setVaporPress(double *);
   void setRadGlobal(double *);
   void setRadDirect(double *);
   void setRadDiffuse(double *);
@@ -80,7 +78,6 @@ class tHydroMet
   int    getHour(int);
   double getAirTemp(int);
   double getMeanTemp();
-  double getDewTemp(int);
   double getSurfTemp(int);
   double getAtmPress(int);
   double getSkyCover(int);
@@ -88,7 +85,6 @@ class tHydroMet
   double getWindSpeed(int);
   double getNetRad(int);
   double getPanEvap(int);
-  double getVaporPress(int);
   double getRadGlobal(int);
   double getRadDirect(int);
   double getRadDiffuse(int);
@@ -104,8 +100,8 @@ class tHydroMet
   double latitude, longitude;
   double basinLat, basinLong;
   double otherVariable, meanTemp;
-  double *airTemp, *dewTemp, *surfTemp;
-  double *netRad, *panEvap, *vaporPress;
+  double *airTemp, *surfTemp;
+  double *netRad, *panEvap;
   double *rHumidity, *skyCover;
   double *windSpeed, *atmPress;
   double *RadGlobal, *RadDirect, *RadDiffuse, *RainMet;

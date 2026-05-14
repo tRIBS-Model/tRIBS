@@ -145,10 +145,10 @@ class tEvapoTrans
   int evapotransOption{}, metdataOption{}, Ioption{};
   int snowOption{}; // NEW FOR SNOW.... SKY2008Snow from AJR2007
   int shelterOption{}; // NEW FOR SHELTERING... SKY2008Snow from AJR2007
-  int gFluxOption{}, dewHumFlag{}, ID{};
+  int gFluxOption{}, ID{};
   int gmt{}, nodeHour{}, thisStation{}, oldTimeStep{};
   int numStations{}, arraySize{}, hourlyTimeStep{}, nParm{}, gridgmt{};
-  int vapOption{}, tsOption{}, nrOption{};
+  int tsOption{}, nrOption{};
   int luOption{}, nParmLU;  //SKYnGM2008LU: added by AJR 2007
   int luInterpOption{};  //SKYnGM2008LU
   int timeCount;
