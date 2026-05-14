@@ -314,6 +314,11 @@ void tEvapoTrans::CreateHydroMetAndLU(tInputFile &infile)
 			Cout << "\nExiting Program..."<<endl<<endl;
 			exit(1);
 		}
+		if (luOption != 0) {
+			latitude  = infile.ReadItem(latitude,  "CENTROIDLAT");
+			longitude = infile.ReadItem(longitude, "CENTROIDLONG");
+			gmt       = infile.ReadItem(gmt,       "UTCOFFSET");
+		}
 	}
 }
 
@@ -3489,34 +3494,56 @@ void tEvapoTrans::readHydroMetGrid(char *gridFile)
 ** VH ../PATH/VHbase txt
 **
 ***************************************************************************/
-void tEvapoTrans::readLUGrid(char *gridFile) 
+void tEvapoTrans::readLUGrid(char *gridFile)
 {
-	int numParameters;
-	
-	Cout<<"\nReading Land-Use Data Grid File: "; 
+	Cout<<"\nReading Land-Use Data Grid File: ";
 	Cout<< gridFile<<"..."<<endl<<flush;
-	
-	ifstream readFile(gridFile); 
+
+	ifstream readFile(gridFile);
 	if (!readFile) {
 		cout << "\nFile "<<gridFile<<" not found!" << endl;
 		cout << "Exiting Program...\n\n"<<endl;
-		exit(1);}
-	
-	readFile >> numParameters; 
+		exit(1);
+	}
+
+	std::string header;
+	std::getline(readFile, header);
+	int colCount = 1;
+	for (char c : header)
+		if (c == ',') ++colCount;
+	if (colCount != 3) {
+		cout << "\nError: LU grid file '" << gridFile << "' has " << colCount
+		     << " columns, expected 3 (Variable,BasePath,FileExtension)." << endl;
+		cout << "Exiting Program...\n\n" << endl;
+		exit(1);
+	}
+
+	std::vector<std::vector<std::string>> rows;
+	std::string line;
+	while (std::getline(readFile, line)) {
+		if (line.empty()) continue;
+		std::istringstream ss(line);
+		std::vector<std::string> row(3);
+		for (int j = 0; j < 3; j++)
+			std::getline(ss, row[j], ',');
+		rows.push_back(row);
+	}
+	readFile.close();
+
+	int numParameters = static_cast<int>(rows.size());
 	nParmLU = numParameters;
-	readFile >> LUgridlat;
-	readFile >> LUgridlong;
-	readFile >> LUgridgmt;
 
 	LUgridBaseNames = new char*[numParameters];
 	LUgridExtNames = new char*[numParameters];
 	LUgridParamNames = new char*[numParameters];
-	
+
 	for (int ct=0;ct<numParameters;ct++) {
 		LUgridParamNames[ct] = new char[kMaxExt];
 		LUgridBaseNames[ct] = new char[kName];
 		LUgridExtNames[ct] = new char[kMaxExt];
-		readFile >> LUgridParamNames[ct];
+
+		strncpy(LUgridParamNames[ct], rows[ct][0].c_str(), kMaxExt - 1);
+		LUgridParamNames[ct][kMaxExt - 1] = '\0';
 
 		if ( (strcmp(LUgridParamNames[ct],"AL")!=0) &&
 				(strcmp(LUgridParamNames[ct],"TF")!=0) &&
@@ -3528,18 +3555,17 @@ void tEvapoTrans::readLUGrid(char *gridFile)
 		  		(strcmp(LUgridParamNames[ct],"DE")!=0) &&
 		  		(strcmp(LUgridParamNames[ct],"OT")!=0) &&
 		  		(strcmp(LUgridParamNames[ct],"LA")!=0) &&
-                (strcmp(LUgridParamNames[ct],"SE")!=0) && // CJC2025
-                (strcmp(LUgridParamNames[ct],"ST")!=0) ) { // CJC2025
-			
+                (strcmp(LUgridParamNames[ct],"SE")!=0) &&
+                (strcmp(LUgridParamNames[ct],"ST")!=0) ) {
 			Cout << "\nA land use parameter name in the LU gdf file is an unexpected one."<<endl;
 			Cout << "\nExpected variables: AL,TF,VH,SR,VF,CC,DC,DE,OT,LA,SE or ST" << endl;
 			Cout << "\tCheck and re-run the program" << endl;
 			Cout << "\nExiting Program..."<<endl<<endl;
 			exit(1);
-
 		}
 
-		readFile >> LUgridBaseNames[ct];
+		strncpy(LUgridBaseNames[ct], rows[ct][1].c_str(), kName - 1);
+		LUgridBaseNames[ct][kName - 1] = '\0';
 
 		if (strcmp(LUgridBaseNames[ct],"NO_DATA")==0) {
 			Cout << "\nCannot use NO_DATA for LU Grids"<<endl;
@@ -3547,9 +3573,10 @@ void tEvapoTrans::readLUGrid(char *gridFile)
 			exit(1);
 		}
 
-		readFile >> LUgridExtNames[ct];
+		strncpy(LUgridExtNames[ct], rows[ct][2].c_str(), kMaxExt - 1);
+		LUgridExtNames[ct][kMaxExt - 1] = '\0';
 	}
-	}
+}
 
 /***************************************************************************
 **
@@ -3986,12 +4013,6 @@ void tEvapoTrans::newLUGridData(tCNode * cNode)
 		}
 	}
 
-	if (IfNotFirstTStepLU == 0) { // modified from correction by SY, TM: 11/19/07
-		latitude = LUgridlat;
-		longitude = LUgridlong;
-		gmt = LUgridgmt;
-		IfNotFirstTStepLU = 1;
-	}
 
 	}
 
@@ -5286,16 +5307,12 @@ void tEvapoTrans::writeRestart(fstream & rStr) const
 
   BinaryWrite(rStr, snowOption); // Snow and Shelter
   BinaryWrite(rStr, shelterOption);
-  BinaryWrite(rStr, LUgridgmt);
   BinaryWrite(rStr, luOption);
   BinaryWrite(rStr, nParmLU);
   BinaryWrite(rStr, luInterpOption);
-  BinaryWrite(rStr, IfNotFirstTStepLU);
-  BinaryWrite(rStr, metHour); 
-  BinaryWrite(rStr, etHour); 
+  BinaryWrite(rStr, metHour);
+  BinaryWrite(rStr, etHour);
   BinaryWrite(rStr, rainInt);
-  BinaryWrite(rStr, LUgridlat); 
-  BinaryWrite(rStr, LUgridlong);
   BinaryWrite(rStr, coeffLAI);
   BinaryWrite(rStr, shelterFactorGlobal); 
   BinaryWrite(rStr, landRefGlobal);
@@ -5454,16 +5471,12 @@ void tEvapoTrans::readRestart(fstream & rStr)
 
   BinaryRead(rStr, snowOption); // Snow and Shelter
   BinaryRead(rStr, shelterOption);
-  BinaryRead(rStr, LUgridgmt);
   BinaryRead(rStr, luOption);
   BinaryRead(rStr, nParmLU);
   BinaryRead(rStr, luInterpOption);
-  BinaryRead(rStr, IfNotFirstTStepLU);
   BinaryRead(rStr, metHour);
   BinaryRead(rStr, etHour);
   BinaryRead(rStr, rainInt);
-  BinaryRead(rStr, LUgridlat);
-  BinaryRead(rStr, LUgridlong);
   BinaryRead(rStr, coeffLAI);
   BinaryRead(rStr, shelterFactorGlobal);
   BinaryRead(rStr, landRefGlobal);

@@ -226,10 +226,12 @@ void tPreProcess::CheckInputFile(tInputFile &infile)
 		CheckFileExists(tempString,"HYDROMETGRID");
 	}
 
-	// SKYnGM2008LU: added by AJR 2007
-	if (optlu == 1) {
+	if (optlu == 1 || optlu == 2) {
 		IterReadItem( infile, tempString,"LUGRID");
 		CheckFileExists(tempString, "LUGRID");
+		IterReadItem(infile, tempVariable, "CENTROIDLAT");
+		IterReadItem(infile, tempVariable, "CENTROIDLONG");
+		IterReadItem(infile, tempVariable, "UTCOFFSET");
 	}
 
 	// SKY2008Snow from AJR2007

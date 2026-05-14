@@ -148,16 +148,13 @@ class tEvapoTrans
   int gFluxOption{}, dewHumFlag{}, ID{};
   int gmt{}, nodeHour{}, thisStation{}, oldTimeStep{};
   int numStations{}, arraySize{}, hourlyTimeStep{}, nParm{}, gridgmt{};
-  int LUgridgmt{}; //SKYnGM2008LU: added by AJR 2007
   int vapOption{}, tsOption{}, nrOption{};
   int luOption{}, nParmLU;  //SKYnGM2008LU: added by AJR 2007
   int luInterpOption{};  //SKYnGM2008LU
   int timeCount;
 
   double timeStep{}, gridlat{}, gridlong{};
-  double IfNotFirstTStepLU{}; //SKYnGM2008LU: added by AJR 2007
   double metHour{}, etHour{}, rainInt{}; // SKY2008Snow from AJR2007
-  double LUgridlat{}, LUgridlong{}; //SKYnGM2008LU: added by AJR 2007
 
   double coeffH{}, coeffKt{}, coeffAl{}, coeffRs{}, coeffV{};
   double coeffKs{}, coeffCs{}, coeffPan{};
