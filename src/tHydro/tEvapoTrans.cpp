@@ -53,16 +53,13 @@ tEvapoTrans::tEvapoTrans()
 	LUgridBaseNames = nullptr;
 	LUgridExtNames = nullptr;
 	airpressure = nullptr;
-	dewtemperature = nullptr;
 	skycover = nullptr;
 	windspeed = nullptr;
 	airtemperature = nullptr;
 	surftemperature = nullptr;
-	netradiation = nullptr;
 	incomingsolar = nullptr; //E.R.V. 3/6/2012
 	evapotranspiration = nullptr;
 	relhumidity = nullptr;
-	vaporpressure= nullptr;
 	LandUseAlbGrid = nullptr;
 	ThroughFallGrid = nullptr;
 	VegHeightGrid = nullptr;
@@ -126,16 +123,13 @@ tEvapoTrans::tEvapoTrans(SimulationControl *simCtrPtr, tMesh<tCNode> *gridRef,
 	LUgridBaseNames = nullptr;
 	LUgridExtNames = nullptr;
 	airpressure = nullptr;
-	dewtemperature = nullptr;
 	skycover = nullptr;
 	windspeed = nullptr;
 	airtemperature = nullptr;
 	surftemperature = nullptr;
-	netradiation = nullptr;
 	incomingsolar = nullptr; //E.R.V. 3/6/2012
 	evapotranspiration = nullptr;
 	relhumidity = nullptr;
-	vaporpressure = nullptr;
 	LandUseAlbGrid = nullptr;
 	ThroughFallGrid = nullptr;
 	VegHeightGrid = nullptr;
@@ -314,11 +308,9 @@ void tEvapoTrans::CreateHydroMetAndLU(tInputFile &infile)
 			Cout << "\nExiting Program..."<<endl<<endl;
 			exit(1);
 		}
-		if (luOption != 0) {
-			latitude  = infile.ReadItem(latitude,  "CENTROIDLAT");
-			longitude = infile.ReadItem(longitude, "CENTROIDLONG");
-			gmt       = infile.ReadItem(gmt,       "UTCOFFSET");
-		}
+		latitude  = infile.ReadItem(latitude,  "CENTROIDLAT");
+		longitude = infile.ReadItem(longitude, "CENTROIDLONG");
+		gmt       = infile.ReadItem(gmt,       "UTCOFFSET");
 	}
 }
 
@@ -339,15 +331,12 @@ void tEvapoTrans::DeleteEvapoTrans()
 		if (metdataOption == 2) {
 			if (evapotransOption != 2) {
 				delete airpressure;
-				delete dewtemperature;
 				delete skycover;
 				delete windspeed;
 				delete airtemperature;
 				delete surftemperature;
-				delete netradiation;
 				delete incomingsolar; //E.R.V. 3/6/2012
 				delete relhumidity;
-				delete vaporpressure;
 				
 				for (int sz=0;sz<nParm;sz++) {
 					delete [] gridParamNames[sz]; //TODO: EXC_BAD_ACCESS (code=1, address=0x0) -WR
@@ -384,7 +373,7 @@ void tEvapoTrans::initializeVariables()
 	
 	airTemp = 0.0; dewTemp = 0.0; surfTemp = 0.0;
 	atmPress = 0.0; windSpeed = 0.0; rHumidity = 0.0;
-	skyCover = 0.0; netRad = 0.0; vPress = 0.0;
+	skyCover = 0.0; vPress = 0.0;
 	latitude = 0.0; longitude = 0.0; gmt = 0;
 	nodeHour = 0; Tso = 0.0; Tlo = 0.0; Gso = 0.0;
 	inLongR = 0.0; outLongR = 0.0; inShortR = 0.0;  
@@ -416,7 +405,7 @@ void tEvapoTrans::initializeVariables()
 	ha3150 = 0.0; ha3375 = 0.0;
 
 	hourlyTimeStep = 0; thisStation = 0; oldTimeStep = 0;
-	tsOption = nrOption = 0;
+	tsOption = 0;
 	
 	currentTime = new int[4];
 	for (int count=0;count<4;count++) {
@@ -446,8 +435,8 @@ void tEvapoTrans::assignStationToNode()
 	
 	for (int ct=0;ct<numStations;ct++) {
 		stationID[ct]   = weatherStations[ct].getStation();
-		stationLong[ct] = weatherStations[ct].getLong(2);
-		stationLat[ct]  = weatherStations[ct].getLat(2);
+		stationLong[ct] = weatherStations[ct].getLong();
+		stationLat[ct]  = weatherStations[ct].getLat();
 	}
 	
 	id_st_tmp = respPtr->doIt(stationID, stationLong, stationLat, numStations); 
@@ -2857,96 +2846,68 @@ void tEvapoTrans::setToNode(tCNode* cNode)
 **                          Set to Zero if not used.
 **
 ***************************************************************************/
-void tEvapoTrans::readHydroMetStat(char *stationfile) 
+void tEvapoTrans::readHydroMetStat(char *stationfile)
 {
-	int nStations, nParams;
-	int Gmt, stationID, numTimes, numParams;
-	double alat, along, rlat, rlong, otherVar;
-	char fileName[kName];
-	//assert(fileName != 0);//WR--09192023: comparison of array 'fileName' not equal to a null pointer is always true
-	
-	Cout<<"\nReading HydroMeteorological Station File '";
-	Cout<< stationfile<<"'..."<<endl<<flush;
-	
-	ifstream readFile(stationfile); 
+	Cout<<"\nReading HydroMeteorological Station File '"
+	    << stationfile <<"'..."<<endl<<flush;
+
+	ifstream readFile(stationfile);
 	if (!readFile) {
 		cout << "File "<<stationfile<<" not found." << endl;
 		cout<<"Exiting Program...\n\n"<<endl;
 		exit(1);
 	}
-	
-	readFile >> nStations;
-	readFile >> nParams;
-	
-	weatherStations = new tHydroMet[nStations];
-	assert(weatherStations != nullptr);
-	
-	numStations = nStations;
-	
-	for (int count=0;count < nStations;count++) {
-		
-		for (int ct=0;ct < nParams;ct++) {
-			if (ct==0) {
-				readFile >> stationID;
-				weatherStations[count].setStation(stationID);
-			}
-			if (ct==1) {
-				readFile >> fileName;
-				weatherStations[count].setFileName(fileName);
-			}
-			if (ct==2) {
-				readFile >> alat;
-				weatherStations[count].setLat(alat,1);
-			}
-			if (ct==3) {
-				readFile >> rlat;
-				if (!readFile) {
-					cout<<"\nError in the SDF File "<<fileName<< " !!"<<endl;
-					cout<<"Please replace BasinLat with Reference Latitude ..."<<endl;
-					cout<<"Exiting Program...\n\n"<<endl;
-					exit(2);
-				}
-				weatherStations[count].setLat(rlat,2);
-			}
-			if (ct==4) {
-				readFile >> along;
-				weatherStations[count].setLong(along,1);
-			}
-			if (ct==5) {
-				readFile >> rlong;
-				if (!readFile) {
-					cout<<"\nError in the SDF File "<<fileName<< " !!"<<endl;
-					cout<<"Please replace BasinLong with Reference Longitude..."<<endl;
-					cout<<"Exiting Program...\n\n"<<endl;
-					exit(3);
-				} 
-				weatherStations[count].setLong(rlong,2);
-			}
-			if (ct==6) {
-				readFile >> Gmt;
-				if (!readFile) {
-					cout<<"\nError in the SDF File "<<fileName<< " !!"<<endl;
-					cout<<"Please replace GMT Tag with GMT Value..."<<endl;
-					cout<<"Exiting Program...\n\n"<<endl;
-					exit(4);
-				}
-				weatherStations[count].setGmt(Gmt);
-			}
-			if (ct==7) {
-				readFile >> numTimes;
-				weatherStations[count].setTime(numTimes);
-			}
-			if (ct==8) {
-				readFile >> numParams;
-				weatherStations[count].setParm(numParams);
-			}
-			if (ct==9) {
-				readFile >> otherVar;
-				weatherStations[count].setOther(otherVar);
-			}
+
+	// Validate CSV header: ID,DataFile,Northing,Easting,Elevation
+	std::string headerLine;
+	std::getline(readFile, headerLine);
+	{
+		std::istringstream hss(headerLine);
+		std::string token;
+		int ncols = 0;
+		while (std::getline(hss, token, ',')) ncols++;
+		if (ncols != 5) {
+			cerr << "\nError: HydroMet station file '" << stationfile
+			     << "' header must have 5 columns "
+			        "(ID,DataFile,Northing,Easting,Elevation)." << endl;
+			exit(1);
 		}
 	}
+
+	// Read all data rows
+	std::vector<std::string> rows;
+	std::string line;
+	while (std::getline(readFile, line)) {
+		if (!line.empty()) rows.push_back(line);
+	}
 	readFile.close();
+
+	numStations = static_cast<int>(rows.size());
+	weatherStations = new tHydroMet[numStations];
+	assert(weatherStations != nullptr);
+
+	for (int count = 0; count < numStations; count++) {
+		std::istringstream ss(rows[count]);
+		std::string token;
+		char fileName[kName];
+
+		std::getline(ss, token, ',');
+		weatherStations[count].setStation(std::stoi(token));
+
+		std::getline(ss, token, ',');
+		strncpy(fileName, token.c_str(), kName - 1);
+		fileName[kName - 1] = '\0';
+		weatherStations[count].setFileName(fileName);
+
+		std::getline(ss, token, ',');
+		weatherStations[count].setLat(std::stod(token));
+
+		std::getline(ss, token, ',');
+		weatherStations[count].setLong(std::stod(token));
+
+		std::getline(ss, token, ',');
+		weatherStations[count].setOther(std::stod(token));
+	}
 }
 
 /***************************************************************************
@@ -2985,273 +2946,167 @@ void tEvapoTrans::readHydroMetStat(char *stationfile)
 **          PanEvaporation (mm/hour) double
 **
 ***************************************************************************/
-void tEvapoTrans::readHydroMetData(int num) 
+void tEvapoTrans::readHydroMetData(int num)
 {
-	int numParams, numTimes;
 	char fileName[kName];
-	char notUsed[10];
-	char paramNames2[10] = {};
-	char paramNames3[10] = {};
-	char *tmpstr;
+	snprintf(fileName, sizeof(fileName), "%s", weatherStations[num].getFileName());
 
-	int *year, *month, *day, *hour;
-	double *AtmPressure, *AirTemperature;
-	double *SkyCover, *WindSpeed, *RelativeHumidity;
-	double *NetRadiation, *SurfTemperature, *PanEvap;
-	double *GlobRadiation;
-	double tempo;
-	
-	tmpstr = weatherStations[num].getFileName();
-    snprintf(fileName,sizeof(fileName),"%s", tmpstr);//WR--09192023: 'sprintf' is deprecated: This function is provided for compatibility reasons only.
-	numParams = weatherStations[num].getParm();
-	numTimes  = weatherStations[num].getTime();
-	
-	Cout<<"\nReading HydroMeteorological Data File '";
-	Cout<<fileName<<"'..."<<endl<<flush;
-	
+	Cout<<"\nReading HydroMeteorological Data File '"<<fileName<<"'..."<<endl<<flush;
+
 	ifstream readDataFile(fileName);
 	if (!readDataFile) {
 		cout << "\nFile " <<fileName<<" not found!" << endl;
 		cout << "Exiting Program...\n\n"<<endl;
-		exit(2);}
-	
-	for (int cnt = 0; cnt<numParams; cnt++) {
-		if (cnt==9)
-			readDataFile >> paramNames2;
-		else if (cnt==10)
-			readDataFile >> paramNames3;
-		else
-			readDataFile >> notUsed;
+		exit(2);
 	}
 
-	if (strcmp(paramNames2,"TS")==0)
-		tsOption = 1;
-	else
-		tsOption = 2;
+	// Read CSV header, determine numParams and tsOption
+	std::string headerLine;
+	std::getline(readDataFile, headerLine);
+	std::vector<std::string> headers;
+	{
+		std::istringstream hss(headerLine);
+		std::string token;
+		while (std::getline(hss, token, ',')) headers.push_back(token);
+	}
+	int numParams = static_cast<int>(headers.size());
 
-	if (strcmp(paramNames3,"NR")==0)
-		nrOption = 1;
-	else
-		nrOption = 2;
-	
-	year  = new int[numTimes];
-	month = new int[numTimes];
-	day   = new int[numTimes];
-	hour  = new int[numTimes];
-	
+	if (evapotransOption == 2) {
+		if (numParams != 5) {
+			cerr << "\nError: ET data file '" << fileName
+			     << "' header must have 5 columns (Year,Month,Day,Hour,ET_mm/hr)." << endl;
+			exit(1);
+		}
+	} else {
+		if (numParams != 10) {
+			cerr << "\nError: HydroMet data file '" << fileName
+			     << "' header must have exactly 10 columns "
+			     << "(Year,Month,Day,Hour,PA,RH,XC,US,TA,TS_or_IS)." << endl;
+			exit(1);
+		}
+		tsOption = (headers[9] == "TS") ? 1 : 2;
+	}
+
+	// Read all data rows
+	std::vector<std::string> rows;
+	std::string line;
+	while (std::getline(readDataFile, line)) {
+		if (!line.empty()) rows.push_back(line);
+	}
+	readDataFile.close();
+
+	int numTimes = static_cast<int>(rows.size());
+	weatherStations[num].setParm(numParams);
+
+	std::vector<int> yr(numTimes), mo(numTimes), dy(numTimes), hr(numTimes);
+
 	if (evapotransOption != 2) {
-		AtmPressure = new double[numTimes];
-		AirTemperature = new double[numTimes];
-		SkyCover = new double[numTimes];
-		WindSpeed = new double[numTimes];
-		RelativeHumidity = new double[numTimes];
-		NetRadiation= new double[numTimes];
-		SurfTemperature = new double[numTimes];
-		GlobRadiation = new double[numTimes];
-		
+		std::vector<double> AtmPressure(numTimes), AirTemperature(numTimes);
+		std::vector<double> SkyCover(numTimes), WindSpeed(numTimes);
+		std::vector<double> RelativeHumidity(numTimes);
+		std::vector<double> SurfTemperature(numTimes), GlobRadiation(numTimes);
+
 		for (int count = 0; count < numTimes; count++) {
-			for (int ct = 0; ct < numParams ;ct++) {
-				if (ct==0) {
-					readDataFile >> year[count];}
-				else if (ct==1) {
-					readDataFile >> month[count];}
-				else if (ct==2) {
-					readDataFile >> day[count];}
-				else if (ct==3) {
-					readDataFile >> hour[count];}
-				
-				else if (ct==4) {
-					readDataFile >> tempo;
-					
-					// SKY2008Snow, AJR2008	
-					// if (tempo < 700 || tempo > 1200)
-					if (tempo < 600 || tempo > 1200)
-					
-						AtmPressure[count] = 9999.99;
-					else 
-						AtmPressure[count] = tempo;
-				}
-				else if (ct==5) {
-					readDataFile >> tempo;
-					RelativeHumidity[count] = (tempo < 0 || tempo > 100) ? 9999.99 : tempo;
-				}
-				else if (ct==6) {
-					readDataFile >> tempo;
-					if (tempo < 0 || tempo > 10)
-						SkyCover[count]= 9999.99;
-					else 
-						SkyCover[count] = tempo;
-				}
-				else if (ct==7) {
-					readDataFile >> tempo;
-					if (tempo < 0 || tempo > 30)
-						WindSpeed[count] = 9999.99;
-					else 
-						WindSpeed[count] = tempo;
-				}
-				else if (ct==8) {
-					readDataFile >> tempo;
-					if (tempo < -50 || tempo > 60)
-						AirTemperature[count] = 9999.99;
-					else 
-						AirTemperature[count] = tempo;
-				}
-				else if (ct==9) {
-					readDataFile >> tempo;
+			std::istringstream ss(rows[count]);
+			std::string token;
+			auto rd = [&]() { std::getline(ss, token, ','); return std::stod(token); };
 
-					// SKY2008Snow, AJR2008
-					if (fabs(tempo-9999.99) > 1.0E-3) { 
+			std::getline(ss, token, ','); yr[count] = std::stoi(token);
+			std::getline(ss, token, ','); mo[count] = std::stoi(token);
+			std::getline(ss, token, ','); dy[count] = std::stoi(token);
+			std::getline(ss, token, ','); hr[count] = std::stoi(token);
 
-						if (tsOption == 1) {
-							if (tempo < -60 || tempo > 70)
-								SurfTemperature[count]= 9999.99;
-							else
-								SurfTemperature[count] = tempo;
-							GlobRadiation[count] = 9999.99;
-						}
-						else {
-							GlobRadiation[count] = tempo;
-							SurfTemperature[count]= 9999.99;
-						}
-					
-					// SKY2008Snow, AJR2008
-					}
-					else {
-						tsOption = 0;
-						GlobRadiation[count] = 9999.99;
-						SurfTemperature[count]= 9999.99;
-					}
+			double tempo = rd(); // PA
+			AtmPressure[count] = (tempo < 600 || tempo > 1200) ? 9999.99 : tempo;
+
+			tempo = rd(); // RH
+			RelativeHumidity[count] = (tempo < 0 || tempo > 100) ? 9999.99 : tempo;
+
+			tempo = rd(); // XC
+			SkyCover[count] = (tempo < 0 || tempo > 10) ? 9999.99 : tempo;
+
+			tempo = rd(); // US
+			WindSpeed[count] = (tempo < 0 || tempo > 30) ? 9999.99 : tempo;
+
+			tempo = rd(); // TA
+			AirTemperature[count] = (tempo < -50 || tempo > 60) ? 9999.99 : tempo;
+
+			tempo = rd(); // col 9: TS or GlobRad
+			if (fabs(tempo - 9999.99) > 1.0E-3) {
+				if (tsOption == 1) {
+					SurfTemperature[count] = (tempo < -60 || tempo > 70) ? 9999.99 : tempo;
+					GlobRadiation[count] = 9999.99;
+				} else {
+					GlobRadiation[count] = tempo;
+					SurfTemperature[count] = 9999.99;
+				}
+			} else {
+				tsOption = 0;
+				GlobRadiation[count] = 9999.99;
+				SurfTemperature[count] = 9999.99;
+			}
 
 
-				}
-				else if (ct==10) {
-					readDataFile >> tempo;
-					if (nrOption == 1) {
-						if (tempo < -1000 || tempo > 1000)
-							NetRadiation[count]= 9999.99;
-						else
-							NetRadiation[count] = tempo;
-					}
-					else
-						NetRadiation[count] = 9999.99;
-				}
-				// If 'numParams' exceeds 11 - for compatability 
-				// with other implementations of tRIBS
-				else 
-					readDataFile >> tempo;
-				
-			} // loop through 'numParams' 
-
-			// Begin block for validation of meteorological data input
-			
-			// After reading all parameters for the current line (at index 'count'),
-			// validate its timestamp.
+			// Timestamp validation
 			if (count == 0) {
-				// Check first timestamp
-				// Assuming getters exist like timer->getStartYear(), etc.
-				// If not, use direct member access like timer->yearS
-				if (year[0] != timer->yearS || month[0] != timer->monthS ||
-					day[0] != timer->dayS   || hour[0] != timer->hourS)
+				if (yr[0] != timer->yearS || mo[0] != timer->monthS ||
+					dy[0] != timer->dayS   || hr[0] != timer->hourS)
 				{
 					std::cerr << "\n\nFATAL ERROR in " << fileName << std::endl;
 					std::cerr << "The first timestamp in the file does not match the simulation start time." << std::endl;
-					std::cerr << "Simulation Start: " << timer->yearS << "/" << timer->monthS 
-							<< "/" << timer->dayS << " " << timer->hourS << ":00" << std::endl;
-					std::cerr << "Found in File:    " << year[0] << "/" << month[0] << "/" << day[0] 
-							<< " " << hour[0] << ":00" << std::endl;
+					std::cerr << "Simulation Start: " << timer->yearS << "/" << timer->monthS
+					          << "/" << timer->dayS << " " << timer->hourS << ":00" << std::endl;
+					std::cerr << "Found in File:    " << yr[0] << "/" << mo[0] << "/" << dy[0]
+					          << " " << hr[0] << ":00" << std::endl;
 					std::cerr << "Exiting Program...\n\n" << std::endl;
 					exit(1);
 				}
 			} else {
-				// Check all subsequent timestamps
-				// Calculate what the expected timestamp should be based on the PREVIOUS line.
-				int expected_yr = year[count-1];
-				int expected_mo = month[count-1];
-				int expected_dy = day[count-1];
-				int expected_hr = hour[count-1];
-				
-				// Add the simulation time step (in hours)
+				int expected_yr = yr[count-1];
+				int expected_mo = mo[count-1];
+				int expected_dy = dy[count-1];
+				int expected_hr = hr[count-1];
 				expected_hr += timer->getEtIStep();
-
-				// Handle time rollovers using the logic adapted from julianDay()
 				while (expected_hr >= 24) {
 					expected_hr -= 24;
 					expected_dy++;
-
-					// Logic adapted directly from julianDay() function
 					int dayInMonth[12] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
 					bool isLeap = (expected_yr % 4 == 0 && expected_yr % 100 != 0) || (expected_yr % 400 == 0);
-					if (isLeap) {
-						dayInMonth[1] = 29; // February
-					}
-					// Note: C++ arrays are 0-indexed, so use expected_mo - 1
-					int days_in_current_month = dayInMonth[expected_mo - 1];
-
-					if (expected_dy > days_in_current_month) {
+					if (isLeap) dayInMonth[1] = 29;
+					if (expected_dy > dayInMonth[expected_mo - 1]) {
 						expected_dy = 1;
-						expected_mo++;
-						if (expected_mo > 12) {
-							expected_mo = 1;
-							expected_yr++;
-						}
+						if (++expected_mo > 12) { expected_mo = 1; expected_yr++; }
 					}
 				}
-
-				// Compare the calculated expected time with the time read from the file.
-				if (year[count] != expected_yr || month[count] != expected_mo ||
-					day[count] != expected_dy   || hour[count] != expected_hr)
+				if (yr[count] != expected_yr || mo[count] != expected_mo ||
+					dy[count] != expected_dy   || hr[count] != expected_hr)
 				{
 					std::cerr << "\n\nFATAL ERROR in " << fileName << std::endl;
 					std::cerr << "Timestamp gap or duplicate detected in data." << std::endl;
-					std::cerr << "After timestamp: " << year[count-1] << "/" << month[count-1] << "/" << day[count-1] 
-							<< " " << hour[count-1] << ":00" << std::endl;
-					std::cerr << "Expected next timestamp: " << expected_yr << "/" << expected_mo << "/" << expected_dy 
-							<< " " << expected_hr << ":00" << std::endl;
-					std::cerr << "But found in file:       " << year[count] << "/" << month[count] << "/" << day[count] 
-							<< " " << hour[count] << ":00" << std::endl;
+					std::cerr << "After:    " << yr[count-1] << "/" << mo[count-1] << "/" << dy[count-1]
+					          << " " << hr[count-1] << ":00" << std::endl;
+					std::cerr << "Expected: " << expected_yr << "/" << expected_mo << "/" << expected_dy
+					          << " " << expected_hr << ":00" << std::endl;
+					std::cerr << "Found:    " << yr[count] << "/" << mo[count] << "/" << dy[count]
+					          << " " << hr[count] << ":00" << std::endl;
 					std::cerr << "Exiting Program...\n\n" << std::endl;
 					exit(1);
 				}
-			} // End block for validation of meteorological data input
-		}   // loop through 'numTimes'
-	}
-	else {
-		PanEvap = new double[numTimes]; 
-		assert(PanEvap != nullptr);
-		
-		for (int sount = 0;sount<numTimes;sount++) {
-			for (int sct = 0;sct<numParams;sct++) {
-				if (sct==0) {
-					readDataFile >> year[sount];}
-				else if (sct==1) {
-					readDataFile >> month[sount];}
-				else if (sct==2) {
-					readDataFile >> day[sount];}
-				else if (sct==3) {
-					readDataFile >> hour[sount];}
-				else if (sct==4) {
-					readDataFile >> PanEvap[sount];
-				}
 			}
 		}
-	}
-	
-	readDataFile.close();
-	
-	weatherStations[num].setYear(year);
-	weatherStations[num].setMonth(month);
-	weatherStations[num].setDay(day);
-	weatherStations[num].setHour(hour);
-	
-	if (evapotransOption != 2) {
-		robustNess(AirTemperature, numTimes);
-		robustNess(AtmPressure, numTimes);
-		robustNess(SkyCover, numTimes);
-		robustNess(RelativeHumidity, numTimes);
-		robustNess(WindSpeed, numTimes);
-		robustNess(SurfTemperature, numTimes);
-		robustNess(GlobRadiation, numTimes);
 
+		robustNess(AirTemperature.data(), numTimes);
+		robustNess(AtmPressure.data(), numTimes);
+		robustNess(SkyCover.data(), numTimes);
+		robustNess(RelativeHumidity.data(), numTimes);
+		robustNess(WindSpeed.data(), numTimes);
+		robustNess(SurfTemperature.data(), numTimes);
+		robustNess(GlobRadiation.data(), numTimes);
+
+		weatherStations[num].setYear(yr);
+		weatherStations[num].setMonth(mo);
+		weatherStations[num].setDay(dy);
+		weatherStations[num].setHour(hr);
 		weatherStations[num].setAirTemp(AirTemperature);
 		weatherStations[num].setAtmPress(AtmPressure);
 		weatherStations[num].setSkyCover(SkyCover);
@@ -3259,32 +3114,27 @@ void tEvapoTrans::readHydroMetData(int num)
 		weatherStations[num].setWindSpeed(WindSpeed);
 		weatherStations[num].setSurfTemp(SurfTemperature);
 		weatherStations[num].setRadGlobal(GlobRadiation);
-		
-		//cout << "\treadHydroMetData GlobRadiation: " << GlobRadiation<<endl;
-		
-		if (numParams >= 11) {
-			robustNess(NetRadiation, numTimes);
-			weatherStations[num].setNetRad(NetRadiation);
+
+	} else {
+		std::vector<double> PanEvap(numTimes);
+
+		for (int count = 0; count < numTimes; count++) {
+			std::istringstream ss(rows[count]);
+			std::string token;
+			std::getline(ss, token, ','); yr[count] = std::stoi(token);
+			std::getline(ss, token, ','); mo[count] = std::stoi(token);
+			std::getline(ss, token, ','); dy[count] = std::stoi(token);
+			std::getline(ss, token, ','); hr[count] = std::stoi(token);
+			std::getline(ss, token, ','); PanEvap[count] = std::stod(token);
 		}
-		
-		delete [] AtmPressure;
-		delete [] AirTemperature;
-		delete [] RelativeHumidity;
-		delete [] SkyCover;
-		delete [] WindSpeed;
-		delete [] NetRadiation;
-		delete [] SurfTemperature;
-		delete [] GlobRadiation;
-	}
-	else {
-		robustNess(PanEvap, numTimes);
+
+		robustNess(PanEvap.data(), numTimes);
+		weatherStations[num].setYear(yr);
+		weatherStations[num].setMonth(mo);
+		weatherStations[num].setDay(dy);
+		weatherStations[num].setHour(hr);
 		weatherStations[num].setPanEvap(PanEvap);
-		delete[] PanEvap;
 	}
-	delete [] year; 
-	delete [] month; 
-	delete [] day; 
-	delete [] hour;
 }
 
 /***************************************************************************
@@ -3320,60 +3170,84 @@ void tEvapoTrans::robustNess(double *variable, int size)
 **
 ** tEvapoTrans::readHydroMetGrid() Function
 **
-** Reads a file (*.gdf) from HYDROMETGRID keyword containing the base names of 
-** the various input meteorologic parameter grids along with the extension
-** used for the filename. These follow a string that identifies the line
-** with the parameters (ie. PA, TD, XC, US, TA, TS, NR). If no data is
-** available for any parameters, the string NO_DATA should be input 
-** instead of the path name and extension name. In this version, a single
-** value of latitude, longitude and GMT is used for entire grids. The
-** impact of this assumption should be small for small grids.
+** Reads a CSV file (*.gdf) from the HYDROMETGRID keyword containing the base
+** names and extensions of time-varying meteorologic parameter grids. All
+** variables must be listed. Use NO_DATA for both BasePath and FileExtension
+** when a variable is not available (nodes will be assigned 9999.99).
 **
-** Number of parameters 
-** Latitude Longitude GMT
-** ParamName Base Name1 Extension1 (../PATH/parameterName1)
-** ParamName Base Name2  Extension2
-** ...
+** Valid parameter codes (regular ET): PA, RH, XC, US, TA, TS, IS
+** Valid parameter code  (pan ET only): ET
+** Basin centroid lat/long/UTC offset are read from CENTROIDLAT, CENTROIDLONG,
+** and UTCOFFSET keywords in the .in file.
+**
+** CSV format: Variable,BasePath,FileExtension
 ** Example:
-** 3
-** 32.5 -100.3 -6
-** PA ../PATH/PAbase txt
-** TD ../PATH/TDbase txt
-** NR NO_DATA NO_DATA
+** Variable,BasePath,FileExtension
+** PA,/data/grids/pressure,asc
+** RH,/data/grids/humidity,asc
+** XC,NO_DATA,NO_DATA
+** US,/data/grids/wind,asc
+** TA,/data/grids/airtemp,asc
+** TS,NO_DATA,NO_DATA
+** IS,/data/grids/solar,asc
 **
 ***************************************************************************/
-void tEvapoTrans::readHydroMetGrid(char *gridFile) 
+void tEvapoTrans::readHydroMetGrid(char *gridFile)
 {
-	int numParameters;
-	
-	Cout<<"\nReading HydroMeteorological Grid File: "; 
-	Cout<< gridFile<<"..."<<endl<<flush;
-	
-	ifstream readFile(gridFile); 
+	Cout<<"\nReading HydroMeteorological Grid File: "
+	    << gridFile<<"..."<<endl<<flush;
+
+	ifstream readFile(gridFile);
 	if (!readFile) {
 		cout << "\nFile "<<gridFile<<" not found!" << endl;
 		cout << "Exiting Program...\n\n"<<endl;
-		exit(1);}
-	
-	readFile >> numParameters; 
+		exit(1);
+	}
+
+	// Validate CSV header: Variable,BasePath,FileExtension
+	std::string headerLine;
+	std::getline(readFile, headerLine);
+	{
+		std::istringstream hss(headerLine);
+		std::string token;
+		int ncols = 0;
+		while (std::getline(hss, token, ',')) ncols++;
+		if (ncols != 3) {
+			cerr << "\nError: HydroMet grid file '" << gridFile
+			     << "' header must have 3 columns (Variable,BasePath,FileExtension)." << endl;
+			exit(1);
+		}
+	}
+
+	// Count rows
+	std::vector<std::string> rows;
+	std::string line;
+	while (std::getline(readFile, line)) {
+		if (!line.empty()) rows.push_back(line);
+	}
+	readFile.close();
+
+	int numParameters = static_cast<int>(rows.size());
 	nParm = numParameters;
-	readFile >> gridlat;
-	readFile >> gridlong;
-	readFile >> gridgmt;
-	
-	gridBaseNames = new char*[numParameters];
-	gridExtNames = new char*[numParameters];
+	gridBaseNames  = new char*[numParameters];
+	gridExtNames   = new char*[numParameters];
 	gridParamNames = new char*[numParameters];
-	
-	for (int ct=0;ct<numParameters;ct++) {
+
+	for (int ct = 0; ct < numParameters; ct++) {
 		gridParamNames[ct] = new char[10];
-		gridBaseNames[ct] = new char[kName];
-		gridExtNames[ct] = new char[kMaxExt];
-		readFile >> gridParamNames[ct];
-		readFile >> gridBaseNames[ct];
-		readFile >> gridExtNames[ct];
+		gridBaseNames[ct]  = new char[kName];
+		gridExtNames[ct]   = new char[kMaxExt];
+
+		std::istringstream ss(rows[ct]);
+		std::string token;
+		std::getline(ss, token, ',');
+		strncpy(gridParamNames[ct], token.c_str(), 9); gridParamNames[ct][9] = '\0';
+		std::getline(ss, token, ',');
+		strncpy(gridBaseNames[ct], token.c_str(), kName - 1); gridBaseNames[ct][kName - 1] = '\0';
+		std::getline(ss, token, ',');
+		strncpy(gridExtNames[ct], token.c_str(), kMaxExt - 1); gridExtNames[ct][kMaxExt - 1] = '\0';
 	}
-	}
+}
 
 /***************************************************************************
 **
@@ -3512,14 +3386,6 @@ void tEvapoTrans::createVariant()
 				else
 					airpressure->noData(gridParamNames[ct]);
 			}
-			if (strcmp(gridParamNames[ct],"TD")==0) {
-				dewtemperature = new tVariant(gridPtr,respPtr);
-				if (strcmp(gridBaseNames[ct],"NO_DATA")!=0) {
-					dewtemperature->setFileNames(gridBaseNames[ct], gridExtNames[ct]);
-					dewtemperature->newVariable(gridParamNames[ct]);}
-				else
-					dewtemperature->noData(gridParamNames[ct]);
-			}
 			if (strcmp(gridParamNames[ct],"XC")==0) {
 				skycover = new tVariant(gridPtr,respPtr);
 				if (strcmp(gridBaseNames[ct],"NO_DATA")!=0) {
@@ -3552,14 +3418,6 @@ void tEvapoTrans::createVariant()
 				else
 					surftemperature->noData(gridParamNames[ct]);
 			}
-			if (strcmp(gridParamNames[ct],"NR")==0) {
-				netradiation = new tVariant(gridPtr,respPtr);
-				if (strcmp(gridBaseNames[ct],"NO_DATA")!=0) {
-					netradiation->setFileNames(gridBaseNames[ct], gridExtNames[ct]);
-					netradiation->newVariable(gridParamNames[ct]);}
-				else
-					netradiation->noData(gridParamNames[ct]);
-			}
 			if (strcmp(gridParamNames[ct],"RH")==0) {
 				relhumidity = new tVariant(gridPtr,respPtr);
 				if (strcmp(gridBaseNames[ct],"NO_DATA")!=0) {
@@ -3567,14 +3425,6 @@ void tEvapoTrans::createVariant()
 					relhumidity->newVariable(gridParamNames[ct]);}
 				else
 					relhumidity->noData(gridParamNames[ct]);
-			}
-			if (strcmp(gridParamNames[ct],"VP")==0) {
-				vaporpressure = new tVariant(gridPtr,respPtr);
-				if (strcmp(gridBaseNames[ct],"NO_DATA")!=0) {
-					vaporpressure->setFileNames(gridBaseNames[ct], gridExtNames[ct]);
-					vaporpressure->newVariable(gridParamNames[ct]);}
-				else
-					vaporpressure->noData(gridParamNames[ct]);
 			}
 			if (strcmp(gridParamNames[ct],"IS")==0) {  //E.R.V. 3/6/2012
 				incomingsolar = new tVariant(gridPtr,respPtr);
@@ -3789,13 +3639,8 @@ void tEvapoTrans::newHydroMetData(int time)
 				skyCover = weatherStations[i].getSkyCover(time);
 				inShortR = weatherStations[i].getRadGlobal(time);
 
-				if (weatherStations[i].getParm() >= 11)
-					netRad = weatherStations[i].getNetRad(time);
 
 				if (time == 0) {
-					latitude = weatherStations[i].getLat(1);
-					longitude = weatherStations[i].getLong(1);
-					gmt = weatherStations[i].getGmt();
 					Tso = weatherStations[i].getAirTemp(time) + 273.15;
 					Tlo = Tso;
 				}
@@ -3823,14 +3668,10 @@ void tEvapoTrans::newHydroMetGridData(tCNode * cNode) {
 		atmPress = cNode->getAirPressure();
 		windSpeed = cNode->getWindSpeed();
 		skyCover = cNode->getSkyCover();
-		netRad = cNode->getNetRad();
 		inShortR = cNode->getShortRadIn();
 		nodeHour = timer->hour;
 
 		if (timeCount == 0) {
-			latitude = gridlat;
-			longitude = gridlong;
-			gmt = gridgmt;
 			Tso = cNode->getAirTemp() + 273.15;
 			Tlo = Tso;
 		}
@@ -3918,21 +3759,12 @@ void tEvapoTrans::resampleGrids(tRunTimer *t)
 				if (strcmp(gridParamNames[ct],"US")==0) {
 					windspeed->composeFileName(t);
 					windspeed->updateVariable(gridParamNames[ct]);}
-				if (strcmp(gridParamNames[ct],"TD")==0) {
-					dewtemperature->composeFileName(t);
-					dewtemperature->updateVariable(gridParamNames[ct]);}
 				if (strcmp(gridParamNames[ct],"RH")==0) {
 					relhumidity->composeFileName(t);
 					relhumidity->updateVariable(gridParamNames[ct]);}
 				if (strcmp(gridParamNames[ct],"TS")==0) {
 					surftemperature->composeFileName(t);
 					surftemperature->updateVariable(gridParamNames[ct]);}
-				if (strcmp(gridParamNames[ct],"NR")==0) {
-					netradiation->composeFileName(t);
-					netradiation->updateVariable(gridParamNames[ct]);}
-				if (strcmp(gridParamNames[ct],"VP")==0) {
-					vaporpressure->composeFileName(t);
-					vaporpressure->updateVariable(gridParamNames[ct]);}
 				if (strcmp(gridParamNames[ct],"IS")==0) {   //E.R.V 3/6/2012
 					incomingsolar->composeFileName(t);
 					incomingsolar->updateVariable(gridParamNames[ct]);}
@@ -5088,7 +4920,6 @@ void tEvapoTrans::writeRestart(fstream & rStr) const
 { 
   BinaryWrite(rStr, VerbID);
   BinaryWrite(rStr, tsOption);
-  BinaryWrite(rStr, nrOption);
   BinaryWrite(rStr, Rah);
   BinaryWrite(rStr, Rstm);
   BinaryWrite(rStr, SoilHeatCondTh);
@@ -5107,7 +4938,6 @@ void tEvapoTrans::writeRestart(fstream & rStr) const
   BinaryWrite(rStr, arraySize);
   BinaryWrite(rStr, hourlyTimeStep);
   BinaryWrite(rStr, nParm);
-  BinaryWrite(rStr, gridgmt);
   BinaryWrite(rStr, metdataOption);
   BinaryWrite(rStr, Ioption);
   BinaryWrite(rStr, gFluxOption);
@@ -5121,8 +4951,6 @@ void tEvapoTrans::writeRestart(fstream & rStr) const
 
   BinaryWrite(rStr, timeStep);
   BinaryWrite(rStr, timeCount);
-  BinaryWrite(rStr, gridlat);
-  BinaryWrite(rStr, gridlong);
   BinaryWrite(rStr, coeffH);
   BinaryWrite(rStr, coeffKt);
   BinaryWrite(rStr, coeffAl);
@@ -5144,7 +4972,6 @@ void tEvapoTrans::writeRestart(fstream & rStr) const
   BinaryWrite(rStr, atmPress);
   BinaryWrite(rStr, windSpeed);
   BinaryWrite(rStr, skyCover);
-  BinaryWrite(rStr, netRad);
   BinaryWrite(rStr, latitude);
   BinaryWrite(rStr, longitude);
   BinaryWrite(rStr, vPress);
@@ -5249,7 +5076,6 @@ void tEvapoTrans::readRestart(fstream & rStr)
 {
   BinaryRead(rStr, VerbID);
   BinaryRead(rStr, tsOption);
-  BinaryRead(rStr, nrOption);
   BinaryRead(rStr, Rah);
   BinaryRead(rStr, Rstm);
   BinaryRead(rStr, SoilHeatCondTh);
@@ -5268,7 +5094,6 @@ void tEvapoTrans::readRestart(fstream & rStr)
   BinaryRead(rStr, arraySize);
   BinaryRead(rStr, hourlyTimeStep);
   BinaryRead(rStr, nParm);
-  BinaryRead(rStr, gridgmt);
   BinaryRead(rStr, metdataOption);
   BinaryRead(rStr, Ioption);
   BinaryRead(rStr, gFluxOption);
@@ -5282,8 +5107,6 @@ void tEvapoTrans::readRestart(fstream & rStr)
 
   BinaryRead(rStr, timeStep);
   BinaryRead(rStr, timeCount);
-  BinaryRead(rStr, gridlat);
-  BinaryRead(rStr, gridlong);
   BinaryRead(rStr, coeffH);
   BinaryRead(rStr, coeffKt);
   BinaryRead(rStr, coeffAl);
@@ -5305,7 +5128,6 @@ void tEvapoTrans::readRestart(fstream & rStr)
   BinaryRead(rStr, atmPress);
   BinaryRead(rStr, windSpeed);
   BinaryRead(rStr, skyCover);
-  BinaryRead(rStr, netRad);
   BinaryRead(rStr, latitude);
   BinaryRead(rStr, longitude);
   BinaryRead(rStr, vPress);
