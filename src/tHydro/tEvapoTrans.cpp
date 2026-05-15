@@ -699,6 +699,11 @@ void tEvapoTrans::callEvapoPotential()
 	  betaFunc(cNode); 
 	  betaFuncT(cNode);
 	  
+	  // Apply observed surface temperature to node if valid (station path only;
+	  // grid path already sets this via updateVariable before reaching here)
+	  if (metdataOption == 1 && fabs(surfTemp - 9999.99) > 1.0E-3)
+		  cNode->setSurfTemp(surfTemp);
+
 	  // Get Soil/Surface Temperature
 	  Tso = cNode->getSurfTemp() + 273.15;
 	  Tlo = cNode->getSoilTemp() + 273.15;
@@ -2981,13 +2986,12 @@ void tEvapoTrans::readHydroMetData(int num)
 			exit(1);
 		}
 	} else {
-		if (numParams != 10) {
+		if (numParams != 11) {
 			cerr << "\nError: HydroMet data file '" << fileName
-			     << "' header must have exactly 10 columns "
-			     << "(Year,Month,Day,Hour,PA,RH,XC,US,TA,TS_or_IS)." << endl;
+			     << "' header must have exactly 11 columns "
+			     << "(Year,Month,Day,Hour,PA,RH,XC,US,TA,IS,TS)." << endl;
 			exit(1);
 		}
-		tsOption = (headers[9] == "TS") ? 1 : 2;
 	}
 
 	// Read all data rows
@@ -3035,20 +3039,11 @@ void tEvapoTrans::readHydroMetData(int num)
 			tempo = rd(); // TA
 			AirTemperature[count] = (tempo < -50 || tempo > 60) ? 9999.99 : tempo;
 
-			tempo = rd(); // col 9: TS or GlobRad
-			if (fabs(tempo - 9999.99) > 1.0E-3) {
-				if (tsOption == 1) {
-					SurfTemperature[count] = (tempo < -60 || tempo > 70) ? 9999.99 : tempo;
-					GlobRadiation[count] = 9999.99;
-				} else {
-					GlobRadiation[count] = tempo;
-					SurfTemperature[count] = 9999.99;
-				}
-			} else {
-				tsOption = 0;
-				GlobRadiation[count] = 9999.99;
-				SurfTemperature[count] = 9999.99;
-			}
+			tempo = rd(); // col 9: IS (incoming solar, optional: use 9999.99 if not measured)
+			GlobRadiation[count] = (tempo < 0 && fabs(tempo - 9999.99) > 1.0E-3) ? 9999.99 : tempo;
+
+			tempo = rd(); // col 10: TS (surface temperature, optional — use 9999.99 if not measured)
+			SurfTemperature[count] = (fabs(tempo - 9999.99) > 1.0E-3 && (tempo < -60 || tempo > 70)) ? 9999.99 : tempo;
 
 
 			// Timestamp validation
@@ -3423,7 +3418,8 @@ void tEvapoTrans::createVariant()
 				surftemperature = new tVariant(gridPtr,respPtr);
 				if (strcmp(gridBaseNames[ct],"NO_DATA")!=0) {
 					surftemperature->setFileNames(gridBaseNames[ct], gridExtNames[ct]);
-					surftemperature->newVariable(gridParamNames[ct]);}
+					surftemperature->newVariable(gridParamNames[ct]);
+					if (tsOption == 0) tsOption = 1;}
 				else
 					surftemperature->noData(gridParamNames[ct]);
 			}
@@ -3439,7 +3435,8 @@ void tEvapoTrans::createVariant()
 				incomingsolar = new tVariant(gridPtr,respPtr);
 				if (strcmp(gridBaseNames[ct],"NO_DATA")!=0) {
 					incomingsolar->setFileNames(gridBaseNames[ct], gridExtNames[ct]);
-					incomingsolar->newVariable(gridParamNames[ct]);}
+					incomingsolar->newVariable(gridParamNames[ct]);
+					tsOption = 2;}
 				else
 					incomingsolar->noData(gridParamNames[ct]);
 			}
@@ -3647,6 +3644,7 @@ void tEvapoTrans::newHydroMetData(int time)
 				windSpeed = weatherStations[i].getWindSpeed(time);
 				skyCover = weatherStations[i].getSkyCover(time);
 				inShortR = weatherStations[i].getRadGlobal(time);
+				tsOption = (fabs(inShortR - 9999.99) > 1.0E-3) ? 2 : 0;
 
 
 				if (time == 0) {
