@@ -15,6 +15,7 @@ v6.0.0 is a major release focused on simplifying the user experience and streaml
     * **Phase Partitioning:** Added user-selectable thresholds for Wet-bulb or Air Temperature to determine precipitation phase.
 * **Snow Outputs:** Added `Snow Depth` and `Snow Density` to standard pixel and dynamic output routines. ([#104](https://github.com/tRIBS-Model/tRIBS/pull/104))
 * **Standardized Hydrologic Outputs:** All output files that report hydrologic variables have been standardized to CSV format with a single header line. ([#114](https://github.com/tRIBS-Model/tRIBS/pull/114))
+* **Standardized Hydrologic Inputs:** All forcing and parameter input files were standardized to CSV format with a single header line. Centorid latitude, longitude, and UTC timezone offset are no longer specified in the station and gridded data files. ([#116](https://github.com/tRIBS-Model/tRIBS/pull/116))
 
 ### Fixed
 * **ET Partitioning:** Fixed a scaling bug in `tEvapoTrans` where unscaled vegetation rates were subtracted from potential ET. ([#107](https://github.com/tRIBS-Model/tRIBS/pull/107))
@@ -22,6 +23,7 @@ v6.0.0 is a major release focused on simplifying the user experience and streaml
 * **tIntercept Memory Leak:** Resolved a crash occurring at simulation termination due to improper deallocation of grid filenames when interception was disabled. ([#102](https://github.com/tRIBS-Model/tRIBS/pull/102))
 * **Sub-hourly Precipitation:** Resolved a bug when using sub-hourly precipitation inputs with the snow module turned on caused by the snow module using the wrong timestep. ([#111](https://github.com/tRIBS-Model/tRIBS/pull/111))
 * **Channel Transmission Losses:** Refactored and fixed multiple bugs related to the channel transmission losses. Previous versions capped transmission losses to the available volume of lateral fluxes into the stream node at each timestep. ([#112](https://github.com/tRIBS-Model/tRIBS/pull/112))
+* **Surface Temperature Inputs:** Fixed multiple bugs related to point or gridded surface temperature input. This feature is valuable but was rarely used, now functioning as expected: eahc timestep surface temperature is caluclated using input surface temperature as the initial state. When surface temperature is not provided calculated surface temperature evolves freely from the energy balance (same as before). ([#116](https://github.com/tRIBS-Model/tRIBS/pull/116))
 
 ### Changed & Refactored
 * **Input Simplification:** Streamlined the `.in` file by removing legacy or unused options including:
@@ -34,18 +36,21 @@ v6.0.0 is a major release focused on simplifying the user experience and streaml
     * Simplified `OPTMESHINPUT` to support only pre-generated 4-mesh files or points files. ([#107](https://github.com/tRIBS-Model/tRIBS/pull/107))
     * Simplified `OPTINTERCEPT` to support only the Rutter method for calculating canopy interception. ([#109](https://github.com/tRIBS-Model/tRIBS/pull/109))
     * Removed multiple command line options that were either dead code or neaver used in practice. ([#113](https://github.com/tRIBS-Model/tRIBS/pull/113))
-    * Removed legacy forecat module. ([#115](https://github.com/tRIBS-Model/tRIBS/pull/115))
+    * Removed legacy forecast module. ([#115](https://github.com/tRIBS-Model/tRIBS/pull/115))
 * **C++ Performance Optimizations:** ([#107](https://github.com/tRIBS-Model/tRIBS/pull/107))
     * **Memory Management:** Refactored geometry functions (`FindIntersectionCoords`, `PlaneFit`, and `setRVtx`) to pass `tArray<double>` by `const` reference, eliminating massive heap allocation overhead.
     * **Math:** Replaced `pow()` calls with `x*x` and `sqrt()` in core physics loops to reduce CPU cycles.
     * **Standardization:** Unified platform-specific headers and replaced `sprintf` with `snprintf` for modern compiler compatibility.
-* **Error Warning Outputs:** While running the modle in parallel there were many error messages that would be duplicated across all processors or other issues resulting in massive log files. Many error messsages modified to only print 10 times before being silenced. 
+* **Error Warning Outputs:** While running the modle in parallel there were many error messages that would be duplicated across all processors or other issues resulting in massive log files. Many error messsages modified to only print 10 times before being silenced.
+* **Solar Position Calculation Inputs:** Previously the input values for solar position calculations were required in multiple input files. They have been moved to the main input file under the keywords: `UTCOFFSET`, `CENTROIDLAT`, and `CENTROIDLONG`. ([#116](https://github.com/tRIBS-Model/tRIBS/pull/116))
 
 ### Removed
-* Removed legacy code related to changes in mian input file listed above.
+* Removed legacy code related to changes in main input file listed above.
 * Removed unused platform-specific `#ifdef` blocks in headers. ([#107](https://github.com/tRIBS-Model/tRIBS/pull/107))
 * Removed legacy debug printing in `tTriangulator`. ([#107](https://github.com/tRIBS-Model/tRIBS/pull/107))
-* Removed legacy command-line flags that were either never used or obsolete. (([#113](https://github.com/tRIBS-Model/tRIBS/pull/113))
+* Removed legacy command-line flags that were either never used or obsolete. ([#113](https://github.com/tRIBS-Model/tRIBS/pull/113))
+* Removed optional humidity inputs. Relative humdity is the only accepted humidity forcing. ([#116](https://github.com/tRIBS-Model/tRIBS/pull/116))
+* Removed optional `Kpan` parameter for `OPTEVPOTRANS = 2`. Any input ET forcing is now used directly as Potential ET. ([#116](https://github.com/tRIBS-Model/tRIBS/pull/116))
 
 ---
 

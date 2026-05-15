@@ -110,7 +110,6 @@ class tEvapoTrans
   double getinShortWave() const;
   double getinLongWave() const;
   double getoutLongWave() const;
-  double getNetRad() const;
   double getDeltaT() const;
   double getSunRiseHour() const;
   double getSunSetHour() const;
@@ -145,22 +144,19 @@ class tEvapoTrans
   int evapotransOption{}, metdataOption{}, Ioption{};
   int snowOption{}; // NEW FOR SNOW.... SKY2008Snow from AJR2007
   int shelterOption{}; // NEW FOR SHELTERING... SKY2008Snow from AJR2007
-  int gFluxOption{}, dewHumFlag{}, ID{};
+  int gFluxOption{}, ID{};
   int gmt{}, nodeHour{}, thisStation{}, oldTimeStep{};
-  int numStations{}, arraySize{}, hourlyTimeStep{}, nParm{}, gridgmt{};
-  int LUgridgmt{}; //SKYnGM2008LU: added by AJR 2007
-  int vapOption{}, tsOption{}, nrOption{};
+  int numStations{}, arraySize{}, hourlyTimeStep{}, nParm{};
+  int tsOption{};
   int luOption{}, nParmLU;  //SKYnGM2008LU: added by AJR 2007
   int luInterpOption{};  //SKYnGM2008LU
   int timeCount;
 
-  double timeStep{}, gridlat{}, gridlong{};
-  double IfNotFirstTStepLU{}; //SKYnGM2008LU: added by AJR 2007
+  double timeStep{};
   double metHour{}, etHour{}, rainInt{}; // SKY2008Snow from AJR2007
-  double LUgridlat{}, LUgridlong{}; //SKYnGM2008LU: added by AJR 2007
 
   double coeffH{}, coeffKt{}, coeffAl{}, coeffRs{}, coeffV{};
-  double coeffKs{}, coeffCs{}, coeffPan{};
+  double coeffKs{}, coeffCs{};
   // SKY2008Snow from AJR2007
   double coeffLAI{};
   double Rah{}, Rstm{};
@@ -168,7 +164,7 @@ class tEvapoTrans
   double potEvap{}, actEvap{}, panEvap{}, betaS{}, betaT{};
   double airTemp{}, dewTemp{}, surfTemp{}, Tso{}, Tlo{};
   double rHumidity{}, atmPress{}, windSpeed{}, skyCover{};
-  double netRad{}, latitude{}, longitude{}, vPress{};
+  double latitude{}, longitude{}, vPress{};
   double inLongR{}, inShortR{}, outLongR{};
   double Tlinke{};
   double Is{}, Ic{}, Ics{}, Id{}, Ids{};
@@ -202,9 +198,9 @@ class tEvapoTrans
   char **gridParamNames, **gridBaseNames, **gridExtNames;
   char **LUgridParamNames, **LUgridBaseNames, **LUgridExtNames; // SKYnGM2008LU: added by AJR 2007
 
-  tVariant *airpressure, *dewtemperature, *skycover, *windspeed;
-  tVariant *airtemperature, *surftemperature, *netradiation, *incomingsolar; //E.R.V 3/6/2012
-  tVariant *evapotranspiration, *relhumidity, *vaporpressure;
+  tVariant *airpressure, *skycover, *windspeed;
+  tVariant *airtemperature, *surftemperature, *incomingsolar; //E.R.V 3/6/2012
+  tVariant *evapotranspiration, *relhumidity;
 
   // SKYnGM2008LU: added by AJR 2007
   tVariant *LandUseAlbGrid, *ThroughFallGrid, *VegHeightGrid; 
@@ -248,7 +244,6 @@ inline double tEvapoTrans::getTauAngle()    const {return tau;}
 inline double tEvapoTrans::getinShortWave() const {return inShortR;}
 inline double tEvapoTrans::getinLongWave()  const {return inLongR;}
 inline double tEvapoTrans::getoutLongWave() const {return outLongR;}
-inline double tEvapoTrans::getNetRad()      const {return netRad;}
 
 
 #endif

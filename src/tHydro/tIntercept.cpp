@@ -130,38 +130,56 @@ void tIntercept::DeleteIntercept()
 ** VH NO_DATA NO_DATA
 **
 ***************************************************************************/
-void tIntercept::readLUGrid(char *gridFile) 
+void tIntercept::readLUGrid(char *gridFile)
 {
-	int numParameters;
-	double LUgridlat, LUgridlong;
-	int LUgridgmt;
-	
-	cout<<"\nReading Land-Use Data Grid File in tIntercept: "; 
+	cout<<"\nReading Land-Use Data Grid File in tIntercept: ";
 	cout<< gridFile<<"..."<<endl<<flush;
-	
-	ifstream readFile(gridFile); 
+
+	ifstream readFile(gridFile);
 	if (!readFile) {
 		cout << "\nFile "<<gridFile<<" not found!" << endl;
 		cout << "Exiting Program...\n\n"<<endl;
-		exit(1);}
-	
-	readFile >> numParameters; 
+		exit(1);
+	}
+
+	std::string header;
+	std::getline(readFile, header);
+	int colCount = 1;
+	for (char c : header)
+		if (c == ',') ++colCount;
+	if (colCount != 3) {
+		cout << "\nError: LU grid file '" << gridFile << "' has " << colCount
+		     << " columns, expected 3 (Variable,BasePath,FileExtension)." << endl;
+		cout << "Exiting Program...\n\n" << endl;
+		exit(1);
+	}
+
+	std::vector<std::vector<std::string>> rows;
+	std::string line;
+	while (std::getline(readFile, line)) {
+		if (line.empty()) continue;
+		std::istringstream ss(line);
+		std::vector<std::string> row(3);
+		for (int j = 0; j < 3; j++)
+			std::getline(ss, row[j], ',');
+		rows.push_back(row);
+	}
+	readFile.close();
+
+	int numParameters = static_cast<int>(rows.size());
 	nParmLU = numParameters;
-	readFile >> LUgridlat;
-	readFile >> LUgridlong;
-	readFile >> LUgridgmt;
 
 	LUgridBaseNames = new char*[numParameters];
 	LUgridExtNames = new char*[numParameters];
 	LUgridParamNames = new char*[numParameters];
-	
+
 	for (int ct=0;ct<numParameters;ct++) {
 		LUgridParamNames[ct] = new char[10];
 		LUgridBaseNames[ct] = new char[kName];
 		LUgridExtNames[ct] = new char[10];
-		readFile >> LUgridParamNames[ct];
-		readFile >> LUgridBaseNames[ct];
-		readFile >> LUgridExtNames[ct];
+		strncpy(LUgridParamNames[ct], rows[ct][0].c_str(), 9);  LUgridParamNames[ct][9] = '\0';
+		strncpy(LUgridBaseNames[ct],  rows[ct][1].c_str(), kName - 1); LUgridBaseNames[ct][kName - 1] = '\0';
+		strncpy(LUgridExtNames[ct],   rows[ct][2].c_str(), 9);  LUgridExtNames[ct][9] = '\0';
 	}
 	return;
 }

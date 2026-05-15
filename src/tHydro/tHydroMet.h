@@ -21,6 +21,7 @@
 #define HYDROMET_H
 
 #include "src/Headers/Inclusions.h"
+#include <vector>
 
 //=========================================================================
 //
@@ -36,81 +37,66 @@ class tHydroMet
   tHydroMet();
   ~tHydroMet();
   void setStation(int);
-  void setLat(double,int);
-  void setLong(double,int);
+  void setLat(double);
+  void setLong(double);
   void setOther(double);
-  void setGmt(int);
-  void setTime(int);
   void setParm(int);
   void setFileName(char*);
-  void setYear(int *);
-  void setMonth(int *);
-  void setDay(int *);
-  void setHour(int *);
-  void setAirTemp(double *);
-  void setDewTemp(double *);
-  void setSurfTemp(double *);
-  void setAtmPress(double *);
-  void setSkyCover(double *);
-  void setRHumidity(double *);
-  void setWindSpeed(double *);
-  void setNetRad(double *);
-  void setPanEvap(double *);
-  void setVaporPress(double *);
-  void setRadGlobal(double *);
-  void setRadDirect(double *);
-  void setRadDiffuse(double *);
-  void setRainMet(double *);
+  void setYear(const std::vector<int> &);
+  void setMonth(const std::vector<int> &);
+  void setDay(const std::vector<int> &);
+  void setHour(const std::vector<int> &);
+  void setAirTemp(const std::vector<double> &);
+  void setSurfTemp(const std::vector<double> &);
+  void setAtmPress(const std::vector<double> &);
+  void setSkyCover(const std::vector<double> &);
+  void setRHumidity(const std::vector<double> &);
+  void setWindSpeed(const std::vector<double> &);
+  void setPanEvap(const std::vector<double> &);
+  void setRadGlobal(const std::vector<double> &);
+  void setRadDirect(const std::vector<double> &);
+  void setRadDiffuse(const std::vector<double> &);
+  void setRainMet(const std::vector<double> &);
 
   int    getStation();
-  double getLat(int);
-  double getLong(int);
+  double getLat();
+  double getLong();
   double getOther();
-  int    getGmt();
-  int    getTime();
+  int    getTime() const;
   int    getParm();
   char*  getFileName();
-  int*   getYear();
-  int    getYear(int);
-  int*   getMonth(); 
-  int    getMonth(int);
-  int*   getDay();
-  int    getDay(int);
-  int*   getHour();
-  int    getHour(int);
-  double getAirTemp(int);
+  int    getYear(int) const;
+  int    getMonth(int) const;
+  int    getDay(int) const;
+  int    getHour(int) const;
+  double getAirTemp(int) const;
   double getMeanTemp();
-  double getDewTemp(int);
-  double getSurfTemp(int);
-  double getAtmPress(int);
-  double getSkyCover(int);
-  double getRHumidity(int);
-  double getWindSpeed(int);
-  double getNetRad(int);
-  double getPanEvap(int);
-  double getVaporPress(int);
-  double getRadGlobal(int);
-  double getRadDirect(int);
-  double getRadDiffuse(int);
-  double getRainMet(int);
+  double getSurfTemp(int) const;
+  double getAtmPress(int) const;
+  double getSkyCover(int) const;
+  double getRHumidity(int) const;
+  double getWindSpeed(int) const;
+  double getPanEvap(int) const;
+  double getRadGlobal(int) const;
+  double getRadDirect(int) const;
+  double getRadDiffuse(int) const;
+  double getRainMet(int) const;
 
   void   writeRestart(fstream &) const;
   void   readRestart(fstream &);
 
  protected:
-  int numTimes, numParams;
-  int gmt, stationID;
+  int numParams;
+  int stationID;
   char fileName[kName];
-  double latitude, longitude;
   double basinLat, basinLong;
   double otherVariable, meanTemp;
-  double *airTemp, *dewTemp, *surfTemp;
-  double *netRad, *panEvap, *vaporPress;
-  double *rHumidity, *skyCover;
-  double *windSpeed, *atmPress;
-  double *RadGlobal, *RadDirect, *RadDiffuse, *RainMet;
-  int *year, *month, *day, *hour;
-  
+  std::vector<int>    year, month, day, hour;
+  std::vector<double> airTemp, surfTemp;
+  std::vector<double> panEvap;
+  std::vector<double> rHumidity, skyCover;
+  std::vector<double> windSpeed, atmPress;
+  std::vector<double> RadGlobal, RadDirect, RadDiffuse, RainMet;
 };
 
 #endif

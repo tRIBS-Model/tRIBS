@@ -25,8 +25,10 @@
 #include <iostream>
 #include <iomanip>
 #include <fstream>
+#include <sstream>
 #include <string>
 #include <cassert>
+#include <algorithm>
 #include <memory>
 #include <vector>
 #include <unistd.h>

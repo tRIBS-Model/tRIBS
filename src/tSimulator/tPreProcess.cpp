@@ -81,6 +81,8 @@ void tPreProcess::CheckInputFile(tInputFile &infile)
 	// SKYnGM2008LU
 	int optluinterp;
 
+	int optevapotrans = 0;
+
 	// Commented out several items for compatibility of existing data sets -VIVA //WR reverted 08282023
 
     // BEGIN Move tControl Arguments to .in file WR 08282023
@@ -113,7 +115,7 @@ void tPreProcess::CheckInputFile(tInputFile &infile)
 		IterReadItem(infile, tempVariable,"WIDTHINTERPOLATION");
 	}
 	
-	IterReadItem(infile, tempVariable,"OPTEVAPOTRANS");   //Options
+	optevapotrans = IterReadItem(infile, optevapotrans, "OPTEVAPOTRANS");   //Options
 	IterReadItem(infile, tempVariable,"OPTINTERCEPT");
 	IterReadItem(infile, tempVariable,"GFLUXOPTION");
 	//IterReadItem(infile, tempVariable,"OPTRUNON");
@@ -226,9 +228,14 @@ void tPreProcess::CheckInputFile(tInputFile &infile)
 		CheckFileExists(tempString,"HYDROMETGRID");
 	}
 
-	// SKYnGM2008LU: added by AJR 2007
-	if (optlu == 1) {
-		IterReadItem( infile, tempString,"LUGRID");
+	if (optevapotrans != 0) {
+		IterReadItem(infile, tempVariable, "CENTROIDLAT");
+		IterReadItem(infile, tempVariable, "CENTROIDLONG");
+		IterReadItem(infile, tempVariable, "UTCOFFSET");
+	}
+
+	if (optlu == 1 || optlu == 2) {
+		IterReadItem(infile, tempString, "LUGRID");
 		CheckFileExists(tempString, "LUGRID");
 	}
 

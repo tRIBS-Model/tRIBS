@@ -24,53 +24,15 @@
 //=========================================================================
 tHydroMet::tHydroMet()
 {
-	numTimes = 0;
 	numParams = 0;
-	gmt = 0;
 	stationID = 0;
-	latitude = 0.0;
-	longitude = 0.0;
 	basinLong = 0.0;
 	basinLat = 0.0;
 	otherVariable = 0.0;
 	meanTemp = 0.0;
 }
 
-tHydroMet::~tHydroMet()
-{
-	if (numTimes > 0 ) { 
-		delete [] year;
-		delete [] month;
-		delete [] day;
-		delete [] hour;
-		
-		// BUG fixed by Giuseppe Mascaro to allow safe deleting when
-		// using PAN stations - June 2012
-		if (numParams == 5) {
-			
-			if (panEvap){
-				delete [] panEvap;
-			}
-		}
-		else {
-			if (airTemp){
-				delete [] airTemp;
-				delete [] dewTemp;
-				delete [] surfTemp;
-				delete [] rHumidity;
-				delete [] skyCover;
-				delete [] windSpeed;
-				delete [] atmPress;
-				delete [] vaporPress;
-				delete [] RadGlobal;
-			}
-			if (numParams >= 11) {
-				delete [] netRad;
-			}
-		}
-		// END of BUG Fixed by Giuseppe Mascaro - June 2012
-	}
-}
+tHydroMet::~tHydroMet() = default;
 
 //=========================================================================
 //
@@ -82,7 +44,7 @@ tHydroMet::~tHydroMet()
 
 /***************************************************************************
 **
-** Set() and Get() Functions for Station Indentifiers
+** Set() and Get() Functions for Station Identifiers
 **
 ***************************************************************************/
 
@@ -94,48 +56,24 @@ int tHydroMet::getStation(){
 	return stationID;
 }
 
-void tHydroMet::setLat(double lat, int option){
-	if(option == 1)
-		latitude = lat;
-	else
-		basinLat = lat;
+void tHydroMet::setLat(double lat){
+	basinLat = lat;
 }
 
-double tHydroMet::getLat(int option){
-	if(option==1)
-		return latitude;
-	else 
-		return basinLat;
+double tHydroMet::getLat(){
+	return basinLat;
 }
 
-void tHydroMet::setLong(double longit, int option){
-	if(option == 1)
-		longitude = longit;
-	else
-		basinLong = longit;
+void tHydroMet::setLong(double longit){
+	basinLong = longit;
 }
 
-double tHydroMet::getLong(int option){
-	if(option == 1)
-		return longitude;
-	else
-		return basinLong;
+double tHydroMet::getLong(){
+	return basinLong;
 }
 
-void tHydroMet::setGmt(int gmtime){
-	gmt = gmtime;
-}
-
-int tHydroMet::getGmt(){
-	return gmt;
-}
-
-void tHydroMet::setTime(int time){
-	numTimes = time;
-}
-
-int tHydroMet::getTime(){
-	return numTimes;
+int tHydroMet::getTime() const {
+	return static_cast<int>(year.size());
 }
 
 void tHydroMet::setParm(int parm){
@@ -155,7 +93,7 @@ double tHydroMet::getOther(){
 }
 
 void tHydroMet::setFileName(char* file){
-	snprintf(fileName,sizeof(fileName),"%s", file);//WR--09192023: 'sprintf' is deprecated: This function is provided for compatibility reasons only.
+	snprintf(fileName, sizeof(fileName), "%s", file);
 }
 
 char* tHydroMet::getFileName(){
@@ -169,253 +107,154 @@ char* tHydroMet::getFileName(){
 **
 ***************************************************************************/
 
-void tHydroMet::setYear(int *syear){ 
-	year = new int[numTimes];
-	for(int ct=0;ct<numTimes;ct++){
-		year[ct] = syear[ct]; 
-	}
+void tHydroMet::setYear(const std::vector<int> &v){
+	year = v;
 }
 
-int* tHydroMet::getYear(){
-	return year;
-}
-
-int tHydroMet::getYear(int time){
+int tHydroMet::getYear(int time) const {
 	return year[time];
 }
 
-void tHydroMet::setMonth(int *smonth){
-	month = new int[numTimes];
-	for(int ct=0;ct<numTimes;ct++){
-		month[ct] = smonth[ct];
-	}
+void tHydroMet::setMonth(const std::vector<int> &v){
+	month = v;
 }
 
-int* tHydroMet::getMonth(){
-	return month;
-}
-
-int tHydroMet::getMonth(int time){
+int tHydroMet::getMonth(int time) const {
 	return month[time];
 }
 
-void tHydroMet::setDay(int *sday){
-	day = new int[numTimes];
-	for(int ct=0;ct<numTimes;ct++){
-		day[ct] = sday[ct];
-	}
+void tHydroMet::setDay(const std::vector<int> &v){
+	day = v;
 }
 
-int* tHydroMet::getDay(){
-	return day;
-}
-
-int tHydroMet::getDay(int time){
+int tHydroMet::getDay(int time) const {
 	return day[time];
 }
 
-
-void tHydroMet::setHour(int *shour){
-	hour = new int[numTimes];
-	for(int ct=0;ct<numTimes;ct++){
-		hour[ct] = shour[ct];
-	}
+void tHydroMet::setHour(const std::vector<int> &v){
+	hour = v;
 }
 
-int* tHydroMet::getHour(){
-	return hour;
-}
-
-int tHydroMet::getHour(int time){
+int tHydroMet::getHour(int time) const {
 	return hour[time];
 }
 
-void tHydroMet::setAirTemp(double *air){
-	int count = 0; 
-	airTemp = new double[numTimes];
-	for(int ct=0;ct<numTimes;ct++){
-		meanTemp += air[ct];
-		airTemp[ct] = air[ct];
-		count++;
-	}
-	meanTemp = meanTemp/count;
+void tHydroMet::setAirTemp(const std::vector<double> &v){
+	int count = 0;
+	meanTemp = 0.0;
+	airTemp = v;
+	for (double val : v) { meanTemp += val; count++; }
+	if (count > 0) meanTemp /= count;
 }
 
-double tHydroMet::getAirTemp(int time){
-    return airTemp[time];
+double tHydroMet::getAirTemp(int time) const {
+	return airTemp[time];
 }
 
 double tHydroMet::getMeanTemp(){
 	return meanTemp;
 }
 
-void tHydroMet::setDewTemp(double *dew){
-	dewTemp = new double[numTimes];
-	for(int ct=0;ct<numTimes;ct++){
-		dewTemp[ct] = dew[ct];
-	}
+void tHydroMet::setSurfTemp(const std::vector<double> &v){
+	surfTemp = v;
 }
 
-double tHydroMet::getDewTemp(int time){
-	return dewTemp[time];
-}
-
-
-void tHydroMet::setSurfTemp(double *surf){
-	surfTemp = new double[numTimes];
-	for(int ct=0;ct<numTimes;ct++){
-		surfTemp[ct] = surf[ct];
-	}
-}
-
-double tHydroMet::getSurfTemp(int time){
+double tHydroMet::getSurfTemp(int time) const {
 	return surfTemp[time];
 }
 
-void tHydroMet::setAtmPress(double *atm){
-	atmPress = new double[numTimes];
-	for(int ct=0;ct<numTimes;ct++){
-		atmPress[ct] = atm[ct];
-	}
+void tHydroMet::setAtmPress(const std::vector<double> &v){
+	atmPress = v;
 }
 
-double tHydroMet::getAtmPress(int time){
+double tHydroMet::getAtmPress(int time) const {
 	return atmPress[time];
 }
 
-void tHydroMet::setSkyCover(double *sky){
-	skyCover = new double[numTimes];
-	for(int ct=0;ct<numTimes;ct++){
-		skyCover[ct]= sky[ct];
-	}
+void tHydroMet::setSkyCover(const std::vector<double> &v){
+	skyCover = v;
 }
 
-double tHydroMet::getSkyCover(int time){
+double tHydroMet::getSkyCover(int time) const {
 	return skyCover[time];
 }
 
-void tHydroMet::setRHumidity(double *rh){
-	rHumidity = new double[numTimes];
-	for(int ct=0;ct<numTimes;ct++){
-		rHumidity[ct] = rh[ct];
-	}
+void tHydroMet::setRHumidity(const std::vector<double> &v){
+	rHumidity = v;
 }
 
-double tHydroMet::getRHumidity(int time){
+double tHydroMet::getRHumidity(int time) const {
 	return rHumidity[time];
 }
 
-
-void tHydroMet::setVaporPress(double *rh){
-	vaporPress= new double[numTimes];
-	for(int ct=0;ct<numTimes;ct++){
-		vaporPress[ct] = rh[ct];
-	}
+void tHydroMet::setWindSpeed(const std::vector<double> &v){
+	windSpeed = v;
 }
 
-double tHydroMet::getVaporPress(int time){
-	return vaporPress[time];
-}
-
-void tHydroMet::setWindSpeed(double *wind){
-	windSpeed = new double[numTimes];
-	for(int ct=0;ct<numTimes;ct++){
-		windSpeed[ct] = wind[ct];
-	}
-}
-
-double tHydroMet::getWindSpeed(int time){
+double tHydroMet::getWindSpeed(int time) const {
 	return windSpeed[time];
 }
 
-void tHydroMet::setNetRad(double *nrad){
-	netRad = new double[numTimes];
-	for(int ct=0;ct<numTimes;ct++){
-		netRad[ct] = nrad[ct];
-	}
+void tHydroMet::setPanEvap(const std::vector<double> &v){
+	panEvap = v;
 }
 
-double tHydroMet::getNetRad(int time){
-	return netRad[time];
-}
-
-void tHydroMet::setPanEvap(double *panE){
-	panEvap = new double[numTimes];
-	for(int ct=0;ct<numTimes;ct++){
-		panEvap[ct] = panE[ct];
-	}
-}
-
-double tHydroMet::getPanEvap(int time){
+double tHydroMet::getPanEvap(int time) const {
 	return panEvap[time];
 }
 
-void tHydroMet::setRadGlobal(double *rad){
-	RadGlobal = new double[numTimes];
-	for(int ct=0;ct<numTimes;ct++){
-		RadGlobal[ct] = rad[ct];
-	}
+void tHydroMet::setRadGlobal(const std::vector<double> &v){
+	RadGlobal = v;
 }
 
-double tHydroMet::getRadGlobal(int time){
+double tHydroMet::getRadGlobal(int time) const {
 	return RadGlobal[time];
 }
 
-void tHydroMet::setRadDirect(double *rad){
-	RadDirect = new double[numTimes];
-	for(int ct=0;ct<numTimes;ct++){
-		RadDirect[ct] = rad[ct];
-	}
+void tHydroMet::setRadDirect(const std::vector<double> &v){
+	RadDirect = v;
 }
 
-double tHydroMet::getRadDirect(int time){
+double tHydroMet::getRadDirect(int time) const {
 	return RadDirect[time];
 }
 
-void tHydroMet::setRadDiffuse(double *rad){
-	RadDiffuse = new double[numTimes];
-	for(int ct=0;ct<numTimes;ct++){
-		RadDiffuse[ct] = rad[ct];
-	}
+void tHydroMet::setRadDiffuse(const std::vector<double> &v){
+	RadDiffuse = v;
 }
 
-double tHydroMet::getRadDiffuse(int time){
+double tHydroMet::getRadDiffuse(int time) const {
 	return RadDiffuse[time];
 }
 
-void tHydroMet::setRainMet(double *rain){
-	RainMet = new double[numTimes];
-	for(int ct=0;ct<numTimes;ct++){
-		RainMet[ct] = rain[ct];
-	}
+void tHydroMet::setRainMet(const std::vector<double> &v){
+	RainMet = v;
 }
 
-double tHydroMet::getRainMet(int time){
+double tHydroMet::getRainMet(int time) const {
 	return RainMet[time];
 }
 
 /***************************************************************************
 **
 ** tHydroMet::writeRestart() Function
-** 
+**
 ** Called from tSimulator during simulation loop
-** 
+**
 ***************************************************************************/
-                                                                            
+
 void tHydroMet::writeRestart(fstream & rStr) const
 {
-  BinaryWrite(rStr, numTimes);
+  int sz = static_cast<int>(year.size());
+  BinaryWrite(rStr, sz);
   BinaryWrite(rStr, numParams);
-  BinaryWrite(rStr, gmt);
   BinaryWrite(rStr, stationID);
-  BinaryWrite(rStr, latitude);
-  BinaryWrite(rStr, longitude);
   BinaryWrite(rStr, basinLat);
   BinaryWrite(rStr, basinLong);
   BinaryWrite(rStr, otherVariable);
   BinaryWrite(rStr, meanTemp);
-  for (int i = 0; i < numTimes; i++) {
-    BinaryWrite(rStr, year[i]); 
+  for (int i = 0; i < sz; i++) {
+    BinaryWrite(rStr, year[i]);
     BinaryWrite(rStr, month[i]);
     BinaryWrite(rStr, day[i]);
     BinaryWrite(rStr, hour[i]);
@@ -423,30 +262,20 @@ void tHydroMet::writeRestart(fstream & rStr) const
 	// Giuseppe DEBUG Restart 2012 - START 
 	// I have introduced an IF and ELSE to deal with the case
 	// of PAN ET data
-	if (numParams == 5){		
-		for (int i = 0; i < numTimes; i++) {
-			BinaryWrite(rStr, panEvap[i]);		
-		}
-	}
-	else {// Giuseppe DEBUG Restart 2012 - END	
-		for (int i = 0; i < numTimes; i++) {
-			BinaryWrite(rStr, airTemp[i]);
-			BinaryWrite(rStr, dewTemp[i]);
-			BinaryWrite(rStr, surfTemp[i]);
-			BinaryWrite(rStr, rHumidity[i]);
-			BinaryWrite(rStr, skyCover[i]);
-			BinaryWrite(rStr, windSpeed[i]);
-			BinaryWrite(rStr, atmPress[i]);
-			BinaryWrite(rStr, vaporPress[i]);
-			BinaryWrite(rStr, RadGlobal[i]);
-			//BinaryWrite(rStr, RadDirect[i]);
-			//BinaryWrite(rStr, RadDiffuse[i]);
-			//BinaryWrite(rStr, RainMet[i]);
-			//BinaryWrite(rStr, panEvap[i]);
-			if (numParams >= 11)
-				BinaryWrite(rStr, netRad[i]);
-		}
-	}
+  if (numParams == 5) {
+    for (int i = 0; i < sz; i++)
+      BinaryWrite(rStr, panEvap[i]);
+  } else {// Giuseppe DEBUG Restart 2012 - END	
+    for (int i = 0; i < sz; i++) {
+      BinaryWrite(rStr, airTemp[i]);
+      BinaryWrite(rStr, surfTemp[i]);
+      BinaryWrite(rStr, rHumidity[i]);
+      BinaryWrite(rStr, skyCover[i]);
+      BinaryWrite(rStr, windSpeed[i]);
+      BinaryWrite(rStr, atmPress[i]);
+      BinaryWrite(rStr, RadGlobal[i]);
+    }
+  }
 }
 
 /***************************************************************************
@@ -457,17 +286,17 @@ void tHydroMet::writeRestart(fstream & rStr) const
 
 void tHydroMet::readRestart(fstream & rStr)
 {
-  BinaryRead(rStr, numTimes);
+  int sz = 0;
+  BinaryRead(rStr, sz);
   BinaryRead(rStr, numParams);
-  BinaryRead(rStr, gmt);
   BinaryRead(rStr, stationID);
-  BinaryRead(rStr, latitude);
-  BinaryRead(rStr, longitude);
   BinaryRead(rStr, basinLat);
   BinaryRead(rStr, basinLong);
   BinaryRead(rStr, otherVariable);
   BinaryRead(rStr, meanTemp);
-  for (int i = 0; i < numTimes; i++) {
+
+  year.resize(sz); month.resize(sz); day.resize(sz); hour.resize(sz);
+  for (int i = 0; i < sz; i++) {
     BinaryRead(rStr, year[i]);
     BinaryRead(rStr, month[i]);
     BinaryRead(rStr, day[i]);
@@ -476,29 +305,23 @@ void tHydroMet::readRestart(fstream & rStr)
 	// Giuseppe DEBUG Restart 2012 - START 
 	// I have introduced an IF and ELSE to deal with the case
 	// of PAN ET data
-	if (numParams == 5){		
-	for (int i = 0; i < numTimes; i++) {
-		BinaryRead(rStr, panEvap[i]);		
-	}
-  }
-  else {// Giuseppe DEBUG Restart 2012 - END	
-	  for (int i = 0; i < numTimes; i++) {
-		  BinaryRead(rStr, airTemp[i]);
-		  BinaryRead(rStr, dewTemp[i]);
-		  BinaryRead(rStr, surfTemp[i]);
-		  BinaryRead(rStr, rHumidity[i]);
-		  BinaryRead(rStr, skyCover[i]);
-		  BinaryRead(rStr, windSpeed[i]);
-		  BinaryRead(rStr, atmPress[i]);
-		  BinaryRead(rStr, vaporPress[i]);
-		  BinaryRead(rStr, RadGlobal[i]);
-		  //BinaryRead(rStr, RadDirect[i]);
-		  //BinaryRead(rStr, RadDiffuse[i]);
-		  //BinaryRead(rStr, RainMet[i]);
-		  //BinaryRead(rStr, panEvap[i]);
-		  if (numParams >= 11)
-			  BinaryRead(rStr, netRad[i]);
-	  }
+  if (numParams == 5) {
+    panEvap.resize(sz);
+    for (int i = 0; i < sz; i++)
+      BinaryRead(rStr, panEvap[i]);
+  } else {// Giuseppe DEBUG Restart 2012 - END	
+    airTemp.resize(sz); surfTemp.resize(sz); rHumidity.resize(sz);
+    skyCover.resize(sz); windSpeed.resize(sz); atmPress.resize(sz);
+    RadGlobal.resize(sz);
+    for (int i = 0; i < sz; i++) {
+      BinaryRead(rStr, airTemp[i]);
+      BinaryRead(rStr, surfTemp[i]);
+      BinaryRead(rStr, rHumidity[i]);
+      BinaryRead(rStr, skyCover[i]);
+      BinaryRead(rStr, windSpeed[i]);
+      BinaryRead(rStr, atmPress[i]);
+      BinaryRead(rStr, RadGlobal[i]);
+    }
   }
 }
 

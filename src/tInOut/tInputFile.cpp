@@ -211,6 +211,8 @@ void tInputFile::ReadItem( char * theString, const char *itemCode )
 	
 	if( !( infile.eof() ) ){
 		infile.getline( theString, kMaxNameLength );
+		int len = strlen(theString);
+		if (len > 0 && theString[len-1] == '\r') theString[len-1] = '\0';
 	}
 	else {
 		cout<<"\nError: Expected to read the parameter '" << itemCode

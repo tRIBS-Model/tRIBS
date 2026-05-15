@@ -25,8 +25,8 @@
 
 tRainGauge::tRainGauge()
 {
-	numTimes = 0;
 	stationID = 0;
+	fileName = nullptr;
 	basinLong = 0.0;
 	basinLat = 0.0;
 	elev = 0.0;
@@ -34,14 +34,7 @@ tRainGauge::tRainGauge()
 
 tRainGauge::~tRainGauge()
 {
-	if (numTimes) {
-		delete [] fileName;
-		delete [] rain;
-		delete [] year;
-		delete [] month;
-		delete [] day;
-		delete [] hour;
-	}
+	delete[] fileName;
 }
 
 //=========================================================================
@@ -54,7 +47,7 @@ tRainGauge::~tRainGauge()
 
 /***************************************************************************
 **
-** Set() and Get() Functions for Station Indentifiers
+** Set() and Get() Functions for Station Identifiers
 **
 ***************************************************************************/
 
@@ -70,7 +63,7 @@ void tRainGauge::setLat(double lat){
 	basinLat = lat;
 }
 
-double tRainGauge::getLat(){ 
+double tRainGauge::getLat(){
 	return basinLat;
 }
 
@@ -82,42 +75,22 @@ double tRainGauge::getLong(){
 	return basinLong;
 }
 
-// SKY2008Snow from AJR2007 starts here
 void tRainGauge::setElev(double value){
-  elev = value;//AJR @ NMT 2007
+	elev = value;
 }
 
 double tRainGauge::getElev(){
-  return elev;//AJR @ NMT 2007
+	return elev;
 }
-// SKY2008Snow from AJR2007 ends here
-
-void tRainGauge::setTime(int time){
-	numTimes = time;
-}
-
-int tRainGauge::getTime(){
-	return numTimes;
-}
-
 
 void tRainGauge::setFileName(char* file){
 	fileName = new char[kName];
-	for(int ct = 0;ct<kName;ct++){
+	for (int ct = 0; ct < kName; ct++)
 		fileName[ct] = file[ct];
-	}
 }
 
 char* tRainGauge::getFileName(){
 	return fileName;
-}
-
-void tRainGauge::setParm(int par){
-	numParams = par;
-}
-
-int tRainGauge::getParm(){
-	return numParams;
 }
 
 /***************************************************************************
@@ -126,56 +99,40 @@ int tRainGauge::getParm(){
 **
 ***************************************************************************/
 
-void tRainGauge::setYear(int *syear){ 
-	year = new int[numTimes];
-	for(int ct=0;ct<numTimes;ct++){
-		year[ct] = syear[ct]; 
-	}
+void tRainGauge::setYear(const std::vector<int>& v){
+	year = v;
 }
 
 int tRainGauge::getYear(int time){
 	return year[time];
 }
 
-void tRainGauge::setMonth(int *smonth){
-	month = new int[numTimes];
-	for(int ct=0;ct<numTimes;ct++){
-		month[ct] = smonth[ct];
-	}
+void tRainGauge::setMonth(const std::vector<int>& v){
+	month = v;
 }
 
 int tRainGauge::getMonth(int time){
 	return month[time];
 }
 
-void tRainGauge::setDay(int *sday){
-	day = new int[numTimes];
-	for(int ct=0;ct<numTimes;ct++){
-		day[ct] = sday[ct];
-	}
+void tRainGauge::setDay(const std::vector<int>& v){
+	day = v;
 }
 
 int tRainGauge::getDay(int time){
 	return day[time];
 }
 
-void tRainGauge::setHour(int *shour){
-	hour = new int[numTimes];
-	for(int ct=0;ct<numTimes;ct++){
-		hour[ct] = shour[ct];
-	}
+void tRainGauge::setHour(const std::vector<int>& v){
+	hour = v;
 }
-
 
 int tRainGauge::getHour(int time){
 	return hour[time];
 }
 
-void tRainGauge::setRain(double *r){
-	rain = new double[numTimes];
-	for(int ct=0;ct<numTimes;ct++){
-		rain[ct] = r[ct];
-	}
+void tRainGauge::setRain(const std::vector<double>& v){
+	rain = v;
 }
 
 double tRainGauge::getRain(int time){
@@ -192,22 +149,20 @@ double tRainGauge::getRain(int time){
 
 void tRainGauge::writeRestart(fstream & rStr) const
 {
-  BinaryWrite(rStr, numTimes);
-  BinaryWrite(rStr, stationID);
-  BinaryWrite(rStr, numParams);
-  for (int i = 0; i < numTimes; i++) {
-    BinaryWrite(rStr, year[i]);
-    BinaryWrite(rStr, month[i]);
-    BinaryWrite(rStr, day[i]);
-    BinaryWrite(rStr, hour[i]);
-  }
-
-  BinaryWrite(rStr, basinLat);
-  BinaryWrite(rStr, basinLong);
-  for (int i = 0; i < numTimes; i++)
-    BinaryWrite(rStr, rain[i]);
-
-  BinaryWrite(rStr, elev);      // snow
+	int sz = static_cast<int>(year.size());
+	BinaryWrite(rStr, sz);
+	BinaryWrite(rStr, stationID);
+	for (int i = 0; i < sz; i++) {
+		BinaryWrite(rStr, year[i]);
+		BinaryWrite(rStr, month[i]);
+		BinaryWrite(rStr, day[i]);
+		BinaryWrite(rStr, hour[i]);
+	}
+	BinaryWrite(rStr, basinLat);
+	BinaryWrite(rStr, basinLong);
+	for (int i = 0; i < sz; i++)
+		BinaryWrite(rStr, rain[i]);
+	BinaryWrite(rStr, elev);
 }
 
 
@@ -219,22 +174,25 @@ void tRainGauge::writeRestart(fstream & rStr) const
 
 void tRainGauge::readRestart(fstream & rStr)
 {
-  BinaryRead(rStr, numTimes);
-  BinaryRead(rStr, stationID);
-  BinaryRead(rStr, numParams);
-  for (int i = 0; i < numTimes; i++) {
-    BinaryRead(rStr, year[i]);
-    BinaryRead(rStr, month[i]);
-    BinaryRead(rStr, day[i]);
-    BinaryRead(rStr, hour[i]);
-  }
-
-  BinaryRead(rStr, basinLat);
-  BinaryRead(rStr, basinLong);
-  for (int i = 0; i < numTimes; i++)
-    BinaryRead(rStr, rain[i]);
-
-  BinaryRead(rStr, elev);      // snow
+	int sz;
+	BinaryRead(rStr, sz);
+	BinaryRead(rStr, stationID);
+	year.resize(sz);
+	month.resize(sz);
+	day.resize(sz);
+	hour.resize(sz);
+	for (int i = 0; i < sz; i++) {
+		BinaryRead(rStr, year[i]);
+		BinaryRead(rStr, month[i]);
+		BinaryRead(rStr, day[i]);
+		BinaryRead(rStr, hour[i]);
+	}
+	BinaryRead(rStr, basinLat);
+	BinaryRead(rStr, basinLong);
+	rain.resize(sz);
+	for (int i = 0; i < sz; i++)
+		BinaryRead(rStr, rain[i]);
+	BinaryRead(rStr, elev);
 }
 
 //=========================================================================
