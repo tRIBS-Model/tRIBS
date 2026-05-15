@@ -65,6 +65,7 @@ GenericSoilData::GenericSoilData(tMesh<tCNode> *mesh,
 
 	std::string header;
 	std::getline(Inp0, header);
+	if (!header.empty() && header.back() == '\r') header.pop_back();
 	int colCount = 1;
 	for (char c : header)
 		if (c == ',') ++colCount;
@@ -78,6 +79,8 @@ GenericSoilData::GenericSoilData(tMesh<tCNode> *mesh,
 	std::vector<std::vector<double>> rows;
 	std::string line;
 	while (std::getline(Inp0, line)) {
+		if (line.empty()) continue;
+		if (line.back() == '\r') line.pop_back();
 		if (line.empty()) continue;
 		std::istringstream ss(line);
 		std::string token;
@@ -156,6 +159,7 @@ GenericSoilData::GenericSoilData(tMesh<tCNode> *mesh,
 
         std::string header;
         std::getline(readFile, header);
+        if (!header.empty() && header.back() == '\r') header.pop_back();
         int colCount = 1;
         for (char c : header)
             if (c == ',') ++colCount;
@@ -169,6 +173,8 @@ GenericSoilData::GenericSoilData(tMesh<tCNode> *mesh,
         std::vector<std::vector<std::string>> rows;
         std::string line;
         while (std::getline(readFile, line)) {
+            if (line.empty()) continue;
+            if (line.back() == '\r') line.pop_back();
             if (line.empty()) continue;
             std::istringstream ss(line);
             std::vector<std::string> row(3);
@@ -435,6 +441,7 @@ void GenericSoilData::SetSoilParameters(tMesh<tCNode> *mesh,
 
 	std::string header;
 	std::getline(Inp0, header);
+	if (!header.empty() && header.back() == '\r') header.pop_back();
 	int colCount = 1;
 	for (char c : header)
 		if (c == ',') ++colCount;
@@ -448,6 +455,8 @@ void GenericSoilData::SetSoilParameters(tMesh<tCNode> *mesh,
 	std::vector<std::vector<double>> rows;
 	std::string line;
 	while (std::getline(Inp0, line)) {
+		if (line.empty()) continue;
+		if (line.back() == '\r') line.pop_back();
 		if (line.empty()) continue;
 		std::istringstream ss(line);
 		std::string token;
@@ -626,6 +635,7 @@ GenericLandData::GenericLandData(tMesh<tCNode> *mesh,
 
 	std::string header;
 	std::getline(Inp0, header);
+	if (!header.empty() && header.back() == '\r') header.pop_back();
 	int colCount = 1;
 	for (char c : header)
 		if (c == ',') ++colCount;
@@ -639,6 +649,8 @@ GenericLandData::GenericLandData(tMesh<tCNode> *mesh,
 	std::vector<std::vector<double>> rows;
 	std::string line;
 	while (std::getline(Inp0, line)) {
+		if (line.empty()) continue;
+		if (line.back() == '\r') line.pop_back();
 		if (line.empty()) continue;
 		std::istringstream ss(line);
 		std::string token;
@@ -723,6 +735,7 @@ void GenericLandData::SetLtypeParameters(tMesh<tCNode> *mesh,
 
 	std::string header;
 	std::getline(Inp0, header);
+	if (!header.empty() && header.back() == '\r') header.pop_back();
 	int colCount = 1;
 	for (char c : header)
 		if (c == ',') ++colCount;
@@ -736,6 +749,8 @@ void GenericLandData::SetLtypeParameters(tMesh<tCNode> *mesh,
 	std::vector<std::vector<double>> rows;
 	std::string line;
 	while (std::getline(Inp0, line)) {
+		if (line.empty()) continue;
+		if (line.back() == '\r') line.pop_back();
 		if (line.empty()) continue;
 		std::istringstream ss(line);
 		std::string token;

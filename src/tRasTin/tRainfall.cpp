@@ -454,6 +454,7 @@ void tRainfall::readGaugeStat(char *stationfile)
 	// Validate CSV header: ID,DataFile,Northing,Easting,Elevation
 	std::string headerLine;
 	std::getline(readFile, headerLine);
+	if (!headerLine.empty() && headerLine.back() == '\r') headerLine.pop_back();
 	{
 		std::istringstream hss(headerLine);
 		std::string token;
@@ -471,6 +472,7 @@ void tRainfall::readGaugeStat(char *stationfile)
 	std::vector<std::string> rows;
 	std::string line;
 	while (std::getline(readFile, line)) {
+		if (!line.empty() && line.back() == '\r') line.pop_back();
 		if (!line.empty()) rows.push_back(line);
 	}
 	readFile.close();
@@ -539,6 +541,7 @@ void tRainfall::readGaugeData(int num)
 	// Validate CSV header: Year,Month,Day,Hour,Rain_mm/hr
 	std::string headerLine;
 	std::getline(readDataFile, headerLine);
+	if (!headerLine.empty() && headerLine.back() == '\r') headerLine.pop_back();
 	{
 		std::istringstream hss(headerLine);
 		std::string token;
@@ -557,6 +560,8 @@ void tRainfall::readGaugeData(int num)
 
 	std::string line;
 	while (std::getline(readDataFile, line)) {
+		if (line.empty()) continue;
+		if (line.back() == '\r') line.pop_back();
 		if (line.empty()) continue;
 		std::istringstream ss(line);
 		std::string token;

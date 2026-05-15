@@ -2861,6 +2861,7 @@ void tEvapoTrans::readHydroMetStat(char *stationfile)
 	// Validate CSV header: ID,DataFile,Northing,Easting,Elevation
 	std::string headerLine;
 	std::getline(readFile, headerLine);
+	if (!headerLine.empty() && headerLine.back() == '\r') headerLine.pop_back();
 	{
 		std::istringstream hss(headerLine);
 		std::string token;
@@ -2878,6 +2879,7 @@ void tEvapoTrans::readHydroMetStat(char *stationfile)
 	std::vector<std::string> rows;
 	std::string line;
 	while (std::getline(readFile, line)) {
+		if (!line.empty() && line.back() == '\r') line.pop_back();
 		if (!line.empty()) rows.push_back(line);
 	}
 	readFile.close();
@@ -2963,6 +2965,7 @@ void tEvapoTrans::readHydroMetData(int num)
 	// Read CSV header, determine numParams and tsOption
 	std::string headerLine;
 	std::getline(readDataFile, headerLine);
+	if (!headerLine.empty() && headerLine.back() == '\r') headerLine.pop_back();
 	std::vector<std::string> headers;
 	{
 		std::istringstream hss(headerLine);
@@ -2984,13 +2987,14 @@ void tEvapoTrans::readHydroMetData(int num)
 			     << "(Year,Month,Day,Hour,PA,RH,XC,US,TA,TS_or_IS)." << endl;
 			exit(1);
 		}
-		tsOption = (headers[9] == "TS") ? 1 : 2;
+		// tsOption = (headers[9] == "TS") ? 1 : 2;
 	}
 
 	// Read all data rows
 	std::vector<std::string> rows;
 	std::string line;
 	while (std::getline(readDataFile, line)) {
+		if (!line.empty() && line.back() == '\r') line.pop_back();
 		if (!line.empty()) rows.push_back(line);
 	}
 	readDataFile.close();
@@ -3207,6 +3211,7 @@ void tEvapoTrans::readHydroMetGrid(char *gridFile)
 	// Validate CSV header: Variable,BasePath,FileExtension
 	std::string headerLine;
 	std::getline(readFile, headerLine);
+	if (!headerLine.empty() && headerLine.back() == '\r') headerLine.pop_back();
 	{
 		std::istringstream hss(headerLine);
 		std::string token;
@@ -3223,6 +3228,7 @@ void tEvapoTrans::readHydroMetGrid(char *gridFile)
 	std::vector<std::string> rows;
 	std::string line;
 	while (std::getline(readFile, line)) {
+		if (!line.empty() && line.back() == '\r') line.pop_back();
 		if (!line.empty()) rows.push_back(line);
 	}
 	readFile.close();
@@ -3293,6 +3299,7 @@ void tEvapoTrans::readLUGrid(char *gridFile)
 
 	std::string header;
 	std::getline(readFile, header);
+	if (!header.empty() && header.back() == '\r') header.pop_back();
 	int colCount = 1;
 	for (char c : header)
 		if (c == ',') ++colCount;
@@ -3306,6 +3313,8 @@ void tEvapoTrans::readLUGrid(char *gridFile)
 	std::vector<std::vector<std::string>> rows;
 	std::string line;
 	while (std::getline(readFile, line)) {
+		if (line.empty()) continue;
+		if (line.back() == '\r') line.pop_back();
 		if (line.empty()) continue;
 		std::istringstream ss(line);
 		std::vector<std::string> row(3);
