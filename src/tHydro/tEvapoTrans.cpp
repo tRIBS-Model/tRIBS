@@ -2987,7 +2987,7 @@ void tEvapoTrans::readHydroMetData(int num)
 			     << "(Year,Month,Day,Hour,PA,RH,XC,US,TA,TS_or_IS)." << endl;
 			exit(1);
 		}
-		// tsOption = (headers[9] == "TS") ? 1 : 2;
+		tsOption = (headers[9] == "TS") ? 1 : 2;
 	}
 
 	// Read all data rows
