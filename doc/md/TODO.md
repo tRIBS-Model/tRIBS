@@ -6,11 +6,11 @@
 - [ ] Consider flexible approach for specifying outputs, I.E. could we make it so that you could pass in attribute related to a node and have them returned in the dynamic and integrated files. Could also be nice for input parameters, i.e. make list of hard coded parameters and expose as inputs.
 - [ ] Resolve remaing problems in channel transmission losses routine for option 2 & 3, (transient & green-ampt methods) ([#112](https://github.com/tRIBS-Model/tRIBS/pull/112)).
 - [ ] Add root zone depth as land use parameter. If specified to -9999 then use original 1m.
-- [ ] Remove default paralleization option
-- [ ] Port MeshBuilder into tRIBS
-- [ ] Package METIS with tRIBS
-- [ ] Merge spatial outputs within tRIBS
-- [ ] Rerun tRIBS through a profiler
+- [ ] Remove default parallelization option
+- [ ] Port MeshBuilder parallelization workflow into tRIBS
+- [ ] Package METIS from parallelization work with tRIBS
+- [ ] Merge spatial outputs from parallel simulations within tRIBS
+- [ ] Rerun tRIBS through a profiler for improving runtimes
 - [ ] Integrate stomatal resistance changes from Becerra branch
 - [ ] Generalize restart functionality
 - [ ] Update input timeseries and raster forcing files to use ISO 8601 timestamp format. No chnage to outputs for now, will still be elasped simulation hours. Example from `_MMddYYYYhh.asc` to `_20240615T1200.asc`
@@ -30,7 +30,7 @@
 - [x] Simplify ET and interception schemes
 - [x] Improve error output management
 - [x] Clean up channel and hillslope routing parameters
-- [x] Simplify humidity input. Only keep RH an remove others
+- [x] Simplify humidity input. Only keep RH and remove others
 - [x] Standardize input text files
 
 
