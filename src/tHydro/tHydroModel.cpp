@@ -118,12 +118,6 @@ void tHydroModel::SetHydroMVariables(tInputFile &infile,
 	} else {
 		surfaceSoilDepth = 100.0; // Default to 100mm
 	}
-	if (infile.IsItemIn( "ROOTZONEDEPTH" )) {
-		rootZoneDepth = infile.ReadItem(rootZoneDepth, "ROOTZONEDEPTH");
-	} else {
-		rootZoneDepth = 1000.0; // Default to 1000mm
-	}
-
 	// If a decision made to keep the state vars don't change anything,
 	// keep vars from previous run. Otherwise, re-initialize everything
 	if ( !keep )
@@ -441,6 +435,12 @@ void tHydroModel::InitSet(tResample *resamp)
 		// CJC2025 Stress Thresholds
 		SE_LU   = landPtr->getLandProp(11);
 		ST_LU   = landPtr->getLandProp(12);
+		RZ_LU   = landPtr->getLandProp(13);
+		if (RZ_LU >= 9999.99) RZ_LU = 1000.0;
+		RZ_LU   = std::min(RZ_LU, bedRock);
+		cn->setRootZoneDepth(RZ_LU);
+		cn->setRootZoneDepthInPrevGrid(RZ_LU);
+		cn->setRootZoneDepthInUntilGrid(RZ_LU);
 		cn->setLandUseAlb(Al_LU);
 		cn->setLandUseAlbInPrevGrid(Al_LU);
 		cn->setLandUseAlbInUntilGrid(Al_LU);
@@ -491,13 +491,12 @@ void tHydroModel::InitSet(tResample *resamp)
 		cn->setFlowVelocity(0.0);
 
 		cn->setSoilMoisture(ComputeSurfSoilMoist(surfaceSoilDepth));
-		cn->setRootMoisture(ComputeSurfSoilMoist(rootZoneDepth));
+		cn->setRootMoisture(ComputeSurfSoilMoist(RZ_LU));
 		cn->setSoilMoistureSC(cn->getSoilMoisture()/Ths);
 		cn->setRootMoistureSC(cn->getRootMoisture()/Ths);
 
-        // beta debug, set soil and root cutoff// TODO replace 100.0 and 1000.0 w/ variables for root zone and bedrock
         cn->setSoilCutoff(get_Upper_Moist(surfaceSoilDepth,bedRock)/surfaceSoilDepth); // volumetric soil moisture content of soil zone if water table reaches bedrock
-        cn->setRootCutoff(get_Upper_Moist(rootZoneDepth,bedRock)/rootZoneDepth);// volumetric soil moisture content of root zone if water table reaches bedrock
+        cn->setRootCutoff(get_Upper_Moist(RZ_LU,bedRock)/RZ_LU); // volumetric soil moisture content of root zone if water table reaches bedrock
 
 
 
@@ -575,6 +574,10 @@ void tHydroModel::InitIntegralVars()
 		// CJC2025 Stress Thresholds
 		SE_LU  = landPtr->getLandProp(11);
 		ST_LU  = landPtr->getLandProp(12);
+		RZ_LU  = landPtr->getLandProp(13);
+		if (RZ_LU >= 9999.99) RZ_LU = 1000.0;
+		RZ_LU  = std::min(RZ_LU, cn->getBedrockDepth());
+		cn->setAvRootZoneDepth(RZ_LU);
 		cn->setAvThroughFall(P_LU);
 		cn->setAvCanFieldCap(S_LU);
 		cn->setAvDrainCoeff(K_LU);
@@ -2079,10 +2082,16 @@ void tHydroModel::UnSaturatedZone(double dt)
 		cn->setAvSoilMoisture(floor((BB*AA + ThSurf/Ths)/(AA+1)*1.0E+4));
 
 		// Estimate average root soil moisture
-		ThSurf = ComputeSurfSoilMoist(rootZoneDepth);
-		cn->setRootMoisture( ThSurf );
-		cn->setRootMoistureSC( ThSurf/Ths );
-		cn->addAvSoilMoisture((Mdelt*AA + ThSurf/Ths)/(AA+1.0)*1.0E-1);
+		{
+			double rzDepth = cn->getRootZoneDepth();
+			if (rzDepth >= 9999.99) rzDepth = 1000.0;
+			rzDepth = std::min(rzDepth, DtoBedrock);
+			ThSurf = ComputeSurfSoilMoist(rzDepth);
+			cn->setRootMoisture( ThSurf );
+			cn->setRootMoistureSC( ThSurf/Ths );
+			cn->setRootCutoff( get_Upper_Moist(rzDepth, DtoBedrock) / rzDepth );
+		}
+		cn->addAvSoilMoisture((Mdelt*AA + cn->getRootMoisture()/Ths)/(AA+1.0)*1.0E-1);
 
 		// Set other variables
 		cn->setRecharge((NwtNew-NwtOld)*Ths/(Cos*dt));
@@ -3523,10 +3532,16 @@ void tHydroModel::SaturatedZone(double dtGW)
 		cn->setAvSoilMoisture(floor((BB*AA + ThSurf/Ths)/(AA+1)*1.0E+4));
 
 		// Estimate average root soil moisture
-		ThSurf = ComputeSurfSoilMoist(rootZoneDepth);
-		cn->setRootMoisture( ThSurf );
-		cn->setRootMoistureSC( ThSurf/Ths );
-		cn->addAvSoilMoisture((Mdelt*AA + ThSurf/Ths)/(AA+1.0)*1.0E-1);
+		{
+			double rzDepth = cn->getRootZoneDepth();
+			if (rzDepth >= 9999.99) rzDepth = 1000.0;
+			rzDepth = std::min(rzDepth, DtoBedrock);
+			ThSurf = ComputeSurfSoilMoist(rzDepth);
+			cn->setRootMoisture( ThSurf );
+			cn->setRootMoistureSC( ThSurf/Ths );
+			cn->setRootCutoff( get_Upper_Moist(rzDepth, DtoBedrock) / rzDepth );
+		}
+		cn->addAvSoilMoisture((Mdelt*AA + cn->getRootMoisture()/Ths)/(AA+1.0)*1.0E-1);
 
 		cn->setRecharge((NwtNew-NwtOld)*Ths/(Cos*dtGW));
 		// The following are in [M^3]
@@ -4492,6 +4507,7 @@ void tHydroModel::writeRestart(fstream & rStr) const
   BinaryWrite(rStr, LAI_LU);
   BinaryWrite(rStr, SE_LU);
   BinaryWrite(rStr, ST_LU);
+  BinaryWrite(rStr, RZ_LU);
 
 }
 
@@ -4588,6 +4604,7 @@ void tHydroModel::readRestart(fstream & rStr)
   BinaryRead(rStr, LAI_LU);
   BinaryRead(rStr, SE_LU);
   BinaryRead(rStr, ST_LU);
+  BinaryRead(rStr, RZ_LU);
 }
 
 //=========================================================================

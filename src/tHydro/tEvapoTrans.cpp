@@ -72,6 +72,7 @@ tEvapoTrans::tEvapoTrans()
 	LeafAIGrid = nullptr;
     EvapThreshGrid = nullptr; // CJC2025
     TransThreshGrid = nullptr; // CJC2025
+    RootZoneDepthGrid = nullptr;
 	ALgridhours = nullptr;
 	TFgridhours = nullptr;
 	VHgridhours = nullptr;
@@ -84,6 +85,7 @@ tEvapoTrans::tEvapoTrans()
 	LAgridhours = nullptr;
 	SEgridhours = nullptr; // CJC2025
 	STgridhours = nullptr; // CJC2025
+	RZgridhours = nullptr;
 	ALgridFileNames = nullptr;
 	TFgridFileNames = nullptr;
 	VHgridFileNames = nullptr;
@@ -96,6 +98,7 @@ tEvapoTrans::tEvapoTrans()
 	LAgridFileNames = nullptr;
 	SEgridFileNames = nullptr; // CJC2025
 	STgridFileNames = nullptr; // CJC2025
+	RZgridFileNames = nullptr;
 
 	gridPtr = nullptr; 	nParmLU = 0;
 }
@@ -142,6 +145,7 @@ tEvapoTrans::tEvapoTrans(SimulationControl *simCtrPtr, tMesh<tCNode> *gridRef,
 	LeafAIGrid = nullptr;
     EvapThreshGrid = nullptr; // CJC2025
     TransThreshGrid = nullptr; // CJC2025
+    RootZoneDepthGrid = nullptr;
 	ALgridhours = nullptr;
 	TFgridhours = nullptr;
 	VHgridhours = nullptr;
@@ -843,6 +847,12 @@ void tEvapoTrans::setCoeffs(tCNode* cNode)
 	// CJC2025: Set the values for the stress thresholds from the table.
     coeffSE = landPtr->getLandProp(11);
     coeffST = landPtr->getLandProp(12);
+    {
+        double rzDepth = landPtr->getLandProp(13);
+        if (rzDepth >= 9999.99) rzDepth = 1000.0;
+        rzDepth = std::min(rzDepth, cNode->getBedrockDepth());
+        cNode->setRootZoneDepth(rzDepth);
+    }
 
     if (coeffV >= 1.0) //prevents loss of snow when unloaded from canopy WR 05/12/2024
         coeffV = 0.99;
@@ -3543,6 +3553,12 @@ void tEvapoTrans::createVariantLU()
 			SetGridTimeInfoVariables(TransThreshGrid, LUgridParamNames[ct]);
 			TransThreshGrid->newVariable(LUgridParamNames[ct]);
 		}
+		if (strcmp(LUgridParamNames[ct],"RZ")==0) {
+			RootZoneDepthGrid = new tVariant(gridPtr,respPtr);
+			RootZoneDepthGrid->setFileNames(LUgridBaseNames[ct], LUgridExtNames[ct]);
+			SetGridTimeInfoVariables(RootZoneDepthGrid, LUgridParamNames[ct]);
+			RootZoneDepthGrid->newVariable(LUgridParamNames[ct]);
+		}
 	}
 }
 
@@ -3604,6 +3620,9 @@ void tEvapoTrans::createStaticVariantLU()
         } else if (paramName == "ST") {
             TransThreshGrid = new tVariant(gridPtr, respPtr);
             TransThreshGrid->updateLUVarOfPrevGrid("ST", staticFileName);
+        } else if (paramName == "RZ") {
+            RootZoneDepthGrid = new tVariant(gridPtr, respPtr);
+            RootZoneDepthGrid->updateLUVarOfPrevGrid("RZ", staticFileName);
         }
     }
 
@@ -3732,11 +3751,17 @@ void tEvapoTrans::newLUGridData(tCNode * cNode)
 			coeffLAI = cNode->getLeafAI(); // SKY2008Snow
 		}
 		// CJC2025: New parameters
-		if (strcmp(LUgridParamNames[ct],"SE")==0) {			
+		if (strcmp(LUgridParamNames[ct],"SE")==0) {
 			coeffSE = cNode->getEvapThresh();
 		}
-		if (strcmp(LUgridParamNames[ct],"ST")==0) {			
+		if (strcmp(LUgridParamNames[ct],"ST")==0) {
 			coeffST = cNode->getTransThresh();
+		}
+		if (strcmp(LUgridParamNames[ct],"RZ")==0) {
+			double rzDepth = cNode->getRootZoneDepth();
+			if (rzDepth >= 9999.99) rzDepth = 1000.0;
+			rzDepth = std::min(rzDepth, cNode->getBedrockDepth());
+			cNode->setRootZoneDepth(rzDepth);
 		}
 	}
 
@@ -3984,6 +4009,21 @@ void tEvapoTrans::initialLUGridAssignment()
         }
       }
     }
+    if (strcmp(LUgridParamNames[ct],"RZ")==0) {
+      if ( (timer->getCurrentTime())>(double(RZgridhours[NowTillWhichRZgrid])) && numRZfiles > 1 ) {
+	while ( (timer->getCurrentTime())>(double(RZgridhours[NowTillWhichRZgrid])) ) {
+	  NowTillWhichRZgrid++;
+	}
+	RootZoneDepthGrid->updateLUVarOfBothGrids("RZ", RZgridFileNames[NowTillWhichRZgrid]);
+	RootZoneDepthGrid->updateLUVarOfPrevGrid("RZ", RZgridFileNames[NowTillWhichRZgrid-1]);
+      }
+      else {
+        RootZoneDepthGrid->updateLUVarOfPrevGrid("RZ", RZgridFileNames[1]);
+        if (luInterpOption == 1) {
+            RootZoneDepthGrid->updateLUVarOfBothGrids("RZ", RZgridFileNames[1]);
+        }
+      }
+    }
   } // end for loop
 
   }
@@ -4168,6 +4208,20 @@ void tEvapoTrans::LUGridAssignment()
 	    }
       }
     }
+    if (strcmp(LUgridParamNames[ct],"RZ")==0) {
+      if (numRZfiles <= 1) continue;
+      if (NowTillWhichRZgrid<=numRZfiles) {
+	    if ((timer->getCurrentTime())>(double(RZgridhours[NowTillWhichRZgrid]))) {
+	      NowTillWhichRZgrid++;
+	      if ((NowTillWhichRZgrid-1)<numRZfiles) {
+	        RootZoneDepthGrid->updateLUVarOfBothGrids("RZ", RZgridFileNames[NowTillWhichRZgrid]);
+	      }
+	      else {
+	        RootZoneDepthGrid->updateLUVarOfPrevGrid("RZ", RZgridFileNames[numRZfiles]);
+	      }
+	    }
+      }
+    }
   }
 }
 
@@ -4319,6 +4373,22 @@ void tEvapoTrans::interpolateLUGrids(tCNode* cNode)
 								(double(STgridhours[NowTillWhichSTgrid]) - double(STgridhours[NowTillWhichSTgrid - 1])));
 		}
 	}
+	if (strcmp(LUgridParamNames[ct], "RZ") == 0) {
+		double rzDepth;
+		if (NowTillWhichRZgrid > numRZfiles) {
+			rzDepth = cNode->getRootZoneDepthInPrevGrid();
+		}
+		else if ((NowTillWhichRZgrid > 1) && (NowTillWhichRZgrid <= numRZfiles)) {
+			rzDepth = cNode->getRootZoneDepthInPrevGrid() +
+								(cNode->getRootZoneDepthInUntilGrid() - cNode->getRootZoneDepthInPrevGrid()) *
+								(timer->getCurrentTime() - double(RZgridhours[NowTillWhichRZgrid - 1])) /
+								(double(RZgridhours[NowTillWhichRZgrid]) - double(RZgridhours[NowTillWhichRZgrid - 1]));
+		}
+		else { rzDepth = cNode->getRootZoneDepthInPrevGrid(); }
+		if (rzDepth >= 9999.99) rzDepth = 1000.0;
+		rzDepth = std::min(rzDepth, cNode->getBedrockDepth());
+		cNode->setRootZoneDepth(rzDepth);
+	}
   } // end for loop
   
   return;
@@ -4381,6 +4451,13 @@ void tEvapoTrans::constantLUGrids(tCNode* cNode)
         if ( (strcmp(LUgridParamNames[ct],"ST")==0))
         {
             cNode->setTransThresh( cNode->getTransThreshInPrevGrid() );
+        }
+        if ( (strcmp(LUgridParamNames[ct],"RZ")==0))
+        {
+            double rzDepth = cNode->getRootZoneDepthInPrevGrid();
+            if (rzDepth >= 9999.99) rzDepth = 1000.0;
+            rzDepth = std::min(rzDepth, cNode->getBedrockDepth());
+            cNode->setRootZoneDepth(rzDepth);
         }
     } // end for loop
 
@@ -4469,9 +4546,15 @@ void tEvapoTrans::integratedLUVars(tCNode* cNode, double te){
       else if (te > 1.0)
 	cNode->setAvTransThresh((cNode->getAvTransThresh()*(te-1.0) + cNode->getTransThresh())/te);
     }
+    if (strcmp(LUgridParamNames[ct],"RZ")==0) {
+      if (fabs(te - 1.0) < 1.0E-6)
+	cNode->setAvRootZoneDepth(cNode->getRootZoneDepth());
+      else if (te > 1.0)
+	cNode->setAvRootZoneDepth((cNode->getAvRootZoneDepth()*(te-1.0) + cNode->getRootZoneDepth())/te);
+    }
   }
-  
-  return; 
+
+  return;
 }
 
 /***************************************************************************
@@ -4504,6 +4587,7 @@ void tEvapoTrans::SetGridTimeInfoVariables(tVariant *VariantLU, char *LUgridPara
 	else if (strcmp(LUgridParamName,"LA")==0) {numLAfiles = 0;}
     else if (strcmp(LUgridParamName,"SE")==0) {numSEfiles = 0;} // CJC2025
     else if (strcmp(LUgridParamName,"ST")==0) {numSTfiles = 0;} // CJC2025
+    else if (strcmp(LUgridParamName,"RZ")==0) {numRZfiles = 0;}
 
 	numFilesCounter = 0;
 	currentTimeLU = 0;
@@ -4532,6 +4616,7 @@ void tEvapoTrans::SetGridTimeInfoVariables(tVariant *VariantLU, char *LUgridPara
 			else if (strcmp(LUgridParamName,"LA")==0) {numLAfiles++;}
             else if (strcmp(LUgridParamName,"SE")==0) {numSEfiles++;} // <<< ADDED
             else if (strcmp(LUgridParamName,"ST")==0) {numSTfiles++;} // <<< ADDED
+            else if (strcmp(LUgridParamName,"RZ")==0) {numRZfiles++;}
 
 			numFilesCounter++;
 		}
@@ -4662,6 +4747,13 @@ void tEvapoTrans::SetGridTimeInfoVariables(tVariant *VariantLU, char *LUgridPara
 			STgridFileNames[ct]=new char[kName];
 		}
 	}
+    else if (strcmp(LUgridParamName,"RZ")==0) {
+		RZgridhours = new int [numRZfiles+1];
+		RZgridFileNames = new char*[numRZfiles+1];
+		for (int ct=0;ct<numRZfiles+1;ct++) {
+			RZgridFileNames[ct]=new char[kName];
+		}
+	}
 
 	tempgridhours = new int [numFilesCounter+1];
 	tempgridhours[0]=0;
@@ -4733,6 +4825,10 @@ void tEvapoTrans::SetGridTimeInfoVariables(tVariant *VariantLU, char *LUgridPara
 				STgridhours[GridHourCounter]=currentTimeLU;
 				strcpy(STgridFileNames[GridHourCounter],VariantLU->fileIn);
 			}
+            else if (strcmp(LUgridParamName,"RZ")==0) {
+				RZgridhours[GridHourCounter]=currentTimeLU;
+				strcpy(RZgridFileNames[GridHourCounter],VariantLU->fileIn);
+			}
 			
 			tempgridhours[GridHourCounter]=currentTimeLU;
 
@@ -4768,6 +4864,7 @@ void tEvapoTrans::SetGridTimeInfoVariables(tVariant *VariantLU, char *LUgridPara
 	else if (strcmp(LUgridParamName,"LA")==0) {NowTillWhichLAgrid = 1;}
     else if (strcmp(LUgridParamName,"SE")==0) {NowTillWhichSEgrid = 1;} // CJC2025
     else if (strcmp(LUgridParamName,"ST")==0) {NowTillWhichSTgrid = 1;} // CJC2025
+    else if (strcmp(LUgridParamName,"RZ")==0) {NowTillWhichRZgrid = 1;}
 
 	return;
 
@@ -4880,8 +4977,16 @@ void tEvapoTrans::deleteLUGrids()
 	  }
 	  delete [] STgridFileNames;
 	}
+    if (strcmp(LUgridParamNames[ct],"RZ")==0) {
+	  delete RootZoneDepthGrid;
+	  delete [] RZgridhours;
+	  for (int sz=0;sz<numRZfiles+1;sz++) {
+	    delete [] RZgridFileNames[sz];
+	  }
+	  delete [] RZgridFileNames;
+	}
   }
-  
+
   for (int sz=0;sz<nParmLU;sz++) {
     delete [] LUgridParamNames[sz];
     delete [] LUgridBaseNames[sz];

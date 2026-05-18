@@ -189,6 +189,7 @@ private:
   // CJC2025 Stress Thresholds
   double ST_LU{};
   double SE_LU{};
+  double RZ_LU{};
 
   // SKY2008Snow from AJR2007
   double snowMeltEx{};
@@ -198,7 +199,6 @@ private:
   double TotMoist{}; 			// Cumulative change in moisture storage
   double DtoBedrock{}; 			// Depth to bedrock
   double surfaceSoilDepth; // Depth for surface soil moisture [mm]
-  double rootZoneDepth;    // Depth for root zone moisture [mm]
   
   ofstream fctout;
   double fSoi100{}, fTop100{}, fClm100{}, fGW100{}, dM100{}, dMRt{}, mTh100{}, mThRt{};
