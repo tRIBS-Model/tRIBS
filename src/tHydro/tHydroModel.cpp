@@ -439,6 +439,7 @@ void tHydroModel::InitSet(tResample *resamp)
 
 		// Handle Rootzone Depth Input
 		if (RZ_LU >= 9999.99) { RZ_LU = 1000.0; } else { RZ_LU *= 1000.0; } // If user's rootzone depth is no data (9999.99) set to 1m default
+		RZ_LU   = std::max(RZ_LU, 100.0);
 		RZ_LU   = std::min(RZ_LU, bedRock);
 
 		cn->setRootZoneDepth(RZ_LU);
@@ -581,6 +582,7 @@ void tHydroModel::InitIntegralVars()
 
 		// Handle Rootzone Depth Input
 		if (RZ_LU >= 9999.99) { RZ_LU = 1000.0; } else { RZ_LU *= 1000.0; } // If user's rootzone depth is no data (9999.99) set to 1m default
+		RZ_LU  = std::max(RZ_LU, 100.0);
 		RZ_LU  = std::min(RZ_LU, cn->getBedrockDepth());
 
 		cn->setAvRootZoneDepth(RZ_LU);

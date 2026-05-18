@@ -850,6 +850,7 @@ void tEvapoTrans::setCoeffs(tCNode* cNode)
     {
         double rzDepth = landPtr->getLandProp(13);
         if (rzDepth >= 9999.99) { rzDepth = 1000.0; } else { rzDepth *= 1000.0; } // If user's rootzone depth is no data (9999.99) set to 1m default
+        rzDepth = std::max(rzDepth, 100.0);
         rzDepth = std::min(rzDepth, cNode->getBedrockDepth());
         cNode->setRootZoneDepth(rzDepth);
     }
@@ -3758,7 +3759,8 @@ void tEvapoTrans::newLUGridData(tCNode * cNode)
 			coeffST = cNode->getTransThresh();
 		}
 		if (strcmp(LUgridParamNames[ct],"RZ")==0) {
-			double rzDepth = std::min(cNode->getRootZoneDepth(), cNode->getBedrockDepth());
+			double rzDepth = std::max(cNode->getRootZoneDepth(), 100.0);
+			rzDepth = std::min(rzDepth, cNode->getBedrockDepth());
 			cNode->setRootZoneDepth(rzDepth);
 		}
 	}
@@ -4384,6 +4386,7 @@ void tEvapoTrans::interpolateLUGrids(tCNode* cNode)
 		}
 		else { rzDepth = cNode->getRootZoneDepthInPrevGrid(); }
 		if (rzDepth >= 9999.99) { rzDepth = 1000.0; } else { rzDepth *= 1000.0; }
+		rzDepth = std::max(rzDepth, 100.0);
 		rzDepth = std::min(rzDepth, cNode->getBedrockDepth());
 		cNode->setRootZoneDepth(rzDepth);
 	}
@@ -4454,6 +4457,7 @@ void tEvapoTrans::constantLUGrids(tCNode* cNode)
         {
             double rzDepth = cNode->getRootZoneDepthInPrevGrid();
             if (rzDepth >= 9999.99) { rzDepth = 1000.0; } else { rzDepth *= 1000.0; }
+            rzDepth = std::max(rzDepth, 100.0);
             rzDepth = std::min(rzDepth, cNode->getBedrockDepth());
             cNode->setRootZoneDepth(rzDepth);
         }
