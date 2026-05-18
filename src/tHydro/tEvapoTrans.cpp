@@ -847,7 +847,7 @@ void tEvapoTrans::setCoeffs(tCNode* cNode)
 	// CJC2025: Set the values for the stress thresholds from the table.
     coeffSE = landPtr->getLandProp(11);
     coeffST = landPtr->getLandProp(12);
-    {
+    if (luOption == 0) {
         double rzDepth = landPtr->getLandProp(13);
         if (rzDepth >= 9999.99) { rzDepth = 1000.0; } else { rzDepth *= 1000.0; } // If user's rootzone depth is no data (9999.99) set to 1m default
         rzDepth = std::max(rzDepth, 100.0);
@@ -3268,7 +3268,7 @@ void tEvapoTrans::readHydroMetGrid(char *gridFile)
 ** Reads a file (*.gdf) from LUGRID keyword containing the base names of 
 ** the various input land use parameter grids along with the extension
 ** used for the filename. These follow a string that identifies the line
-** with the parameters (ie. AL,TF,VH,SR,VF,CC,DC,DE,OT,LA). If no data 
+** with the parameters (ie. AL,TF,VH,SR,VF,CC,DC,DE,OT,LA,SE,ST,RZ). If no data
 ** available for any parameters, the string NO_DATA should be input 
 ** instead of the path name and extension name. In this version, a single
 ** value of latitude, longitude and GMT is used for entire grids. The
@@ -3356,9 +3356,10 @@ void tEvapoTrans::readLUGrid(char *gridFile)
 		  		(strcmp(LUgridParamNames[ct],"OT")!=0) &&
 		  		(strcmp(LUgridParamNames[ct],"LA")!=0) &&
                 (strcmp(LUgridParamNames[ct],"SE")!=0) &&
-                (strcmp(LUgridParamNames[ct],"ST")!=0) ) {
+                (strcmp(LUgridParamNames[ct],"ST")!=0) &&
+                (strcmp(LUgridParamNames[ct],"RZ")!=0) ) {
 			Cout << "\nA land use parameter name in the LU gdf file is an unexpected one."<<endl;
-			Cout << "\nExpected variables: AL,TF,VH,SR,VF,CC,DC,DE,OT,LA,SE or ST" << endl;
+			Cout << "\nExpected variables: AL,TF,VH,SR,VF,CC,DC,DE,OT,LA,SE,ST or RZ" << endl;
 			Cout << "\tCheck and re-run the program" << endl;
 			Cout << "\nExiting Program..."<<endl<<endl;
 			exit(1);

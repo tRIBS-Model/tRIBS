@@ -2091,9 +2091,7 @@ void tHydroModel::UnSaturatedZone(double dt)
 
 		// Estimate average root soil moisture
 		{
-			double rzDepth = cn->getRootZoneDepth();
-			if (rzDepth >= 9999.99) rzDepth = 1000.0;
-			rzDepth = std::min(rzDepth, DtoBedrock);
+			double rzDepth = std::min(cn->getRootZoneDepth(), DtoBedrock);
 			ThSurf = ComputeSurfSoilMoist(rzDepth);
 			cn->setRootMoisture( ThSurf );
 			cn->setRootMoistureSC( ThSurf/Ths );
@@ -3541,9 +3539,7 @@ void tHydroModel::SaturatedZone(double dtGW)
 
 		// Estimate average root soil moisture
 		{
-			double rzDepth = cn->getRootZoneDepth();
-			if (rzDepth >= 9999.99) rzDepth = 1000.0;
-			rzDepth = std::min(rzDepth, DtoBedrock);
+			double rzDepth = std::min(cn->getRootZoneDepth(), DtoBedrock);
 			ThSurf = ComputeSurfSoilMoist(rzDepth);
 			cn->setRootMoisture( ThSurf );
 			cn->setRootMoistureSC( ThSurf/Ths );
