@@ -436,8 +436,11 @@ void tHydroModel::InitSet(tResample *resamp)
 		SE_LU   = landPtr->getLandProp(11);
 		ST_LU   = landPtr->getLandProp(12);
 		RZ_LU   = landPtr->getLandProp(13);
-		if (RZ_LU >= 9999.99) RZ_LU = 1000.0;
+
+		// Handle Rootzone Depth Input
+		if (RZ_LU >= 9999.99) { RZ_LU = 1000.0; } else { RZ_LU *= 1000.0; } // If user's rootzone depth is no data (9999.99) set to 1m default
 		RZ_LU   = std::min(RZ_LU, bedRock);
+
 		cn->setRootZoneDepth(RZ_LU);
 		cn->setRootZoneDepthInPrevGrid(RZ_LU);
 		cn->setRootZoneDepthInUntilGrid(RZ_LU);
@@ -575,8 +578,11 @@ void tHydroModel::InitIntegralVars()
 		SE_LU  = landPtr->getLandProp(11);
 		ST_LU  = landPtr->getLandProp(12);
 		RZ_LU  = landPtr->getLandProp(13);
-		if (RZ_LU >= 9999.99) RZ_LU = 1000.0;
+
+		// Handle Rootzone Depth Input
+		if (RZ_LU >= 9999.99) { RZ_LU = 1000.0; } else { RZ_LU *= 1000.0; } // If user's rootzone depth is no data (9999.99) set to 1m default
 		RZ_LU  = std::min(RZ_LU, cn->getBedrockDepth());
+
 		cn->setAvRootZoneDepth(RZ_LU);
 		cn->setAvThroughFall(P_LU);
 		cn->setAvCanFieldCap(S_LU);
