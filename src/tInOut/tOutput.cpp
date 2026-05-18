@@ -360,7 +360,8 @@ void tOutput<tSubNode>::CreateAndOpenPixel()
 				<<"OptTransmCoeff_[],"
 				<<"StomRes_s_m,"       //80
 				<<"VegFraction[],"
-				<<"LeafAI_[]"          //82
+				<<"LeafAI_[],"
+				<<"RootZoneDepth_m"    //83
 				<<"\n";
 				
 				pixinfo[i].setf( ios::right, ios::adjustfield );
@@ -1064,7 +1065,9 @@ void tCOutput<tSubNode>::WritePixelInfo( double time )
 				<< this->uzel[i]->getOptTransmCoeff() << ","
 				/* 80 */ << this->uzel[i]->getStomRes() << ","
 				<< this->uzel[i]->getVegFraction() << ","
-				<< this->uzel[i]->getLeafAI() << "\n" << flush;
+				<< this->uzel[i]->getLeafAI() << ","
+				/* 83 */ << this->uzel[i]->getRootZoneDepth() <<
+				"\n" << flush; 
 
 			}
 		}
@@ -1342,7 +1345,8 @@ void tCOutput<tSubNode>::WriteIntegrVars( double time )
 		   << "VolHeatCond" << ','                            // 70
 		   << "SoilHeatCap" << ','                            // 71
 		   << "SoilID" << ','                                 // 72
-		   << "LandUseID"                                     // 73
+		   << "LandUseID" << ','                              // 73
+		   << "AvRootZoneDepth"                               // 74
 		   << "\n";
 	
 	cn = ni.FirstP();
@@ -1477,7 +1481,8 @@ void tCOutput<tSubNode>::WriteIntegrVars( double time )
            << setprecision(7) << cn->getVolHeatCond() << ','  //70
            << setprecision(7) << cn->getSoilHeatCap() << ','  //71
            << setprecision(7) << cn->getSoilID() << ','       //72
-           << setprecision(7) << cn->getLandUse();            //73
+           << setprecision(7) << cn->getLandUse() << ','      //73
+           << setprecision(7) << cn->getAvRootZoneDepth();    //74
 
         intofs<<"\n";
 		
