@@ -16,6 +16,7 @@ v6.0.0 is a major release focused on simplifying the user experience and streaml
 * **Snow Outputs:** Added `Snow Depth` and `Snow Density` to standard pixel and dynamic output routines. ([#104](https://github.com/tRIBS-Model/tRIBS/pull/104))
 * **Standardized Hydrologic Outputs:** All output files that report hydrologic variables have been standardized to CSV format with a single header line. ([#114](https://github.com/tRIBS-Model/tRIBS/pull/114))
 * **Standardized Hydrologic Inputs:** All forcing and parameter input files were standardized to CSV format with a single header line. Centorid latitude, longitude, and UTC timezone offset are no longer specified in the station and gridded data files. ([#116](https://github.com/tRIBS-Model/tRIBS/pull/116))
+* **Root Zone Depth:** Previously root zone depth used for determining soil mositure for calculating plant transpiration was hardcoded at 1m. Root zone depth is now a land use parameter that can be provided in the land use table or gridded. Users who do not want to use this feature can specify `9999.99` in the land use table to use the original default of 1m. ([#117](https://github.com/tRIBS-Model/tRIBS/pull/117))
 
 ### Fixed
 * **ET Partitioning:** Fixed a scaling bug in `tEvapoTrans` where unscaled vegetation rates were subtracted from potential ET. ([#107](https://github.com/tRIBS-Model/tRIBS/pull/107))
