@@ -768,17 +768,29 @@ tCOutput<tSubNode>::tCOutput(SimulationControl *simCtrPtr, tMesh<tSubNode> *g,
 	this->CreateAndOpenFile( &vorofs, vorofsext);
 	this->CreateAndOpenFile( &drareaofs, drarsext );
 	this->CreateAndOpenFile( &widthsofs, widthsext );
-	
+
+	{
+		std::set<std::string> selection;
+		char dynVarPath[kMaxNameSize];
+		dynVarPath[0] = '\0';
+		if (infile.IsItemIn("DYNVARFILE")) {
+			infile.ReadItem(dynVarPath, "DYNVARFILE");
+			ReadDynVarFile(dynVarPath, selection);
+		}
+		BuildDynVarTable(selection);
+	}
+
 	WriteNodeData( 0, resamp );
 }
 
 template< class tSubNode >
-tCOutput<tSubNode>::tCOutput(SimulationControl *simCtrPtr, tMesh<tSubNode> *g, 
-							 tInputFile &infile, tResample *resamp ) 
+tCOutput<tSubNode>::tCOutput(SimulationControl *simCtrPtr, tMesh<tSubNode> *g,
+							 tInputFile &infile, tResample *resamp )
 : tOutput<tSubNode>(simCtrPtr, g, infile, resamp, this->timptr)
-{   
+{
 	char vorofsext[10] = "_voi";
 	this->CreateAndOpenFile( &vorofs, vorofsext);
+	BuildDynVarTable({});
 }
 
 template< class tSubNode >
@@ -1076,6 +1088,138 @@ void tCOutput<tSubNode>::WritePixelInfo( double time )
 
 /*************************************************************************
 **
+**  tCOutput::ReadDynVarFile()
+**
+**  Parses a single-row CSV file of column names into 'selection'.
+**  On any error the set is left empty and the caller uses all columns.
+**
+*************************************************************************/
+template< class tSubNode >
+void tCOutput<tSubNode>::ReadDynVarFile(const char *path,
+                                        std::set<std::string> &selection)
+{
+	ifstream f(path);
+	if (!f) {
+		cerr << "\nWarning: DYNVARFILE '" << path
+		     << "' not found. Using default dynamic output.\n";
+		return;
+	}
+	string line;
+	if (!getline(f, line) || line.empty()) {
+		cerr << "\nWarning: DYNVARFILE '" << path
+		     << "' is empty. Using default dynamic output.\n";
+		return;
+	}
+	stringstream ss(line);
+	string token;
+	while (getline(ss, token, ',')) {
+		size_t s = token.find_first_not_of(" \t\r\n");
+		size_t e = token.find_last_not_of(" \t\r\n");
+		if (s != string::npos)
+			selection.insert(token.substr(s, e - s + 1));
+	}
+	Cout << "\n\tDynamic output filtered to " << selection.size()
+	     << " variable(s) from: " << path << endl;
+}
+
+/*************************************************************************
+**
+**  tCOutput::BuildDynVarTable()
+**
+**  Populates activeDynCols with the full column set filtered by 'selection'.
+**  An empty selection means all columns are included (default behavior).
+**
+*************************************************************************/
+template< class tSubNode >
+void tCOutput<tSubNode>::BuildDynVarTable(const std::set<std::string> &selection)
+{
+	std::vector<DynVarCol> all = {
+		{"Nwt", 5, [](tSubNode *cn) {
+			double cs = cos(atan(cn->getFlowEdg()->getSlope()));
+			return cn->getNwtNew() / (cs < 1e-9 ? 1e-9 : cs);
+		}},
+		{"Mu", 5, [](tSubNode *cn) {
+			double cs = cos(atan(cn->getFlowEdg()->getSlope()));
+			return cn->getMuNew() / (cs < 1e-9 ? 1e-9 : cs);
+		}},
+		{"Mi", 5, [](tSubNode *cn) {
+			double cs = cos(atan(cn->getFlowEdg()->getSlope()));
+			return cn->getMiNew() / (cs < 1e-9 ? 1e-9 : cs);
+		}},
+		{"Nf", 5, [](tSubNode *cn) {
+			double cs = cos(atan(cn->getFlowEdg()->getSlope()));
+			return cn->getNfNew() / (cs < 1e-9 ? 1e-9 : cs);
+		}},
+		{"Nt", 5, [](tSubNode *cn) {
+			double cs = cos(atan(cn->getFlowEdg()->getSlope()));
+			return cn->getNtNew() / (cs < 1e-9 ? 1e-9 : cs);
+		}},
+		{"Qpout",        5, [](tSubNode *cn) { return cn->getQpout() * 1.e-6 / cn->getVArea(); }},
+		{"Qpin",         5, [](tSubNode *cn) { return cn->getQpin()  * 1.e-6 / cn->getVArea(); }},
+		{"Srf",          4, [](tSubNode *cn) { return cn->getSrf_Hr(); }},
+		{"Rain",         3, [](tSubNode *cn) { return cn->getRain(); }},
+		{"ST",           3, [](tSubNode *cn) { return cn->getSnTempC(); }},
+		{"IWE",          5, [](tSubNode *cn) { return cn->getIceWE(); }},
+		{"LWE",          5, [](tSubNode *cn) { return cn->getLiqWE(); }},
+		{"SnSub",        7, [](tSubNode *cn) { return cn->getSnSub(); }},
+		{"SnEvap",       7, [](tSubNode *cn) { return cn->getSnEvap(); }},
+		{"SnMelt",       7, [](tSubNode *cn) { return cn->getLiqRouted(); }},
+		{"SnDepth",      5, [](tSubNode *cn) { return cn->getSnDepth(); }},
+		{"Upack",        5, [](tSubNode *cn) { return cn->getUnode(); }},
+		{"sLHF",         5, [](tSubNode *cn) { return cn->getSnLHF(); }},
+		{"sSHF",         5, [](tSubNode *cn) { return cn->getSnSHF(); }},
+		{"sGHF",         5, [](tSubNode *cn) { return cn->getSnGHF(); }},
+		{"sPHF",         5, [](tSubNode *cn) { return cn->getSnPHF(); }},
+		{"sRLo",         5, [](tSubNode *cn) { return cn->getSnRLout(); }},
+		{"sRLi",         5, [](tSubNode *cn) { return cn->getSnRLin(); }},
+		{"sRSi",         5, [](tSubNode *cn) { return cn->getSnRSin(); }},
+		{"Uerr",         5, [](tSubNode *cn) { return cn->getUerror(); }},
+		{"IntSWE",       5, [](tSubNode *cn) { return cn->getIntSWE(); }},
+		{"IntSub",       5, [](tSubNode *cn) { return cn->getIntSub(); }},
+		{"IntUnl",       5, [](tSubNode *cn) { return cn->getIntSnUnload(); }},
+		{"SoilMoist",    3, [](tSubNode *cn) { return cn->getSoilMoistureSC(); }},
+		{"RootMoist",    3, [](tSubNode *cn) { return cn->getRootMoistureSC(); }},
+		{"CanStorage",   3, [](tSubNode *cn) { return cn->getCanStorage(); }},
+		{"ActEvp",       3, [](tSubNode *cn) { return cn->getActEvap(); }},
+		{"EvpSoil",      5, [](tSubNode *cn) { return cn->getEvapSoil(); }},
+		{"ET",           5, [](tSubNode *cn) { return cn->getEvapoTrans(); }},
+		{"GFlux",        3, [](tSubNode *cn) { return cn->getGFlux(); }},
+		{"HFlux",        3, [](tSubNode *cn) { return cn->getHFlux(); }},
+		{"LFlux",        3, [](tSubNode *cn) { return cn->getLFlux(); }},
+		{"Qstrm",        3, [](tSubNode *cn) { return cn->getQstrm(); }},
+		{"Hlev",         3, [](tSubNode *cn) { return cn->getHlevel(); }},
+		{"FlwVlc",       3, [](tSubNode *cn) { return cn->getFlowVelocity(); }},
+		{"ThroughFall",  5, [](tSubNode *cn) { return cn->getThroughFall(); }},
+		{"CanFieldCap",  5, [](tSubNode *cn) { return cn->getCanFieldCap(); }},
+		{"DrainCoeff",   5, [](tSubNode *cn) { return cn->getDrainCoeff(); }},
+		{"DrainExpPar",  5, [](tSubNode *cn) { return cn->getDrainExpPar(); }},
+		{"LandUseAlb",   5, [](tSubNode *cn) { return cn->getLandUseAlb(); }},
+		{"VegHeight",    5, [](tSubNode *cn) { return cn->getVegHeight(); }},
+		{"OptTransmCoeff",5,[](tSubNode *cn) { return cn->getOptTransmCoeff(); }},
+		{"StomRes",      5, [](tSubNode *cn) { return cn->getStomRes(); }},
+		{"VegFraction",  5, [](tSubNode *cn) { return cn->getVegFraction(); }},
+		{"LeafAI",       5, [](tSubNode *cn) { return cn->getLeafAI(); }},
+	};
+
+	if (selection.empty()) {
+		activeDynCols = std::move(all);
+		return;
+	}
+
+	for (const auto &col : all) {
+		if (selection.count(col.name))
+			activeDynCols.push_back(col);
+	}
+
+	if (activeDynCols.empty()) {
+		cerr << "\nWarning: No valid variable names matched in DYNVARFILE. "
+		     << "Using default dynamic output.\n";
+		activeDynCols = std::move(all);
+	}
+}
+
+/*************************************************************************
+**
 **  tCOutput::WriteDynamicVars()
 **
 **  Writes a file containing dynamic variables for all the nodes
@@ -1107,136 +1251,28 @@ void tCOutput<tSubNode>::WriteDynamicVars( double time )
     snprintf(extension,sizeof(extension),".%04d_%02dd", hour, minute);
 	this->CreateAndOpenFile( &arcofs, extension);  //Opens file for writing
 
-    // Write Header
-	arcofs
-			<< "ID" << ','             // 1
-			<< "Nwt" << ','            // 2
-			<< "Mu" << ','             // 3
-			<< "Mi" << ','             // 4
-			<< "Nf" << ','             // 5
-			<< "Nt" << ','             // 6
-			<< "Qpout" << ','          // 7
-			<< "Qpin" << ','           // 8
-			<< "Srf" << ','            // 9
-			<< "Rain" << ','           // 10
-			<< "ST" << ','             // 11
-			<< "IWE" << ','            // 12
-			<< "LWE" << ','            // 13
-			<< "SnSub" << ','          // 14 note snow states and fluxes are in cm
-			<< "SnEvap" << ','         // 15
-			<< "SnMelt" << ','         // 16
-			<< "SnDepth" << ','        // 17
-			<< "Upack" << ','          // 18
-			<< "sLHF" << ','           // 19
-			<< "sSHF" << ','           // 20
-			<< "sGHF" << ','           // 21
-			<< "sPHF" << ','           // 22
-			<< "sRLo" << ','           // 23
-			<< "sRLi" << ','           // 24
-			<< "sRSi" << ','           // 25
-			<< "Uerr" << ','           // 26
-			<< "IntSWE" << ','         // 27
-			<< "IntSub" << ','         // 28
-			<< "IntUnl" << ','         // 29
-			<< "SoilMoist" << ','      // 30
-			<< "RootMoist" << ','      // 31
-			<< "CanStorage" << ','     // 32
-			<< "ActEvp" << ','         // 33
-			<< "EvpSoil" << ','        // 34
-			<< "ET" << ','             // 35
-			<< "GFlux" << ','          // 36
-			<< "HFlux" << ','          // 37
-			<< "LFlux" << ','          // 38
-			<< "Qstrm" << ','          // 39
-			<< "Hlev" << ','           // 40
-			<< "FlwVlc" << ','         // 41
-			<< "ThroughFall" << ','    // 42
-			<< "CanFieldCap" << ','    // 43
-			<< "DrainCoeff" << ','     // 44
-			<< "DrainExpPar" << ','    // 45
-			<< "LandUseAlb" << ','     // 46
-			<< "VegHeight" << ','      // 47
-			<< "OptTransmCoeff" << ',' // 48
-			<< "StomRes" << ','        // 49
-			<< "VegFraction" << ','    // 50
-			<< "LeafAI";               // 51
-
+    // Write header
+	arcofs << "ID";
+	for (const auto &col : activeDynCols)
+		arcofs << ',' << col.name;
 	if (time == 0)
 		arcofs << ',' << "SoilID" << ',' << "LUseID" << endl << flush;
 	else
-		arcofs << "\n";
+		arcofs << '\n';
 
-	
 	cn = ni.FirstP();
-    while (ni.IsActive()) {
-
-    // --- START FIX ---
-    tEdge *flowEdge = cn->getFlowEdg();
-    double slope_rad = atan(flowEdge->getSlope());
-    double cos_slope = cos(slope_rad);
-    if (cos_slope < 1E-9) cos_slope = 1.E-9;
-    // --- END FIX ---
-        arcofs << cn->getID() << ','                                                // 1
-               << setprecision(5) << cn->getNwtNew() / cos_slope << ','             // 2
-               << setprecision(5) << cn->getMuNew() / cos_slope << ','              // 3
-               << setprecision(5) << cn->getMiNew() / cos_slope << ','              // 4
-               << setprecision(5) << cn->getNfNew() / cos_slope << ','              // 5
-               << setprecision(5) << cn->getNtNew() / cos_slope << ','              // 6
-               << setprecision(5) << cn->getQpout() * 1.E-6 / cn->getVArea() << ',' // 7
-               << cn->getQpin() * 1.E-6 / cn->getVArea() << ','                     // 8
-               << setprecision(4) << cn->getSrf_Hr()  << ','                        // 9 in mm (mm of runoff reset to 0 every hour)
-               << setprecision(3) << cn->getRain() << ','                           // 10
-               << setprecision(3) << cn->getSnTempC() << ','                        // 11
-               << setprecision(5) << cn->getIceWE() << ','                          // 12 SWE = this column + next
-               << setprecision(5) << cn->getLiqWE() << ','                          // 13
-               << setprecision(7) << cn->getSnSub()  << ','                         // 14
-               << setprecision(7) << cn->getSnEvap() << ','                         // 15
-               << setprecision(7) << cn->getLiqRouted() << ','                      // 16
-               << setprecision(5) << cn->getSnDepth() << ','                        // 17
-               << setprecision(5) << cn->getUnode() << ','                          // 18
-               << setprecision(5) << cn->getSnLHF() << ','                          // 19
-               << setprecision(5) << cn->getSnSHF() << ','                          // 20
-               << setprecision(5) << cn->getSnGHF() << ','                          // 21
-               << setprecision(5) << cn->getSnPHF() << ','                          // 22
-               << setprecision(5) << cn->getSnRLout() << ','                        // 23
-               << setprecision(5) << cn->getSnRLin() << ','                         // 24
-               << setprecision(5) << cn->getSnRSin() << ','                         // 25
-               << setprecision(5) << cn->getUerror() << ','                         // 26
-               << setprecision(5) << cn->getIntSWE() << ','                         // 27
-               << setprecision(5) << cn->getIntSub() << ','                         // 28
-               << setprecision(5) << cn->getIntSnUnload() << ','                    // 29
-               << setprecision(3) << cn->getSoilMoistureSC() << ','                 // 30
-               << setprecision(3) << cn->getRootMoistureSC() << ','                 // 31
-               << setprecision(3) << cn->getCanStorage() << ','                     // 32
-               << setprecision(3) << cn->getActEvap() << ','                        // 33
-               << setprecision(5) << cn->getEvapSoil() << ','                       // 34
-               << setprecision(5) << cn->getEvapoTrans() << ','                     // 35
-               << setprecision(3) << cn->getGFlux() << ','                          // 36
-               << setprecision(3) << cn->getHFlux() << ','                          // 37
-               << setprecision(3) << cn->getLFlux() << ','                          // 38
-               << setprecision(3) << cn->getQstrm() << ','                          // 39
-               << setprecision(3) << cn->getHlevel() << ','                         // 40
-               << setprecision(3) << cn->getFlowVelocity() << ','                   // 41
-               << setprecision(5) << cn->getThroughFall() << ','                    // 42
-               << setprecision(5) << cn->getCanFieldCap() << ','                    // 43
-               << setprecision(5) << cn->getDrainCoeff() << ','                     // 44
-               << setprecision(5) << cn->getDrainExpPar() << ','                    // 45
-               << setprecision(5) << cn->getLandUseAlb() << ','                     // 46
-               << setprecision(5) << cn->getVegHeight() << ','                      // 47
-               << setprecision(5) << cn->getOptTransmCoeff() << ','                 // 48
-               << setprecision(5) << cn->getStomRes() << ','                        // 49
-               << setprecision(5) << cn->getVegFraction() << ','                    // 50
-               << setprecision(5) << cn->getLeafAI();                               // 51
-
-        if (time == 0)
-            arcofs << ',' << setprecision(0) << cn->getSoilID() << ','
-                   << setprecision(0) << cn->getLandUse() << endl;
-        else
-            arcofs << "\n";
-
-        cn = ni.NextP();
-    }
-    arcofs.close();
+	while (ni.IsActive()) {
+		arcofs << cn->getID();
+		for (const auto &col : activeDynCols)
+			arcofs << ',' << setprecision(col.prec) << col.get(cn);
+		if (time == 0)
+			arcofs << ',' << setprecision(0) << cn->getSoilID()
+			       << ',' << setprecision(0) << cn->getLandUse() << endl;
+		else
+			arcofs << '\n';
+		cn = ni.NextP();
+	}
+	arcofs.close();
 
 
 	

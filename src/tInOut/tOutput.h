@@ -32,6 +32,10 @@
 #include "src/tSimulator/tRunTimer.h"
 #include "src/tRasTin/tResample.h"
 
+#include <functional>
+#include <set>
+#include <vector>
+
 using namespace std;
 
 class tResample;
@@ -124,12 +128,21 @@ public:
 
 private:
   tSubNode **Outlets;    //Pointer to an array of tCNode objects
-  ofstream *outletinfo;     
+  ofstream *outletinfo;
   ofstream arcofs;
   ofstream vorofs;
   ofstream intofs;
   ofstream drareaofs;
   ofstream widthsofs;
+
+  struct DynVarCol {
+      std::string name;
+      int prec;
+      std::function<double(tSubNode*)> get;
+  };
+  std::vector<DynVarCol> activeDynCols;
+  void ReadDynVarFile(const char *path, std::set<std::string> &selection);
+  void BuildDynVarTable(const std::set<std::string> &selection);
 };
 
 #endif
