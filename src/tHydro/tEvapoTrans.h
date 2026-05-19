@@ -210,24 +210,29 @@ class tEvapoTrans
   tVariant *CanFieldCapGrid, *DrainCoeffGrid;
   tVariant *DrainExpParGrid, *OptTransmCoeffGrid, *LeafAIGrid;
   tVariant *EvapThreshGrid, *TransThreshGrid; // CJC2025
+  tVariant *RootZoneDepthGrid;
 
   // SKYnGM2008LU
   int numALfiles{}, numTFfiles{}, numVHfiles{}, numSRfiles{};
   int numVFfiles{}, numCCfiles{};
   int numDCfiles{}, numDEfiles{}, numOTfiles{}, numLAfiles{};
   int numSEfiles{}, numSTfiles{}; // CJC2025
+  int numRZfiles{};
   int *ALgridhours, *TFgridhours, *VHgridhours, *SRgridhours;
   int *VFgridhours, *CCgridhours;
   int *DCgridhours, *DEgridhours, *OTgridhours, *LAgridhours;
   int *SEgridhours, *STgridhours; // CJC2025
+  int *RZgridhours;
   int NowTillWhichALgrid{}, NowTillWhichTFgrid{}, NowTillWhichVHgrid{}, NowTillWhichSRgrid{};
   int NowTillWhichVFgrid{}, NowTillWhichCCgrid{};
   int NowTillWhichDCgrid{}, NowTillWhichDEgrid{}, NowTillWhichOTgrid{}, NowTillWhichLAgrid{};
   int NowTillWhichSEgrid{}, NowTillWhichSTgrid{}; // CJC2025
+  int NowTillWhichRZgrid{};
   char **ALgridFileNames, **TFgridFileNames, **VHgridFileNames, **SRgridFileNames;
   char **VFgridFileNames, **CCgridFileNames;
   char **DCgridFileNames, **DEgridFileNames, **OTgridFileNames, **LAgridFileNames;
   char **SEgridFileNames, **STgridFileNames; // CJC2025
+  char **RZgridFileNames;
   int AtFirstTimeStepLUFlag{};
 
   int skycover_flag; // intended for when nodata is set for XC gridded data so that skycover is estimated.

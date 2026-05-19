@@ -231,9 +231,12 @@ void tVariant::updateLUVarOfPrevGrid(const char *param, char *GridFileName)
 			cn->setTransThreshInPrevGrid( resample[id] );
 			cn->setTransThresh( resample[id] );
 		}
+		else if (strcmp(param,"RZ") == 0) {
+			cn->setRootZoneDepthInPrevGrid( resample[id] );
+		}
 
 		cn = nodeIter.NextP();
-		id++; 
+		id++;
 	}
 	return;
 }
@@ -323,10 +326,13 @@ void tVariant::updateLUVarOfBothGrids(const char *param, char *GridFileName)
 			cn->setTransThresh( cn->getTransThreshInUntilGrid() );
 			cn->setTransThreshInUntilGrid( resample[id] );
 		}
-
+		else if (strcmp(param,"RZ") == 0) {
+			cn->setRootZoneDepthInPrevGrid( cn->getRootZoneDepthInUntilGrid() );
+			cn->setRootZoneDepthInUntilGrid( resample[id] );
+		}
 
 		cn = nodeIter.NextP();
-		id++; 
+		id++;
 	}
 	return;
 }

@@ -96,6 +96,7 @@ tCNode::tCNode() :tNode()
 	CanFieldCap = DrainCoeff = 0.0;
 	DrainExpPar = OptTransmCoeff = LeafAI = 0.0;
   EvapThresh = TransThresh = 0.0; // CJC2025
+  RootZoneDepth = 1000.0;
 
 	// SKYnGM2008LU
 	LandUseAlbInPrevGrid = LandUseAlbInUntilGrid = ThroughFallInPrevGrid = ThroughFallInUntilGrid = 0.0;
@@ -105,13 +106,15 @@ tCNode::tCNode() :tNode()
 	DrainCoeffInPrevGrid = DrainCoeffInUntilGrid = DrainExpParInPrevGrid = DrainExpParInUntilGrid = 0.0;
 	OptTransmCoeffInPrevGrid = OptTransmCoeffInUntilGrid = LeafAIInPrevGrid = LeafAIInUntilGrid = 0.0;
   EvapThreshInPrevGrid = EvapThreshInUntilGrid = TransThreshInPrevGrid = TransThreshInUntilGrid = 0.0; // CJC2025
+  RootZoneDepthInPrevGrid = RootZoneDepthInUntilGrid = 1000.0;
 
 	// SKYnGM2008LU
 	AvThroughFall = AvCanFieldCap = 0.0;
 	AvDrainCoeff = AvDrainExpPar = AvLandUseAlb = AvVegHeight = 0.0;
 	AvOptTransmCoeff = AvStomRes = AvVegFraction = AvLeafAI = 0.0;
   AvEvapThresh = AvTransThresh = 0.0; // CJC2025
-	
+  AvRootZoneDepth = 1000.0;
+
 	// SKY2008Snow from AJR2007
 	//snowpack -- RINEHART 2007 @ NMT
 	liqWEq = iceWEq =  liqRoute = dU = 0.0;
@@ -230,6 +233,7 @@ tCNode::tCNode(tInputFile &infile) :tNode() {
 	CanFieldCap = DrainCoeff = 0.0;
 	DrainExpPar = OptTransmCoeff = LeafAI = 0.0;
   EvapThresh = TransThresh = 0.0; // CJC2025
+  RootZoneDepth = 1000.0;
 
 	// SKYnGM2008LU
 	LandUseAlbInPrevGrid = LandUseAlbInUntilGrid = ThroughFallInPrevGrid = ThroughFallInUntilGrid = 0.0;
@@ -239,12 +243,14 @@ tCNode::tCNode(tInputFile &infile) :tNode() {
 	DrainCoeffInPrevGrid = DrainCoeffInUntilGrid = DrainExpParInPrevGrid = DrainExpParInUntilGrid = 0.0;
 	OptTransmCoeffInPrevGrid = OptTransmCoeffInUntilGrid = LeafAIInPrevGrid = LeafAIInUntilGrid = 0.0;
   EvapThreshInPrevGrid = EvapThreshInUntilGrid = TransThreshInPrevGrid = TransThreshInUntilGrid = 0.0; // CJC2025
+  RootZoneDepthInPrevGrid = RootZoneDepthInUntilGrid = 1000.0;
 
 	// SKYnGM2008LU
 	AvThroughFall = AvCanFieldCap = 0.0;
 	AvDrainCoeff = AvDrainExpPar = AvLandUseAlb = AvVegHeight = 0.0;
 	AvOptTransmCoeff = AvStomRes = AvVegFraction = AvLeafAI = 0.0;
   AvEvapThresh = AvTransThresh = 0.0; // CJC2025
+  AvRootZoneDepth = 1000.0;
 
 	// SKY2008Snow from AJR2007
 	//snowpack -- RINEHART 2007 @ NMT
@@ -463,6 +469,7 @@ double tCNode::getLeafAI() {return LeafAI;}
 // CJC2025: New Parameters
 double tCNode::getEvapThresh() {return EvapThresh;}
 double tCNode::getTransThresh() {return TransThresh;}
+double tCNode::getRootZoneDepth() {return RootZoneDepth;}
 
 // SKYnGM2008LU
 double tCNode::getLandUseAlbInPrevGrid() {return LandUseAlbInPrevGrid;}
@@ -486,10 +493,12 @@ double tCNode::getOptTransmCoeffInUntilGrid() {return OptTransmCoeffInUntilGrid;
 double tCNode::getLeafAIInPrevGrid() {return LeafAIInPrevGrid;}
 double tCNode::getLeafAIInUntilGrid() {return LeafAIInUntilGrid;}
 // CJC2025: New Parameters
-double tCNode::getEvapThreshInPrevGrid() {return EvapThreshInPrevGrid;} 
-double tCNode::getEvapThreshInUntilGrid() {return EvapThreshInUntilGrid;} 
-double tCNode::getTransThreshInPrevGrid() {return TransThreshInPrevGrid;} 
-double tCNode::getTransThreshInUntilGrid() {return TransThreshInUntilGrid;} 
+double tCNode::getEvapThreshInPrevGrid() {return EvapThreshInPrevGrid;}
+double tCNode::getEvapThreshInUntilGrid() {return EvapThreshInUntilGrid;}
+double tCNode::getTransThreshInPrevGrid() {return TransThreshInPrevGrid;}
+double tCNode::getTransThreshInUntilGrid() {return TransThreshInUntilGrid;}
+double tCNode::getRootZoneDepthInPrevGrid() {return RootZoneDepthInPrevGrid;}
+double tCNode::getRootZoneDepthInUntilGrid() {return RootZoneDepthInUntilGrid;} 
 
 // SKYnGM2008LU
 double tCNode::getAvThroughFall() {return AvThroughFall;}
@@ -505,6 +514,7 @@ double tCNode::getAvLeafAI() {return AvLeafAI;}
 // CJC2025: New Parameters
 double tCNode::getAvEvapThresh() {return AvEvapThresh;}
 double tCNode::getAvTransThresh() {return AvTransThresh;}
+double tCNode::getAvRootZoneDepth() {return AvRootZoneDepth;}
 
 int    tCNode::getFloodStatus()  { return flood; }
 int    tCNode::getSoilID()       { return soiID; }
@@ -804,6 +814,7 @@ void tCNode::setLeafAI(double value) { LeafAI = value; }
 // CJC2025: New Parameters
 void tCNode::setEvapThresh(double value) { EvapThresh = value; }
 void tCNode::setTransThresh(double value) { TransThresh = value; }
+void tCNode::setRootZoneDepth(double value) { RootZoneDepth = value; }
 
 // SKYnGM2008LU
 void tCNode::setLandUseAlbInPrevGrid(double value) { LandUseAlbInPrevGrid = value; }
@@ -831,6 +842,8 @@ void tCNode::setEvapThreshInPrevGrid(double value) { EvapThreshInPrevGrid = valu
 void tCNode::setEvapThreshInUntilGrid(double value) { EvapThreshInUntilGrid = value; }
 void tCNode::setTransThreshInPrevGrid(double value) { TransThreshInPrevGrid = value; }
 void tCNode::setTransThreshInUntilGrid(double value) { TransThreshInUntilGrid = value; }
+void tCNode::setRootZoneDepthInPrevGrid(double value) { RootZoneDepthInPrevGrid = value; }
+void tCNode::setRootZoneDepthInUntilGrid(double value) { RootZoneDepthInUntilGrid = value; }
 
 // SKYnGM2008LU
 void tCNode::setAvThroughFall(double value) { AvThroughFall = value; }
@@ -846,6 +859,7 @@ void tCNode::setAvLeafAI(double value) { AvLeafAI = value; }
 // CJC2025: New Parameters
 void tCNode::setAvEvapThresh(double value) { AvEvapThresh = value; }
 void tCNode::setAvTransThresh(double value) { AvTransThresh = value; }
+void tCNode::setAvRootZoneDepth(double value) { AvRootZoneDepth = value; }
 
 // Added by Giuseppe Mascaro in 2016 to allow ingestion of soil grids
 void tCNode::setKs(double value) { Ks = value;}
@@ -1352,6 +1366,7 @@ void tCNode::writeRestart(fstream& rStr) const
   // CJC2025: New Parameters
   BinaryWrite(rStr, EvapThresh);
   BinaryWrite(rStr, TransThresh);
+  BinaryWrite(rStr, RootZoneDepth);
 
   BinaryWrite(rStr, LandUseAlbInPrevGrid);
   BinaryWrite(rStr, LandUseAlbInUntilGrid);
@@ -1378,6 +1393,8 @@ void tCNode::writeRestart(fstream& rStr) const
   BinaryWrite(rStr, EvapThreshInUntilGrid);
   BinaryWrite(rStr, TransThreshInPrevGrid);
   BinaryWrite(rStr, TransThreshInUntilGrid);
+  BinaryWrite(rStr, RootZoneDepthInPrevGrid);
+  BinaryWrite(rStr, RootZoneDepthInUntilGrid);
 
   BinaryWrite(rStr, AvThroughFall);
   BinaryWrite(rStr, AvCanFieldCap);
@@ -1392,6 +1409,7 @@ void tCNode::writeRestart(fstream& rStr) const
   // CJC2025: New Parameters
   BinaryWrite(rStr, AvEvapThresh);
   BinaryWrite(rStr, AvTransThresh);
+  BinaryWrite(rStr, AvRootZoneDepth);
 
   BinaryWrite(rStr, cumHrsSun); // Snow
   BinaryWrite(rStr, cumLHF);
@@ -1624,6 +1642,7 @@ void tCNode::readRestart(fstream& rStr)
   // CJC2025: New Parameters
   BinaryRead(rStr, EvapThresh);
   BinaryRead(rStr, TransThresh);
+  BinaryRead(rStr, RootZoneDepth);
 
   BinaryRead(rStr, LandUseAlbInPrevGrid);
   BinaryRead(rStr, LandUseAlbInUntilGrid);
@@ -1650,6 +1669,8 @@ void tCNode::readRestart(fstream& rStr)
   BinaryRead(rStr, EvapThreshInUntilGrid);
   BinaryRead(rStr, TransThreshInPrevGrid);
   BinaryRead(rStr, TransThreshInUntilGrid);
+  BinaryRead(rStr, RootZoneDepthInPrevGrid);
+  BinaryRead(rStr, RootZoneDepthInUntilGrid);
 
   BinaryRead(rStr, AvThroughFall);
   BinaryRead(rStr, AvCanFieldCap);
@@ -1664,6 +1685,7 @@ void tCNode::readRestart(fstream& rStr)
   // CJC2025: New Parameters
   BinaryRead(rStr, AvEvapThresh);
   BinaryRead(rStr, AvTransThresh);
+  BinaryRead(rStr, AvRootZoneDepth);
 
   BinaryRead(rStr, cumHrsSun); // Snow
   BinaryRead(rStr, cumLHF);
@@ -1868,6 +1890,7 @@ void tCNode::printVariables()
   // CJC2025: New Parameters
   cout << " EvapThresh " << EvapThresh;
   cout << " TransThresh " << TransThresh;
+  cout << " RootZoneDepth " << RootZoneDepth;
 
   cout << " LandUseAlbInPrevGrid " << LandUseAlbInPrevGrid;
   cout << " LandUseAlbInUntilGrid " << LandUseAlbInUntilGrid;

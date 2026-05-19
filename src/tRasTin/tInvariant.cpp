@@ -625,7 +625,7 @@ GenericLandData::GenericLandData(tMesh<tCNode> *mesh,
 		id++;
 	}
 	
-	const int kLandColumns = 13; // ID + 12 land use properties
+	const int kLandColumns = 14; // ID + 13 land use properties
 	ifstream Inp0(landTable);
 	if (!Inp0) {
 		cout <<"\nFile "<<landTable<<" not found!"<<endl;
@@ -641,7 +641,7 @@ GenericLandData::GenericLandData(tMesh<tCNode> *mesh,
 		if (c == ',') ++colCount;
 	if (colCount != kLandColumns) {
 		cout << "\nError: Land use table '" << landTable << "' has " << colCount
-		     << " columns, expected " << kLandColumns << " (ID + 12 parameters)." << endl;
+		     << " columns, expected " << kLandColumns << " (ID + 13 parameters)." << endl;
 		cout << "Exiting Program...\n\n" << endl;
 		exit(2);
 	}
@@ -725,7 +725,7 @@ void GenericLandData::SetLtypeParameters(tMesh<tCNode> *mesh,
 	}
 	
 	infile.ReadItem(landTable, "LANDTABLENAME"); // Input table
-	const int kLandColumns = 13; // ID + 12 land use properties
+	const int kLandColumns = 14; // ID + 13 land use properties
 	ifstream Inp0(landTable);
 	if (!Inp0) {
 		cout <<"File "<<landTable<<" not found!!!"<<endl;
@@ -741,7 +741,7 @@ void GenericLandData::SetLtypeParameters(tMesh<tCNode> *mesh,
 		if (c == ',') ++colCount;
 	if (colCount != kLandColumns) {
 		cout << "\nError: Land use table '" << landTable << "' has " << colCount
-		     << " columns, expected " << kLandColumns << " (ID + 12 parameters)." << endl;
+		     << " columns, expected " << kLandColumns << " (ID + 13 parameters)." << endl;
 		cout << "Exiting Program...\n\n" << endl;
 		exit(2);
 	}

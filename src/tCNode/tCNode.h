@@ -254,6 +254,7 @@ public:
   // CJC2025: New Parameters
   double getEvapThresh();
   double getTransThresh();
+  double getRootZoneDepth();
 
   // SKYnGM2008LU
   double getLandUseAlbInPrevGrid();
@@ -281,6 +282,8 @@ public:
   double getEvapThreshInUntilGrid();
   double getTransThreshInPrevGrid();
   double getTransThreshInUntilGrid();
+  double getRootZoneDepthInPrevGrid();
+  double getRootZoneDepthInUntilGrid();
 
 
 
@@ -298,6 +301,7 @@ public:
   // CJC2025: New Parameters
   double getAvEvapThresh();
   double getAvTransThresh();
+  double getAvRootZoneDepth();
 
   double getAvSoilMoisture();         // Integral characteristics
   double getAvEvapFract();
@@ -448,6 +452,7 @@ public:
   // CJC2025: New Parameters
   void setEvapThresh(double);
   void setTransThresh(double);
+  void setRootZoneDepth(double);
 
   void setLandUseAlbInPrevGrid(double);
   void setLandUseAlbInUntilGrid(double);
@@ -474,6 +479,8 @@ public:
   void setEvapThreshInUntilGrid(double);
   void setTransThreshInPrevGrid(double);
   void setTransThreshInUntilGrid(double);
+  void setRootZoneDepthInPrevGrid(double);
+  void setRootZoneDepthInUntilGrid(double);
 
   // SKYnGM2008LU
   void setAvThroughFall(double);
@@ -489,6 +496,7 @@ public:
   // CJC2025: New Parameters
   void setAvEvapThresh(double);
   void setAvTransThresh(double);
+  void setAvRootZoneDepth(double);
 
   void setAvSoilMoisture(double);     // Integral characteristics
   void setAvEvapFract(double);
@@ -788,6 +796,7 @@ protected:
   // CJC2025: New Parameters
   double EvapThresh;
   double TransThresh;
+  double RootZoneDepth;
 
   // SKYnGM2008LU
   double LandUseAlbInPrevGrid, LandUseAlbInUntilGrid, ThroughFallInPrevGrid, ThroughFallInUntilGrid;
@@ -797,12 +806,14 @@ protected:
   double DrainCoeffInPrevGrid, DrainCoeffInUntilGrid, DrainExpParInPrevGrid, DrainExpParInUntilGrid;
   double OptTransmCoeffInPrevGrid, OptTransmCoeffInUntilGrid, LeafAIInPrevGrid, LeafAIInUntilGrid;
   double EvapThreshInPrevGrid, EvapThreshInUntilGrid, TransThreshInPrevGrid, TransThreshInUntilGrid; // CJC2025: New Parameters
+  double RootZoneDepthInPrevGrid, RootZoneDepthInUntilGrid;
 
   // SKYnGM2008LU
   double AvThroughFall, AvCanFieldCap;
   double AvDrainCoeff, AvDrainExpPar, AvLandUseAlb, AvVegHeight;
   double AvOptTransmCoeff, AvStomRes, AvVegFraction, AvLeafAI;
   double AvEvapThresh, AvTransThresh; // CJC2025: New Parameters
+  double AvRootZoneDepth;
 
   double AvSoilMoisture;        // Integral characteristics
   double AvEvapFract;
