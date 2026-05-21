@@ -60,6 +60,7 @@ public:
 
   void WriteOutput(double);
   void CreateAndOpenFile(ofstream*, char*);
+  void CreateAndOpenFileSingle(ofstream*, char*);
   void ReadNodeOutputList();
   void CreateAndOpenPixel();
   void CreateAndOpenDynVar();
