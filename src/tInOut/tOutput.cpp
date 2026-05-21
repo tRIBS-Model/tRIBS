@@ -766,7 +766,7 @@ tCOutput<tSubNode>::tCOutput(SimulationControl *simCtrPtr, tMesh<tSubNode> *g,
 	char nodeFileO[kMaxNameSize];
 
 	// Set up interior outlets and open .qout files
-	infile.ReadItem( outletName, "OUTHYDROFILENAME");
+	infile.ReadItem( outletName, "OUTFILENAME");
 	infile.ReadItem( nodeFileO, "OUTLETNODELIST" );
 	ReadOutletNodeList(nodeFileO);
 

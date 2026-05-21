@@ -117,7 +117,7 @@ tKinemat::tKinemat(SimulationControl *sPtr, tMesh<tCNode> *gridRef, tInputFile &
     // Open file for model streamflow at the OutletNode
 #ifndef PARALLEL_TRIBS
     // When running sequentially, open this file now
-    infile.ReadItem(fullName2, "OUTHYDROFILENAME");
+    infile.ReadItem(fullName2, "OUTFILENAME");
     strcat(fullName2, "_Outlet.qout");
     theOFStream.open(fullName2);
 
@@ -2294,7 +2294,7 @@ void tKinemat::openOutletFile(tInputFile &infile)
   // the last reach
   if (tGraph::hasLastReach()) {
     char fullName2[kMaxNameSize+20];
-    infile.ReadItem(fullName2, "OUTHYDROFILENAME" );
+    infile.ReadItem(fullName2, "OUTFILENAME" );
     strcat( fullName2, "_Outlet.qout" );
     theOFStream.open(fullName2);
 
