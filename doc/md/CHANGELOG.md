@@ -5,6 +5,8 @@ All notable changes to this project are documented in this file.
 ## [6.0.0] - Unreleased
 v6.0.0 is a major release focused on simplifying the user experience and streamlining the codebase. This version introduces improvements to snow physics, adds modern raster support via GDAL, and implements optimizations to improve simulation performance. **To view examples of the updated v6.0.0 input structure and the new snow parameter files (.spf), please visit our [Model Benchmark Repository](https://github.com/tRIBS-Model/tRIBS-benchmarks).**
 
+The v6.0.0 changes listed below are abbreviated. For specific details refer to the tRIBS Wiki or the pull request links associated with the changes below.
+
 ### Added
 * **GDAL Integration:** Added optional build configuration to link against GDAL, allowing tRIBS to read a wide variety of binary raster formats. Includes a new `WITH_GDAL` CMake flag. ([#103](https://github.com/tRIBS-Model/tRIBS/pull/103))
 * **Static Land Use Grids:** Added `OPTLANDUSE = 2` to allow reading spatially variable but temporally constant land use parameters from non-timestamped rasters. ([#102](https://github.com/tRIBS-Model/tRIBS/pull/102))
