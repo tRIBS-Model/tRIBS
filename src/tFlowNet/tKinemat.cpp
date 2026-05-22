@@ -45,7 +45,6 @@ tKinemat::tKinemat(SimulationControl *sPtr, tMesh<tCNode> *gridRef, tInputFile &
 
     simCtrl = sPtr;
 
-    char fullName1[kMaxNameSize + 20];
     char fullName2[kMaxNameSize + 20];
 
     n = m = m1 = 0;
@@ -115,30 +114,10 @@ tKinemat::tKinemat(SimulationControl *sPtr, tMesh<tCNode> *gridRef, tInputFile &
     for (int i = 0; i < NodesLstO.getSize(); i++)
         OutletHlev[i] = 0.0; // Initialization of outlet levels
 
-    // Open file for model run control
-    infile.ReadItem(fullName1, "OUTHYDROFILENAME");
-    strcat(fullName1, ".cntrl");
-
-#ifdef PARALLEL_TRIBS
-                                                                                                                            // Add processor extension if running in parallel
-   char procex[10];
-   snprintf( procex,sizeof(procex),".%-d", tParallel::getMyProc());//WR--09192023: 'sprintf' is deprecated: This function is provided for compatibility reasons only.
-   strcat(fullName1, procex);
-#endif
-
-    ControlOut.open(fullName1);
-
-    if (!ControlOut.good()) {
-        cout << "\nWarning: Simulation control file not created... "
-             << "\nExiting program..." << endl << flush;
-        exit(2);
-    }
-    ControlOut.setf(ios::fixed, ios::floatfield);
-
     // Open file for model streamflow at the OutletNode
 #ifndef PARALLEL_TRIBS
     // When running sequentially, open this file now
-    infile.ReadItem(fullName2, "OUTHYDROFILENAME");
+    infile.ReadItem(fullName2, "OUTFILENAME");
     strcat(fullName2, "_Outlet.qout");
     theOFStream.open(fullName2);
 
@@ -200,7 +179,6 @@ tKinemat::~tKinemat() {
   if (tGraph::hasLastReach())
 #endif
     theOFStream.close();
-    ControlOut.close();
     GeomtFile.close();
 
     // Deallocate memory for stacks in stream nodes //WR debug
@@ -721,9 +699,6 @@ void tKinemat::RunRoutingModel(int it, int *check, double timeStep) {
 #endif
     }
 
-    // Close file with reach info
-    if (TimeSteps == 0) ControlOut.close();
-
     TimeSteps++;
     return;
 }
@@ -1021,7 +996,6 @@ void tKinemat::InitializeStreamReach(int NN, int CountLimit) {
         if (his[i] > maxH)
             maxH = his[i];
 
-        //PrintFlowStacks(ControlOut, cmove);
 
         cmove = cmove->getDownstrmNbr();
         i++;
@@ -1055,27 +1029,6 @@ void tKinemat::InitializeStreamReach(int NN, int CountLimit) {
 
     ComputeCoefficientArrays();
 
-
-    // Output control
-    if (TimeSteps == 0) {
-        ControlOut << "## REACH ID = " << id + 1 << " ##" << "\n";
-        ControlOut << "- WIDTH -\t";
-        ControlPrint(ControlOut, bis, n);
-        ControlOut << "- LENGTH -\t";
-        ControlPrint(ControlOut, ais, m);
-        ControlOut << "- ROUGHNESS -\t";
-        ControlPrint(ControlOut, rifis, n);
-        ControlOut << "- SLOPE -\t";
-        ControlPrint(ControlOut, siis, n);
-        ControlOut << "- C -\t";
-        ControlPrint(ControlOut, C, n);
-        ControlOut << "- Y1 -\t";
-        ControlPrint(ControlOut, Y1, n - 2);
-        ControlOut << "- Y2 -\t";
-        ControlPrint(ControlOut, Y2, n - 1);
-        ControlOut << "- Y3 -\t";
-        ControlPrint(ControlOut, Y3, n - 1);
-    }
 
     return;
 }
@@ -1516,19 +1469,6 @@ void tKinemat::UpdateStreamVars() {
     return;
 }
 
-/*****************************************************************************
-**
-**  tKinemat::ControlPrint()
-**
-**  Prints out an array 'a' to a destination 'Otp'
-**
-*****************************************************************************/
-void tKinemat::ControlPrint(ofstream &Otp, double *a, int NN) {
-    for (int i = 0; i < NN; i++)
-        Otp << a[i] << " ";
-    Otp << "\n\n";
-    return;
-}
 
 /*****************************************************************************
 **
@@ -2354,7 +2294,7 @@ void tKinemat::openOutletFile(tInputFile &infile)
   // the last reach
   if (tGraph::hasLastReach()) {
     char fullName2[kMaxNameSize+20];
-    infile.ReadItem(fullName2, "OUTHYDROFILENAME" );
+    infile.ReadItem(fullName2, "OUTFILENAME" );
     strcat( fullName2, "_Outlet.qout" );
     theOFStream.open(fullName2);
 

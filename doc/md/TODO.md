@@ -8,7 +8,6 @@
 - [ ] Remove default parallelization option
 - [ ] Port MeshBuilder parallelization workflow into tRIBS
 - [ ] Package METIS from parallelization work with tRIBS
-- [ ] Merge spatial outputs from parallel simulations within tRIBS
 - [ ] Rerun tRIBS through a profiler for improving runtimes
 - [ ] Integrate stomatal resistance changes from Becerra branch
 - [ ] Generalize restart functionality
@@ -32,6 +31,7 @@
 - [x] Simplify humidity input. Only keep RH and remove others
 - [x] Standardize input text files
 - [x] Add root zone depth as land use parameter. If specified to -9999 then use original 1m.
+- [x] Merge spatial outputs from parallel simulations within tRIBS
 
 
 

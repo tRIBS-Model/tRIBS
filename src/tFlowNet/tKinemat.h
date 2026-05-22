@@ -94,7 +94,6 @@ class tKinemat : public tFlowNet
               double *, double *, double *, double *, 
               double *, double, double);
   
-  void ControlPrint(ofstream &, double *, int);
   void UpdateHsShifted(double *, double *, double, int);
   void AllocateMemory(int);
   void FreeMemory();
@@ -125,7 +124,6 @@ class tKinemat : public tFlowNet
 
   ifstream GeomtFile;       // Channel geometry input file
   ofstream theOFStream;     // Output file to store all the info
-  ofstream ControlOut;      // Output file to control simulations
 
   SimulationControl *simCtrl;   
 

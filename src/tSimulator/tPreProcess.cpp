@@ -251,10 +251,6 @@ void tPreProcess::CheckInputFile(tInputFile &infile)
 	CheckPathNameCorrect(tempString, "OUTFILENAME");
 #endif
 	
-	IterReadItem(infile, tempString,"OUTHYDROFILENAME");
-#ifndef PARALLEL_TRIBS
-	CheckPathNameCorrect(tempString, "OUTHYDROFILENAME");
-#endif
 	
 	IterReadItem(infile, tempString,"NODEOUTPUTLIST");
 	IterReadItem(infile, tempString,"HYDRONODELIST");
