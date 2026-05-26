@@ -107,7 +107,7 @@ int serialSimulation( int argc, char **argv )
 						  &RsmplMaster, &Balance, &Timer );
 	
 	Cout<<"\nCreating Rainfall Setup...\n";
-	tRainfall Rainfall( &SimCtrl, &BasinMesh, InputFile, &RsmplMaster );
+	tRainfall Rainfall( &SimCtrl, &BasinMesh, InputFile, &RsmplMaster, &Timer );
 	
 	Cout<<"\nCreating EvapoTranspiration Setup...\n";
 	tEvapoTrans EvapoTrans( &SimCtrl, &BasinMesh, InputFile, &Timer, 
@@ -224,7 +224,7 @@ int parallelSimulation(int argc, char **argv)
                           &RsmplMaster, &Balance, &Timer );
 
 		cout<<"\nCreating Rainfall Setup...\n";
-		tRainfall Rainfall( &SimCtrl, &BasinMesh, InputFile, &RsmplMaster );
+		tRainfall Rainfall( &SimCtrl, &BasinMesh, InputFile, &RsmplMaster, &Timer );
 
 		cout<<"\nCreating EvapoTranspiration Setup...\n";
 		tEvapoTrans EvapoTrans( &SimCtrl, &BasinMesh, InputFile, &Timer, 
@@ -299,7 +299,7 @@ int parallelSimulation(int argc, char **argv)
                               &RsmplMaster, &Balance, &Timer );
 
 		Cout<<"\nCreating Rainfall Setup...\n";
-		tRainfall Rainfall( &SimCtrl, &BasinMesh, InputFile, &RsmplMaster );
+		tRainfall Rainfall( &SimCtrl, &BasinMesh, InputFile, &RsmplMaster, &Timer );
 
 		Cout<<"\nCreating EvapoTranspiration Setup...\n";
 		tEvapoTrans EvapoTrans( &SimCtrl, &BasinMesh, InputFile, &Timer,

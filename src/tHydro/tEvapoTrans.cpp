@@ -3014,6 +3014,47 @@ void tEvapoTrans::readHydroMetData(int num)
 	}
 	readDataFile.close();
 
+	// Find the row matching STARTDATE and trim everything before it
+	{
+		int startIdx = -1;
+		for (int i = 0; i < static_cast<int>(rows.size()); i++) {
+			std::istringstream ss(rows[i]);
+			std::string token;
+			std::getline(ss, token, ','); int ry = std::stoi(token);
+			std::getline(ss, token, ','); int rm = std::stoi(token);
+			std::getline(ss, token, ','); int rd = std::stoi(token);
+			std::getline(ss, token, ','); int rh = std::stoi(token);
+			if (ry == timer->yearS && rm == timer->monthS && rd == timer->dayS && rh == timer->hourS) {
+				startIdx = i;
+				break;
+			}
+		}
+		if (startIdx < 0) {
+			std::cerr << "\n\nFATAL ERROR in " << fileName << std::endl;
+			std::cerr << "Simulation start date " << timer->yearS << "/" << timer->monthS
+			          << "/" << timer->dayS << " " << timer->hourS << ":00"
+			          << " not found in file." << std::endl;
+			std::cerr << "Exiting Program...\n\n" << std::endl;
+			exit(1);
+		}
+		if (startIdx > 0)
+			rows.erase(rows.begin(), rows.begin() + startIdx);
+	}
+
+	// Verify enough data exists to cover the full simulation duration
+	{
+		int requiredSteps = static_cast<int>(std::round(timer->getEndTime() / timer->getEtIStep()));
+		if (static_cast<int>(rows.size()) < requiredSteps) {
+			std::cerr << "\n\nFATAL ERROR in " << fileName << std::endl;
+			std::cerr << "Insufficient data for simulation duration." << std::endl;
+			std::cerr << "Required: " << requiredSteps << " timesteps ("
+			          << timer->getEndTime() << " hrs at " << timer->getEtIStep() << " hr intervals)" << std::endl;
+			std::cerr << "Available after start date: " << rows.size() << " timesteps" << std::endl;
+			std::cerr << "Exiting Program...\n\n" << std::endl;
+			exit(1);
+		}
+	}
+
 	int numTimes = static_cast<int>(rows.size());
 	weatherStations[num].setParm(numParams);
 
@@ -3057,21 +3098,7 @@ void tEvapoTrans::readHydroMetData(int num)
 			SurfTemperature[count] = (fabs(tempo - 9999.99) > 1.0E-3 && (tempo < -60 || tempo > 70)) ? 9999.99 : tempo;
 
 
-			// Timestamp validation
-			if (count == 0) {
-				if (yr[0] != timer->yearS || mo[0] != timer->monthS ||
-					dy[0] != timer->dayS   || hr[0] != timer->hourS)
-				{
-					std::cerr << "\n\nFATAL ERROR in " << fileName << std::endl;
-					std::cerr << "The first timestamp in the file does not match the simulation start time." << std::endl;
-					std::cerr << "Simulation Start: " << timer->yearS << "/" << timer->monthS
-					          << "/" << timer->dayS << " " << timer->hourS << ":00" << std::endl;
-					std::cerr << "Found in File:    " << yr[0] << "/" << mo[0] << "/" << dy[0]
-					          << " " << hr[0] << ":00" << std::endl;
-					std::cerr << "Exiting Program...\n\n" << std::endl;
-					exit(1);
-				}
-			} else {
+			if (count > 0) {
 				int expected_yr = yr[count-1];
 				int expected_mo = mo[count-1];
 				int expected_dy = dy[count-1];

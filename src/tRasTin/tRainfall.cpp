@@ -31,13 +31,14 @@ tRainfall::tRainfall()
 }
 
 // Constructor
-tRainfall::tRainfall(SimulationControl *simCtrPtr, tMesh<tCNode> *gridRef, 
-					 tInputFile &inFile, tResample *resamp)
+tRainfall::tRainfall(SimulationControl *simCtrPtr, tMesh<tCNode> *gridRef,
+					 tInputFile &inFile, tResample *resamp, tRunTimer *timerPtr)
 {
 	gridPtr = gridRef;
 	respPtr = resamp;
 	simCtrl = simCtrPtr;
-	
+	timer   = timerPtr;
+
 	SetRainVariables( inFile );
 
 }
@@ -332,33 +333,6 @@ void tRainfall::callRainGauge(tRunTimer *t)
 ***************************************************************************/
 void tRainfall::NewRainData(int time, tRunTimer *timer) 
 {  
-    // Begin block for validation of rainfall data input 
-    // Get the timestamp from the first rain gauge's data for the current index
-    int file_yr = rainGauges[0].getYear(time);
-    int file_mo = rainGauges[0].getMonth(time);
-    int file_dy = rainGauges[0].getDay(time);
-    int file_hr = rainGauges[0].getHour(time);
-
-    // Get the current simulation time from the timer object
-    int sim_yr = timer->year;
-    int sim_mo = timer->month;
-    int sim_dy = timer->day;
-    int sim_hr = timer->hour;
-
-    // Compare the two timestamps
-    if (file_yr != sim_yr || file_mo != sim_mo || file_dy != sim_dy || file_hr != sim_hr) {
-        std::cerr << "\n\nFATAL ERROR in rain gauge data" << std::endl;
-        std::cerr << "Timestamp mismatch detected during simulation." << std::endl;
-        std::cerr << "Simulation expected data for: " << sim_yr << "/" << sim_mo << "/" << sim_dy 
-                  << " " << sim_hr << ":00" << std::endl;
-        std::cerr << "But found data for:           " << file_yr << "/" << file_mo << "/" << file_dy 
-                  << " " << file_hr << ":00" << std::endl;
-        std::cerr << "This indicates a gap, duplicate, or incorrect data in the rain gauge file(s)." << std::endl;
-        std::cerr << "Exiting Program...\n\n" << std::endl;
-        exit(1);
-    }
-    // End block for validation of rainfall data input
-	
     currentTime[0] = rainGauges[0].getYear(time);
     currentTime[1] = rainGauges[0].getMonth(time);
     currentTime[2] = rainGauges[0].getDay(time);
@@ -555,32 +529,101 @@ void tRainfall::readGaugeData(int num)
 		}
 	}
 
-	std::vector<int>    Year, Month, Day, Hour;
-	std::vector<double> Rain;
-
+	// Read all data rows
+	std::vector<std::string> rows;
 	std::string line;
 	while (std::getline(readDataFile, line)) {
-		if (line.empty()) continue;
-		if (line.back() == '\r') line.pop_back();
-		if (line.empty()) continue;
-		std::istringstream ss(line);
-		std::string token;
-
-		std::getline(ss, token, ',');
-		Year.push_back(std::stoi(token));
-		std::getline(ss, token, ',');
-		Month.push_back(std::stoi(token));
-		std::getline(ss, token, ',');
-		Day.push_back(std::stoi(token));
-		std::getline(ss, token, ',');
-		Hour.push_back(std::stoi(token));
-		std::getline(ss, token, ',');
-		double tempo = std::stod(token);
-		Rain.push_back((tempo < 0 || tempo > 200) ? 9999.99 : tempo);
+		if (!line.empty() && line.back() == '\r') line.pop_back();
+		if (!line.empty()) rows.push_back(line);
 	}
 	readDataFile.close();
 
-	robustNess(Rain.data(), static_cast<int>(Rain.size()));
+	// Find the row matching STARTDATE and trim everything before it
+	int startIdx = -1;
+	for (int i = 0; i < static_cast<int>(rows.size()); i++) {
+		std::istringstream ss(rows[i]);
+		std::string token;
+		std::getline(ss, token, ','); int ry = std::stoi(token);
+		std::getline(ss, token, ','); int rm = std::stoi(token);
+		std::getline(ss, token, ','); int rd = std::stoi(token);
+		std::getline(ss, token, ','); int rh = std::stoi(token);
+		if (ry == timer->yearS && rm == timer->monthS && rd == timer->dayS && rh == timer->hourS) {
+			startIdx = i;
+			break;
+		}
+	}
+	if (startIdx < 0) {
+		std::cerr << "\n\nFATAL ERROR in " << fileName << std::endl;
+		std::cerr << "Simulation start date " << timer->yearS << "/" << timer->monthS
+		          << "/" << timer->dayS << " " << timer->hourS << ":00"
+		          << " not found in file." << std::endl;
+		std::cerr << "Exiting Program...\n\n" << std::endl;
+		exit(1);
+	}
+	if (startIdx > 0)
+		rows.erase(rows.begin(), rows.begin() + startIdx);
+
+	// Verify enough data exists to cover the full simulation duration
+	int requiredSteps = static_cast<int>(std::round(timer->getEndTime() / rainDt));
+	if (static_cast<int>(rows.size()) < requiredSteps) {
+		std::cerr << "\n\nFATAL ERROR in " << fileName << std::endl;
+		std::cerr << "Insufficient data for simulation duration." << std::endl;
+		std::cerr << "Required: " << requiredSteps << " timesteps ("
+		          << timer->getEndTime() << " hrs at " << rainDt << " hr intervals)" << std::endl;
+		std::cerr << "Available after start date: " << rows.size() << " timesteps" << std::endl;
+		std::cerr << "Exiting Program...\n\n" << std::endl;
+		exit(1);
+	}
+
+	int numTimes = static_cast<int>(rows.size());
+	std::vector<int>    Year(numTimes), Month(numTimes), Day(numTimes), Hour(numTimes);
+	std::vector<double> Rain(numTimes);
+
+	for (int count = 0; count < numTimes; count++) {
+		std::istringstream ss(rows[count]);
+		std::string token;
+
+		std::getline(ss, token, ','); Year[count]  = std::stoi(token);
+		std::getline(ss, token, ','); Month[count] = std::stoi(token);
+		std::getline(ss, token, ','); Day[count]   = std::stoi(token);
+		std::getline(ss, token, ','); Hour[count]  = std::stoi(token);
+		std::getline(ss, token, ',');
+		double tempo = std::stod(token);
+		Rain[count] = (tempo < 0 || tempo > 200) ? 9999.99 : tempo;
+
+		if (count > 0 && rainDt >= 1.0) {
+			int expected_yr = Year[count-1], expected_mo = Month[count-1];
+			int expected_dy = Day[count-1],  expected_hr = Hour[count-1];
+			expected_hr += static_cast<int>(rainDt);
+			while (expected_hr >= 24) {
+				expected_hr -= 24;
+				expected_dy++;
+				int dayInMonth[12] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+				bool isLeap = (expected_yr % 4 == 0 && expected_yr % 100 != 0) || (expected_yr % 400 == 0);
+				if (isLeap) dayInMonth[1] = 29;
+				if (expected_dy > dayInMonth[expected_mo - 1]) {
+					expected_dy = 1;
+					if (++expected_mo > 12) { expected_mo = 1; expected_yr++; }
+				}
+			}
+			if (Year[count] != expected_yr || Month[count] != expected_mo ||
+			    Day[count]  != expected_dy  || Hour[count]  != expected_hr)
+			{
+				std::cerr << "\n\nFATAL ERROR in " << fileName << std::endl;
+				std::cerr << "Timestamp gap or duplicate detected in data." << std::endl;
+				std::cerr << "After:    " << Year[count-1] << "/" << Month[count-1] << "/" << Day[count-1]
+				          << " " << Hour[count-1] << ":00" << std::endl;
+				std::cerr << "Expected: " << expected_yr << "/" << expected_mo << "/" << expected_dy
+				          << " " << expected_hr << ":00" << std::endl;
+				std::cerr << "Found:    " << Year[count] << "/" << Month[count] << "/" << Day[count]
+				          << " " << Hour[count] << ":00" << std::endl;
+				std::cerr << "Exiting Program...\n\n" << std::endl;
+				exit(1);
+			}
+		}
+	}
+
+	robustNess(Rain.data(), numTimes);
 
 	rainGauges[num].setYear(Year);
 	rainGauges[num].setMonth(Month);
