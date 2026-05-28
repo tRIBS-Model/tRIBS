@@ -53,6 +53,10 @@ public:
   tRunTimer( tInputFile &infile );
   tRunTimer();
   double  getCurrentTime() const;
+  int     getYear() const;
+  int     getMonth() const;
+  int     getDay() const;
+  int     getHour() const;
   double  getTimeStep() const;
   double  getMetStep() const;
   double  getEtIStep() const;
@@ -95,8 +99,6 @@ public:
   void    res_time_mid(int, int *, int *);
   void    res_time_end(int, int *, int *);
   void    UpdateStorm(double);
-  void    writeRestart(fstream &) const;
-  void    readRestart(fstream &);
 
   int days[13];
   int cumdays[13]; 
@@ -132,6 +134,10 @@ inline double tRunTimer::getRainDT()      const { return dtRain; }
 inline double tRunTimer::getMetStep()     const { return metstep; }
 inline double tRunTimer::getEtIStep()     const { return etistep; }
 inline double tRunTimer::getCurrentTime() const { return currentTime; }
+inline int    tRunTimer::getYear()        const { return year; }
+inline int    tRunTimer::getMonth()       const { return month; }
+inline int    tRunTimer::getDay()         const { return day; }
+inline int    tRunTimer::getHour()        const { return hour; }
 inline double tRunTimer::RemainingTime()  const { return (endTime - currentTime); }
 inline double tRunTimer::getTimeStep()    const { return tstep; }
 inline double tRunTimer::getGWTimeStep()  const { return gwatstep; }

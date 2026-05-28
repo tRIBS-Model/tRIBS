@@ -61,8 +61,6 @@ class tRainGauge
   int getDay(int);
   int getHour(int);
   double getRain(int);
-  void writeRestart(fstream &) const;
-  void readRestart(fstream &);
 
  protected:
   int stationID;

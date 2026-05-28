@@ -757,68 +757,6 @@ void tRainfall::setToNode()
 	return;
 }
 
-/***************************************************************************
-**
-** tRainfall::writeRestart() Function
-** 
-** Called from tSimulator during simulation loop
-** 
-***************************************************************************/
-void tRainfall::writeRestart(fstream & rStr) const
-{
-  BinaryWrite(rStr, searchRain);
-  BinaryWrite(rStr, rainfallType);
-  BinaryWrite(rStr, numStations);
-  BinaryWrite(rStr, arraySize);
-  BinaryWrite(rStr, hourlyTimeStep);
-  BinaryWrite(rStr, optMAP);
-  BinaryWrite(rStr, rainDt);
-
-  if (rainfallType == 2) {
-    for (int i = 0; i < 4; i++)
-      BinaryWrite(rStr, currentTime[i]);
-    for (int i = 0; i < arraySize; i++) {
-      BinaryWrite(rStr, gaugeRain[i]);
-      BinaryWrite(rStr, latitude[i]);
-      BinaryWrite(rStr, longitude[i]);
-    } 
-    for (int i = 0; i < numStations; i++)
-      rainGauges[i].writeRestart(rStr);
-  }
-
-  BinaryWrite(rStr, precLapseRate);
-}
-
-/***************************************************************************
-**
-** tRainfall::readRestart() Function
-**
-***************************************************************************/
-void tRainfall::readRestart(fstream & rStr)
-{
-  BinaryRead(rStr, searchRain);
-  BinaryRead(rStr, rainfallType);
-  BinaryRead(rStr, numStations);
-  BinaryRead(rStr, arraySize);
-  BinaryRead(rStr, hourlyTimeStep);
-  BinaryRead(rStr, optMAP);
-  BinaryRead(rStr, rainDt);
-
-  if (rainfallType == 2) {
-    for (int i = 0; i < 4; i++)
-      BinaryRead(rStr, currentTime[i]);
-    for (int i = 0; i < arraySize; i++) {
-      BinaryRead(rStr, gaugeRain[i]);
-      BinaryRead(rStr, latitude[i]);
-      BinaryRead(rStr, longitude[i]);
-    }
-    for (int i = 0; i < numStations; i++)
-      rainGauges[i].readRestart(rStr);
-  }
-
-  BinaryRead(rStr, precLapseRate);
-}
-
 //=========================================================================
 //
 //

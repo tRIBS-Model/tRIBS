@@ -14,13 +14,18 @@
 **
 ***************************************************************************/
 
+#include <cmath>
+#include <cstdint>
 #include <sstream>
+#include <vector>
 #include "src/tSimulator/tSimul.h"
 #include "src/Headers/TemplDefinitions.h"
 #include "src/Headers/globalIO.h"
 
 #ifdef PARALLEL_TRIBS
 #include "src/tGraph/tGraph.h"
+#include "src/tParallel/tParallel.h"
+#include <mpi.h>
 #endif
 
 //=========================================================================
@@ -253,7 +258,7 @@ void Simulator::simulation_loop(tHydroModel *Moisture, tKinemat *Flow,
 #endif
 
       // Write restart files
-      if ( optrestart > 0 && timer->getCurrentTime() == nextRestartDump) {
+      if ( (optrestart == 1 || optrestart == 3) && timer->getCurrentTime() >= nextRestartDump) {
           writeRestart(restartDir);
           nextRestartDump += restartIntrvl;
       }
@@ -609,31 +614,106 @@ void Simulator::writeRestart(char* directory) const
 {
   Cout << "WRITE RESTART at time " << timer->getCurrentTime() << endl << endl;
 
-  fstream rStr;
+  double   ct     = timer->getCurrentTime();
+  int32_t  yr     = static_cast<int32_t>(timer->getYear());
+  int32_t  mo     = static_cast<int32_t>(timer->getMonth());
+  int32_t  dy     = static_cast<int32_t>(timer->getDay());
+  int32_t  hr     = static_cast<int32_t>(timer->getHour());
+  int32_t  snOpt  = static_cast<int32_t>(restart->getSnowOpt());
+
   stringstream sFile;
   sFile << directory << "/tRIBS_Rstrt_";
-  sFile << setw(5) << setfill('0') << (int) timer->getCurrentTime();
+  sFile << setw(5) << setfill('0') << (int) ct;
 
 #ifdef PARALLEL_TRIBS
-  sFile << "_" << tParallel::getMyProc();
-#endif 
+  // ---- PARALLEL PATH ----
+  // Each rank serializes its outlet records (nodeID+Hlev pairs) and node
+  // records to separate in-memory buffers, then rank 0 gathers both and
+  // writes a single flat file: header + all outlet records + all node records.
+  // On read, every rank opens the same file and filters by nodeID, so the
+  // file is completely rank-count-agnostic.
 
+  ostringstream outletBuf(ios::binary);
+  restart->writeRestartOutlets(outletBuf);
+  string outletData = outletBuf.str();
+  int outletLocalSize = static_cast<int>(outletData.size());
+
+  ostringstream nodeBuf(ios::binary);
+  restart->writeRestartNodes(nodeBuf);
+  string nodeData = nodeBuf.str();
+  int nodeLocalSize = static_cast<int>(nodeData.size());
+
+  int numProcs = tParallel::getNumProcs();
+  int32_t totalOutlets = static_cast<int32_t>(tParallel::sumBroadcast(restart->getNumOutlets()));
+  int32_t totalNodes   = static_cast<int32_t>(tParallel::sumBroadcast(restart->getNumNodes()));
+
+  // Gather outlet buffer sizes and bytes to rank 0.
+  vector<int> outletSizes(numProcs, 0);
+  MPI_Gather(&outletLocalSize, 1, MPI_INT, outletSizes.data(), 1, MPI_INT,
+             MASTER_PROC, MPI_COMM_WORLD);
+
+  vector<int> outletDispls(numProcs, 0);
+  int totalOutletBytes = 0;
+  if (tParallel::isMaster()) {
+    for (int i = 0; i < numProcs; i++) { outletDispls[i] = totalOutletBytes; totalOutletBytes += outletSizes[i]; }
+  }
+  vector<char> allOutletData;
+  if (tParallel::isMaster()) allOutletData.resize(totalOutletBytes);
+  MPI_Gatherv(outletData.data(), outletLocalSize, MPI_CHAR,
+              allOutletData.empty() ? nullptr : allOutletData.data(),
+              outletSizes.data(), outletDispls.data(), MPI_CHAR,
+              MASTER_PROC, MPI_COMM_WORLD);
+
+  // Gather node buffer sizes and bytes to rank 0.
+  vector<int> nodeSizes(numProcs, 0);
+  MPI_Gather(&nodeLocalSize, 1, MPI_INT, nodeSizes.data(), 1, MPI_INT,
+             MASTER_PROC, MPI_COMM_WORLD);
+
+  vector<int> nodeDispls(numProcs, 0);
+  int totalNodeBytes = 0;
+  if (tParallel::isMaster()) {
+    for (int i = 0; i < numProcs; i++) { nodeDispls[i] = totalNodeBytes; totalNodeBytes += nodeSizes[i]; }
+  }
+  vector<char> allNodeData;
+  if (tParallel::isMaster()) allNodeData.resize(totalNodeBytes);
+  MPI_Gatherv(nodeData.data(), nodeLocalSize, MPI_CHAR,
+              allNodeData.empty() ? nullptr : allNodeData.data(),
+              nodeSizes.data(), nodeDispls.data(), MPI_CHAR,
+              MASTER_PROC, MPI_COMM_WORLD);
+
+  if (tParallel::isMaster()) {
+    fstream rStr;
+    rStr.open(sFile.str().c_str(), ios::out|ios::binary);
+    uint32_t magic = 0x54524853u, schema = 2u, verMaj = 6u, verMin = 0u;
+    BinaryWrite(rStr, magic);   BinaryWrite(rStr, schema);
+    BinaryWrite(rStr, verMaj);  BinaryWrite(rStr, verMin);
+    BinaryWrite(rStr, ct);      BinaryWrite(rStr, yr);
+    BinaryWrite(rStr, mo);      BinaryWrite(rStr, dy);
+    BinaryWrite(rStr, hr);      BinaryWrite(rStr, snOpt);
+    BinaryWrite(rStr, totalNodes);
+    BinaryWrite(rStr, totalOutlets);
+    rStr.write(allOutletData.data(), totalOutletBytes);
+    rStr.write(allNodeData.data(), totalNodeBytes);
+    rStr.close();
+  }
+
+#else
+  // ---- SERIAL PATH ----
+  int32_t numN   = static_cast<int32_t>(restart->getNumNodes());
+  int32_t numOut = static_cast<int32_t>(restart->getNumOutlets());
+
+  fstream rStr;
   rStr.open(sFile.str().c_str(), ios::out|ios::binary);
-
-  // Dump local simulator information
-  BinaryWrite(rStr, count);
-  BinaryWrite(rStr, dt_rain);
-  BinaryWrite(rStr, lmr_hour);
-  BinaryWrite(rStr, begin_hour);
-  BinaryWrite(rStr, met_hour);
-  BinaryWrite(rStr, eti_hour);
-  BinaryWrite(rStr, GW_label);
-  BinaryWrite(rStr, searchRain);
-
-  // Dump information from objects controlled by tRestart
+  uint32_t magic = 0x54524853u, schema = 1u, verMaj = 6u, verMin = 0u;
+  BinaryWrite(rStr, magic);   BinaryWrite(rStr, schema);
+  BinaryWrite(rStr, verMaj);  BinaryWrite(rStr, verMin);
+  BinaryWrite(rStr, ct);      BinaryWrite(rStr, yr);
+  BinaryWrite(rStr, mo);      BinaryWrite(rStr, dy);
+  BinaryWrite(rStr, hr);      BinaryWrite(rStr, snOpt);
+  BinaryWrite(rStr, numN);    BinaryWrite(rStr, numOut);
   restart->writeRestart(rStr);
-
   rStr.close();
+#endif
 }
 
 /***************************************************************************
@@ -643,33 +723,83 @@ void Simulator::writeRestart(char* directory) const
 ***************************************************************************/
 void Simulator::readRestart(tInputFile &InFl)
 {
-  Cout << "READ RESTART at time " << timer->getCurrentTime() << endl << endl;
-
   char restartFile[kName];
   InFl.ReadItem(restartFile, "RESTARTFILE");
 
+  // All ranks (serial or parallel) open the same file and filter by nodeID.
+  // No rank suffix — the file is rank-count-agnostic.
   fstream rStr;
-  stringstream sFile;
-  sFile << restartFile;
+  rStr.open(restartFile, ios::binary|ios::in);
+  if (!rStr.is_open()) {
+    cerr << "ERROR: Cannot open restart file: " << restartFile << endl;
+    exit(1);
+  }
+
+  uint32_t magic, schema, verMaj, verMin;
+  BinaryRead(rStr, magic);
+  if (magic != 0x54524853u) {
+    cerr << "ERROR: Restart file is not a valid v6 format (bad magic number).\n"
+         << "  v5.x restart files are not compatible with v6.0.0." << endl;
+    exit(1);
+  }
+  BinaryRead(rStr, schema);
 
 #ifdef PARALLEL_TRIBS
-  sFile << "_" << tParallel::getMyProc();
+  if (schema != 2u) {
+    cerr << "ERROR: Restart file schema " << schema
+         << " is not a parallel v6 file (expected 2)." << endl;
+    exit(1);
+  }
+#else
+  if (schema != 1u) {
+    cerr << "ERROR: Restart file schema " << schema
+         << " is not supported (expected 1)." << endl;
+    exit(1);
+  }
 #endif
 
-  rStr.open(sFile.str().c_str(), ios::binary|ios::in);
+  BinaryRead(rStr, verMaj);
+  BinaryRead(rStr, verMin);
 
-  // Read local simulator information
-  BinaryRead(rStr, count);
-  BinaryRead(rStr, dt_rain);
-  BinaryRead(rStr, lmr_hour);
-  BinaryRead(rStr, begin_hour);
-  BinaryRead(rStr, met_hour);
-  BinaryRead(rStr, eti_hour);
-  BinaryRead(rStr, GW_label);
-  BinaryRead(rStr, searchRain);
+  double   fileCt;
+  int32_t  yr, mo, dy, hr, snOpt, totalN, totalOut;
+  BinaryRead(rStr, fileCt);
+  BinaryRead(rStr, yr);
+  BinaryRead(rStr, mo);
+  BinaryRead(rStr, dy);
+  BinaryRead(rStr, hr);
+  BinaryRead(rStr, snOpt);
+  BinaryRead(rStr, totalN);
+  BinaryRead(rStr, totalOut);
 
-  // Read information from objects controlled by tRestart
-  restart->readRestart(rStr);
+  if (snOpt != restart->getSnowOpt()) {
+    cerr << "WARNING: Restart file snowOpt=" << snOpt
+         << " differs from current config snowOpt=" << restart->getSnowOpt()
+         << ". Snow state may be inconsistent." << endl;
+  }
+
+#ifdef PARALLEL_TRIBS
+  int32_t globalNodes = static_cast<int32_t>(tParallel::sumBroadcast(restart->getNumNodes()));
+  if (totalN != globalNodes) {
+    cerr << "ERROR: Restart file node count (" << totalN
+         << ") does not match mesh (" << globalNodes << ")." << endl;
+    exit(1);
+  }
+#else
+  if (totalN != restart->getNumNodes()) {
+    cerr << "ERROR: Restart file node count (" << totalN
+         << ") does not match mesh (" << restart->getNumNodes() << ")." << endl;
+    exit(1);
+  }
+#endif
+
+  Cout << "READ RESTART: file written " << yr << "-" << mo << "-" << dy
+       << " hr=" << hr << " (simtime=" << fileCt << " hrs)"
+       << ", new run starts " << timer->getCurrentTime() << " hrs" << endl << endl;
+
+  // Each rank reads the full outlet block and node block, applying only the
+  // records whose nodeIDs belong to this rank.
+  restart->readRestartGlobal(rStr, totalOut, totalN);
 
   rStr.close();
 }

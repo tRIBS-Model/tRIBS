@@ -139,62 +139,6 @@ double tRainGauge::getRain(int time){
 	return rain[time];
 }
 
-/***************************************************************************
-**
-** tRainGauge::writeRestart() Function
-**
-** Called from tSimulator during simulation loop
-**
-***************************************************************************/
-
-void tRainGauge::writeRestart(fstream & rStr) const
-{
-	int sz = static_cast<int>(year.size());
-	BinaryWrite(rStr, sz);
-	BinaryWrite(rStr, stationID);
-	for (int i = 0; i < sz; i++) {
-		BinaryWrite(rStr, year[i]);
-		BinaryWrite(rStr, month[i]);
-		BinaryWrite(rStr, day[i]);
-		BinaryWrite(rStr, hour[i]);
-	}
-	BinaryWrite(rStr, basinLat);
-	BinaryWrite(rStr, basinLong);
-	for (int i = 0; i < sz; i++)
-		BinaryWrite(rStr, rain[i]);
-	BinaryWrite(rStr, elev);
-}
-
-
-/***************************************************************************
-**
-** tRainGauge::readRestart() Function
-**
-***************************************************************************/
-
-void tRainGauge::readRestart(fstream & rStr)
-{
-	int sz;
-	BinaryRead(rStr, sz);
-	BinaryRead(rStr, stationID);
-	year.resize(sz);
-	month.resize(sz);
-	day.resize(sz);
-	hour.resize(sz);
-	for (int i = 0; i < sz; i++) {
-		BinaryRead(rStr, year[i]);
-		BinaryRead(rStr, month[i]);
-		BinaryRead(rStr, day[i]);
-		BinaryRead(rStr, hour[i]);
-	}
-	BinaryRead(rStr, basinLat);
-	BinaryRead(rStr, basinLong);
-	rain.resize(sz);
-	for (int i = 0; i < sz; i++)
-		BinaryRead(rStr, rain[i]);
-	BinaryRead(rStr, elev);
-}
-
 //=========================================================================
 //
 //

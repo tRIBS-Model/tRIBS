@@ -54,8 +54,6 @@ public:
   void assignStationToNode();
   void callRainGauge(tRunTimer *);
   void setToNode();
-  void writeRestart(fstream &) const;
-  void readRestart(fstream &);
   
   char mrainfileIn[kMaxNameSize];
   int searchRain, rainfallType;

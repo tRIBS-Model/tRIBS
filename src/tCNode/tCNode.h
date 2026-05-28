@@ -628,8 +628,10 @@ public:
   tEdge  *bndEdge2; 
   void   deleteVertArrays();   
   void   allocVertArrays(int); 
-  void   writeRestart(fstream&) const;
-  void   readRestart(fstream&);
+  void   writeRestart(ostream&) const;
+  void   readRestart(istream&);
+  void   readRestartBody(istream&);
+  static void skipRestartBody(istream&);
   void   printVariables();
 
   int    satOccur;              // Surface saturation occurence 

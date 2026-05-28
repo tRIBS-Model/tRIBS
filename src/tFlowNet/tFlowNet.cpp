@@ -3166,54 +3166,6 @@ void tFlowNet::SetReachInformation()
 	}
 }
 
-/***************************************************************************
-**  
-** tFlowNet::writeRestart() Function
-**  
-** Called from tSimulator during simulation loop
-**
-***************************************************************************/
- 
-void tFlowNet::writeRestart(fstream & rStr) const
-{
-  BinaryWrite(rStr, flowboxes);
-  BinaryWrite(rStr, hillvel);
-  BinaryWrite(rStr, flowexp);
-  BinaryWrite(rStr, baseflow);
-  BinaryWrite(rStr, dOtp); 
-  BinaryWrite(rStr, timespan);
-  BinaryWrite(rStr, flowout);
-  BinaryWrite(rStr, maxttime);
-  BinaryWrite(rStr, dist_hill_max);
-  BinaryWrite(rStr, dist_stream_max);
-  BinaryWrite(rStr, BasArea);
- 
-  res->writeRestart(rStr);
-} 
-
-/***************************************************************************
-**
-** tFlowNet::readRestart() Function
-**  
-***************************************************************************/
-                                        
-void tFlowNet::readRestart(fstream & rStr)
-{   
-  BinaryRead(rStr, flowboxes);
-  BinaryRead(rStr, hillvel);
-  BinaryRead(rStr, flowexp);
-  BinaryRead(rStr, baseflow);
-  BinaryRead(rStr, dOtp); 
-  BinaryRead(rStr, timespan);
-  BinaryRead(rStr, flowout);
-  BinaryRead(rStr, maxttime);
-  BinaryRead(rStr, dist_hill_max); 
-  BinaryRead(rStr, dist_stream_max);
-  BinaryRead(rStr, BasArea);
-                                         
-  res->readRestart(rStr);
-}   
-
 //=========================================================================
 //
 //

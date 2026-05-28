@@ -48,8 +48,6 @@ class tIntercept
   double storageRungeKutta(double, double, double, double *);
   double RutterFn(double, double, double, double);
   double getCtoS(tCNode *);
-  void   writeRestart(fstream &) const;
-  void   readRestart(fstream &);
 
   void readLUGrid(char*); // SKYnGM2008LU
 

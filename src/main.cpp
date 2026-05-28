@@ -121,9 +121,7 @@ int serialSimulation( int argc, char **argv )
 	tSnowPack SnowPack( &SimCtrl, &BasinMesh, InputFile, &Timer, &RsmplMaster, &Moisture, &Rainfall); // SKY2008Snow from AJR2007
 
 	Cout<<"\nCreating Restart setup...\n";
-	tRestart<tCNode> Restart( &Timer, &BasinMesh, &Flow, &Balance,
-                              &Moisture, &Rainfall, &EvapoTrans, &Intercept,
-                              &SnowPack);
+	tRestart<tCNode> Restart( &Timer, &BasinMesh, &Flow, &SnowPack);
 
 	Cout<<"\n\nPart 7: Creating and Initializing Simulation"<<endl;
 	Cout<<"------------------------------------------------"<<endl<<endl;
@@ -139,7 +137,7 @@ int serialSimulation( int argc, char **argv )
 
 	Cout<<"\n\nPart 8: Hydrologic Simulation Loop"<<endl;
 	Cout<<"--------------------------------------"<<endl;
-	Simulant.simulation_loop( &Moisture, &Flow, &EvapoTrans, 
+	Simulant.simulation_loop( &Moisture, &Flow, &EvapoTrans,
 							  &Intercept, &Balance, &SnowPack, // SKY2008Snow from AJR2007
 							  InputFile); // SKY2008Snow
 	Simulant.end_simulation( &Flow );
@@ -240,9 +238,7 @@ int parallelSimulation(int argc, char **argv)
 
 
 		cout<<"\nCreating Restart setup...\n";
-		tRestart<tCNode> Restart( &Timer, &BasinMesh, &Flow, &Balance,
-                              &Moisture, &Rainfall, &EvapoTrans, &Intercept,
-                              &SnowPack);
+		tRestart<tCNode> Restart( &Timer, &BasinMesh, &Flow, &SnowPack);
 
 		cout<<"\n\nPart 7: Creating and Initializing Simulation"<<endl;
 		Cout<<"------------------------------------------------"<<endl<<endl;
@@ -314,9 +310,7 @@ int parallelSimulation(int argc, char **argv)
                         &Moisture, &Rainfall); // SKY2008Snow from AJR2007
 
 		Cout<<"\nCreating Restart setup...\n";
-		tRestart<tCNode> Restart( &Timer, &BasinMesh, &Flow, &Balance,
-                              &Moisture, &Rainfall, &EvapoTrans, &Intercept,
-                              &SnowPack);
+		tRestart<tCNode> Restart( &Timer, &BasinMesh, &Flow, &SnowPack);
 
 		Cout<<"\n\nPart 7: Creating and Initializing Simulation"<<endl;
 		Cout<<"------------------------------------------------"<<endl<<endl;
@@ -326,9 +320,9 @@ int parallelSimulation(int argc, char **argv)
 		// Simulation starts new or from restart file
 		int optrestart;
 		optrestart = InputFile.ReadItem( optrestart, "RESTARTMODE");
-		if (optrestart == 2 || optrestart == 3 ) { 
+		if (optrestart == 2 || optrestart == 3 ) {
 			Simulant.readRestart(InputFile);
-		}   
+		}
 
 		Cout<<"\n\nPart 8: Hydrologic Simulation Loop"<<endl;
 		Cout<<"--------------------------------------"<<endl;

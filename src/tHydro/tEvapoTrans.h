@@ -120,8 +120,6 @@ class tEvapoTrans
   double rtsafe_mod_energy(tCNode*, double, double, double, 
 			   double, double, double *, int *);
 
-  void writeRestart(fstream &) const;
-  void readRestart(fstream &);
 
   // SKYnGM2008LU
   void SetGridTimeInfoVariables(tVariant *, char *);

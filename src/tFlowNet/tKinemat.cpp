@@ -14,6 +14,8 @@
 **
 ***************************************************************************/
 
+#include <cstdint>
+#include <unordered_map>
 #include "src/tFlowNet/tKinemat.h"
 #include "src/Headers/globalIO.h"
 
@@ -2219,32 +2221,15 @@ void tKinemat::UpdateHsShifted(double *Xnew, double *Xold, double Hupp, int N) {
 **
 ***************************************************************************/
 
-void tKinemat::writeRestart(fstream &rStr) const {
-    BinaryWrite(rStr, id);
-    BinaryWrite(rStr, m);
-    BinaryWrite(rStr, m1);
-    BinaryWrite(rStr, TimeSteps);
-    BinaryWrite(rStr, dt);
-    BinaryWrite(rStr, dtReff);
-    BinaryWrite(rStr, qit);
-    BinaryWrite(rStr, Qin);
-    BinaryWrite(rStr, H0);
-    BinaryWrite(rStr, Qout);
-    BinaryWrite(rStr, maxH);
-    BinaryWrite(rStr, maxReff);
-    BinaryWrite(rStr, Roughness);
-    BinaryWrite(rStr, Width);
-    BinaryWrite(rStr, kincoef);
-
-    // If this isn't dumped FlwVel, Qstrm, Hlevel are wrong
-    int sz = NodesLstO.getSize();
-    BinaryWrite(rStr, sz);
-    for (int i = 0; i < sz; i++)
+void tKinemat::writeRestart(ostream &rStr) const {
+    tPtrListIter<tCNode> outletIter(const_cast<tPtrList<tCNode>&>(NodesLstO));
+    tCNode* on;
+    int i = 0;
+    for (on = outletIter.FirstP(); !outletIter.AtEnd(); on = outletIter.NextP(), i++) {
+        int64_t nodeID = static_cast<int64_t>(on->getID());
+        BinaryWrite(rStr, nodeID);
         BinaryWrite(rStr, OutletHlev[i]);
-
-    OutletNode->writeRestart(rStr);
-
-    tFlowNet::writeRestart(rStr);
+    }
 }
 
 /***************************************************************************
@@ -2253,31 +2238,41 @@ void tKinemat::writeRestart(fstream &rStr) const {
 **
 ***************************************************************************/
 
-void tKinemat::readRestart(fstream &rStr) {
-    BinaryRead(rStr, id);
-    BinaryRead(rStr, m);
-    BinaryRead(rStr, m1);
-    BinaryRead(rStr, TimeSteps);
-    BinaryRead(rStr, dt);
-    BinaryRead(rStr, dtReff);
-    BinaryRead(rStr, qit);
-    BinaryRead(rStr, Qin);
-    BinaryRead(rStr, H0);
-    BinaryRead(rStr, Qout);
-    BinaryRead(rStr, maxH);
-    BinaryRead(rStr, maxReff);
-    BinaryRead(rStr, Roughness);
-    BinaryRead(rStr, Width);
-    BinaryRead(rStr, kincoef);
-
+void tKinemat::readRestart(istream &rStr) {
     int sz;
     BinaryRead(rStr, sz);
+    assert(sz == NodesLstO.getSize());
     for (int i = 0; i < sz; i++)
         BinaryRead(rStr, OutletHlev[i]);
+}
 
-    OutletNode->readRestart(rStr);
+/***************************************************************************
+**
+** tKinemat::readRestartGlobal() Function
+**
+** Reads totalOutlets (nodeID, Hlev) pairs from the stream, applying only
+** the ones that belong to this rank's outlet list.
+**
+***************************************************************************/
 
-    tFlowNet::readRestart(rStr);
+void tKinemat::readRestartGlobal(istream &rStr, int totalOutlets) {
+    // Build nodeID → outlet index map for fast lookup
+    unordered_map<int, int> outletIdxMap;
+    tPtrListIter<tCNode> outletIter(NodesLstO);
+    tCNode* on;
+    int i = 0;
+    for (on = outletIter.FirstP(); !outletIter.AtEnd(); on = outletIter.NextP(), i++)
+        outletIdxMap[on->getID()] = i;
+
+    for (int k = 0; k < totalOutlets; k++) {
+        int64_t nodeID;
+        double hlev;
+        BinaryRead(rStr, nodeID);
+        BinaryRead(rStr, hlev);
+        auto it = outletIdxMap.find(static_cast<int>(nodeID));
+        if (it != outletIdxMap.end())
+            OutletHlev[it->second] = hlev;
+    }
 }
 
 #ifdef PARALLEL_TRIBS

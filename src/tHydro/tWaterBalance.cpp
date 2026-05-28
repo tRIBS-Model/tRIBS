@@ -365,38 +365,6 @@ void tWaterBalance::Print(double * array)
 	return;
 }
 
-/***************************************************************************
-**
-** tWaterBalance::writeRestart() Function
-**
-** Called from tSimulator during simulation loop
-**
-***************************************************************************/
-void tWaterBalance::writeRestart(fstream & rStr) const
-{
-  BinaryWrite(rStr, metStep);
-  BinaryWrite(rStr, unsStep);
-  BinaryWrite(rStr, satStep);
-  BinaryWrite(rStr, finalTime);
-  for (int i = 0; i < 6; i++)
-    BinaryWrite(rStr, BasinStorages[i]);
-}
-
-/***************************************************************************
-**
-** tWaterBalance::readRestart() Function
-**
-***************************************************************************/
-void tWaterBalance::readRestart(fstream & rStr)
-{
-  BinaryRead(rStr, metStep);
-  BinaryRead(rStr, unsStep);
-  BinaryRead(rStr, satStep);
-  BinaryRead(rStr, finalTime);
-  for (int i = 0; i < 6; i++)
-    BinaryRead(rStr, BasinStorages[i]);
-}
-
 //=========================================================================
 //
 //

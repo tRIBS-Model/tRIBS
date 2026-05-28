@@ -144,8 +144,6 @@ public:
   void update_prev_hyd()
     { for(int ii=0; ii < iimax; ii++) phydro[ii]+=mhydro[ii]; }
 
-  void writeRestart(fstream &) const;
-  void readRestart(fstream &);
 };
 
 #endif

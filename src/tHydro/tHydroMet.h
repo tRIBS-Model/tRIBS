@@ -82,8 +82,6 @@ class tHydroMet
   double getRadDiffuse(int) const;
   double getRainMet(int) const;
 
-  void   writeRestart(fstream &) const;
-  void   readRestart(fstream &);
 
  protected:
   int numParams;
