@@ -460,7 +460,7 @@ void tSnowPack::callSnowPack(tIntercept *Intercept, int flag) {
         cNode->setShortRadIn(inShortR);
 
         //Set Soil/Surface Temperature
-        if (hourlyTimeStep == 0) {
+        if (hourlyTimeStep == 0 && !isRestartStart) {
             cNode->setSoilTemp(Tlo - 273.15);
             cNode->setSurfTemp(Tso - 273.15);
         }
@@ -864,6 +864,7 @@ void tSnowPack::callSnowPack(tIntercept *Intercept, int flag) {
     timeCount++;
     oldTimeStep = hourlyTimeStep;
     hourlyTimeStep++;
+    isRestartStart = false;
 }
 
 //---------------------------------------------------------------------------

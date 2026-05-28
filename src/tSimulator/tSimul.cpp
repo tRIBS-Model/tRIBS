@@ -684,7 +684,7 @@ void Simulator::writeRestart(char* directory) const
   if (tParallel::isMaster()) {
     fstream rStr;
     rStr.open(sFile.str().c_str(), ios::out|ios::binary);
-    uint32_t magic = 0x54524853u, schema = 2u, verMaj = 6u, verMin = 1u;
+    uint32_t magic = 0x54524853u, schema = 2u, verMaj = 6u, verMin = 4u;
     BinaryWrite(rStr, magic);   BinaryWrite(rStr, schema);
     BinaryWrite(rStr, verMaj);  BinaryWrite(rStr, verMin);
     BinaryWrite(rStr, ct);      BinaryWrite(rStr, yr);
@@ -704,7 +704,7 @@ void Simulator::writeRestart(char* directory) const
 
   fstream rStr;
   rStr.open(sFile.str().c_str(), ios::out|ios::binary);
-  uint32_t magic = 0x54524853u, schema = 1u, verMaj = 6u, verMin = 1u;
+  uint32_t magic = 0x54524853u, schema = 1u, verMaj = 6u, verMin = 4u;
   BinaryWrite(rStr, magic);   BinaryWrite(rStr, schema);
   BinaryWrite(rStr, verMaj);  BinaryWrite(rStr, verMin);
   BinaryWrite(rStr, ct);      BinaryWrite(rStr, yr);

@@ -134,6 +134,7 @@ int serialSimulation( int argc, char **argv )
 	if (optrestart == 2 || optrestart == 3 ) {
 		Simulant.readRestart(InputFile);
 		EvapoTrans.flagRestartStart();
+		SnowPack.flagRestartStart();
 	}
 
 	Cout<<"\n\nPart 8: Hydrologic Simulation Loop"<<endl;
@@ -252,6 +253,7 @@ int parallelSimulation(int argc, char **argv)
 		if (optrestart == 2 || optrestart == 3 ) {
 			Simulant.readRestart(InputFile);
 			EvapoTrans.flagRestartStart();
+			SnowPack.flagRestartStart();
 		}
 
 		cout<<"\n\nPart 8: Hydrologic Simulation Loop"<<endl;
@@ -326,6 +328,7 @@ int parallelSimulation(int argc, char **argv)
 		if (optrestart == 2 || optrestart == 3 ) {
 			Simulant.readRestart(InputFile);
 			EvapoTrans.flagRestartStart();
+			SnowPack.flagRestartStart();
 		}
 
 		Cout<<"\n\nPart 8: Hydrologic Simulation Loop"<<endl;

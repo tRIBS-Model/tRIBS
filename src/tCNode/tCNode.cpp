@@ -1232,6 +1232,9 @@ void tCNode::writeRestart(ostream& rStr) const
   BinaryWrite(rStr, rhoSn);
   BinaryWrite(rStr, Unode);
   BinaryWrite(rStr, snDepth);
+  BinaryWrite(rStr, crAge);
+  BinaryWrite(rStr, ETage);
+  BinaryWrite(rStr, intSWEq);
 
   // ET state: soil moisture drives betaFunc/betaFuncT; SurfTemp/SoilTemp seed
   // the energy balance iteration and the incrementally-accumulated Tlo.
@@ -1240,6 +1243,12 @@ void tCNode::writeRestart(ostream& rStr) const
   BinaryWrite(rStr, RootMoisture);
   BinaryWrite(rStr, SurfTemp);
   BinaryWrite(rStr, SoilTemp);
+
+  // Interstorm counters: control state-machine transitions in interception
+  // (StormLength) and vadose-zone redistribution (intstorm). Both are
+  // elapsed-time accumulators that gate moisture-front and canopy-reset logic.
+  BinaryWrite(rStr, StormLength);
+  BinaryWrite(rStr, intstorm);
 
   // Kinematic routing queues
   int size;
@@ -1313,12 +1322,19 @@ void tCNode::readRestartBody(istream& rStr)
   BinaryRead(rStr, rhoSn);
   BinaryRead(rStr, Unode);
   BinaryRead(rStr, snDepth);
+  BinaryRead(rStr, crAge);
+  BinaryRead(rStr, ETage);
+  BinaryRead(rStr, intSWEq);
 
   // ET state
   BinaryRead(rStr, SoilMoisture);
   BinaryRead(rStr, RootMoisture);
   BinaryRead(rStr, SurfTemp);
   BinaryRead(rStr, SoilTemp);
+
+  // Interstorm counters
+  BinaryRead(rStr, StormLength);
+  BinaryRead(rStr, intstorm);
 
   // Kinematic routing queues
   int size;
@@ -1339,7 +1355,7 @@ void tCNode::readRestartBody(istream& rStr)
 void tCNode::skipRestartBody(istream& rStr)
 {
   double d;
-  for (int i = 0; i < 20; i++) BinaryRead(rStr, d);
+  for (int i = 0; i < 25; i++) BinaryRead(rStr, d);
   int32_t count; int iv;
   BinaryRead(rStr, count);
   for (int i = 0; i < count; i++) BinaryRead(rStr, iv);
