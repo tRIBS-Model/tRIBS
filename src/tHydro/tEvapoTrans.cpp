@@ -689,7 +689,9 @@ void tEvapoTrans::callEvapoPotential()
           cNode->setShortRadIn(inShortR);
 
           //Set Soil/Surface Temperature
-          if (hourlyTimeStep == 0) {
+          // On restart, SurfTemp/SoilTemp are restored from the restart file and
+          // must not be overwritten with the airTemp-based initialization.
+          if (hourlyTimeStep == 0 && !isRestartStart) {
               cNode->setSoilTemp(Tlo - 273.15);
               cNode->setSurfTemp(Tso - 273.15);
           }
@@ -740,8 +742,9 @@ void tEvapoTrans::callEvapoPotential()
 	// Assign old time
 	oldTimeStep = hourlyTimeStep;
 	
-	// Update hourly time 
+	// Update hourly time
 	hourlyTimeStep++;
+	isRestartStart = false;
 	}
 
 /***************************************************************************

@@ -133,6 +133,7 @@ int serialSimulation( int argc, char **argv )
 	optrestart = InputFile.ReadItem( optrestart, "RESTARTMODE");
 	if (optrestart == 2 || optrestart == 3 ) {
 		Simulant.readRestart(InputFile);
+		EvapoTrans.flagRestartStart();
 	}
 
 	Cout<<"\n\nPart 8: Hydrologic Simulation Loop"<<endl;
@@ -248,8 +249,10 @@ int parallelSimulation(int argc, char **argv)
 		// Simulation starts new or from restart file
 		int optrestart;
 		optrestart = InputFile.ReadItem( optrestart, "RESTARTMODE");
-		if (optrestart == 2 || optrestart == 3 )
+		if (optrestart == 2 || optrestart == 3 ) {
 			Simulant.readRestart(InputFile);
+			EvapoTrans.flagRestartStart();
+		}
 
 		cout<<"\n\nPart 8: Hydrologic Simulation Loop"<<endl;
 		Cout<<"--------------------------------------"<<endl;
@@ -322,13 +325,14 @@ int parallelSimulation(int argc, char **argv)
 		optrestart = InputFile.ReadItem( optrestart, "RESTARTMODE");
 		if (optrestart == 2 || optrestart == 3 ) {
 			Simulant.readRestart(InputFile);
+			EvapoTrans.flagRestartStart();
 		}
 
 		Cout<<"\n\nPart 8: Hydrologic Simulation Loop"<<endl;
 		Cout<<"--------------------------------------"<<endl;
-		Simulant.simulation_loop( &Moisture, &Flow, &EvapoTrans, 
+		Simulant.simulation_loop( &Moisture, &Flow, &EvapoTrans,
                               &Intercept, &Balance, &SnowPack, // SKY2008Snow from AJR2007
-                              InputFile); // SKY2008Snow  
+                              InputFile); // SKY2008Snow
 		Simulant.end_simulation( &Flow );
 	}
 

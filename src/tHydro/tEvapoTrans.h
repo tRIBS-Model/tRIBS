@@ -85,6 +85,7 @@ class tEvapoTrans
   void integratedLUVars(tCNode *, double);
 
   int  getEToption();
+  void flagRestartStart() { isRestartStart = true; }
   int  julianDay();
   void DirectDiffuse(double);
   double latentHeat();
@@ -145,6 +146,7 @@ class tEvapoTrans
   int gFluxOption{}, ID{};
   int gmt{}, nodeHour{}, thisStation{}, oldTimeStep{};
   int numStations{}, arraySize{}, hourlyTimeStep{}, nParm{};
+  bool isRestartStart{false};
   int tsOption{};
   int luOption{}, nParmLU;  //SKYnGM2008LU: added by AJR 2007
   int luInterpOption{};  //SKYnGM2008LU

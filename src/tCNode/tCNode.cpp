@@ -1233,6 +1233,14 @@ void tCNode::writeRestart(ostream& rStr) const
   BinaryWrite(rStr, Unode);
   BinaryWrite(rStr, snDepth);
 
+  // ET state: soil moisture drives betaFunc/betaFuncT; SurfTemp/SoilTemp seed
+  // the energy balance iteration and the incrementally-accumulated Tlo.
+  // Must be restored before SurfaceHydroProcesses runs at the first restart step.
+  BinaryWrite(rStr, SoilMoisture);
+  BinaryWrite(rStr, RootMoisture);
+  BinaryWrite(rStr, SurfTemp);
+  BinaryWrite(rStr, SoilTemp);
+
   // Kinematic routing queues
   int size;
   if (TimeInd != 0) {
@@ -1306,6 +1314,12 @@ void tCNode::readRestartBody(istream& rStr)
   BinaryRead(rStr, Unode);
   BinaryRead(rStr, snDepth);
 
+  // ET state
+  BinaryRead(rStr, SoilMoisture);
+  BinaryRead(rStr, RootMoisture);
+  BinaryRead(rStr, SurfTemp);
+  BinaryRead(rStr, SoilTemp);
+
   // Kinematic routing queues
   int size;
   int timeInd;
@@ -1325,7 +1339,7 @@ void tCNode::readRestartBody(istream& rStr)
 void tCNode::skipRestartBody(istream& rStr)
 {
   double d;
-  for (int i = 0; i < 16; i++) BinaryRead(rStr, d);
+  for (int i = 0; i < 20; i++) BinaryRead(rStr, d);
   int32_t count; int iv;
   BinaryRead(rStr, count);
   for (int i = 0; i < count; i++) BinaryRead(rStr, iv);
