@@ -538,42 +538,6 @@ int tIntercept::IsThereCanopy(tCNode *cNode)
 	return answer;
 }
 
-/***************************************************************************
-**
-** tIntercept::writeRestart() Function
-**
-** Called from tSimulator during simulation loop
-**
-***************************************************************************/
-void tIntercept::writeRestart(fstream & rStr) const
-{
-  BinaryWrite(rStr, interceptOption);
-  BinaryWrite(rStr, maxInterStormPeriod);
-  BinaryWrite(rStr, metTime);
-  BinaryWrite(rStr, coeffP);
-  BinaryWrite(rStr, coeffS);
-  BinaryWrite(rStr, coeffK);
-  BinaryWrite(rStr, coeffb);
-  BinaryWrite(rStr, coeffV);
-}
-
-/***************************************************************************
-**
-** tIntercept::readRestart() Function
-**
-***************************************************************************/
-void tIntercept::readRestart(fstream & rStr)
-{
-  BinaryRead(rStr, interceptOption);
-  BinaryRead(rStr, maxInterStormPeriod);
-  BinaryRead(rStr, metTime);
-  BinaryRead(rStr, coeffP);
-  BinaryRead(rStr, coeffS);
-  BinaryRead(rStr, coeffK);
-  BinaryRead(rStr, coeffb);
-  BinaryRead(rStr, coeffV);
-}
-
 //=========================================================================
 //
 //

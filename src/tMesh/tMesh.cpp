@@ -14,8 +14,11 @@
 **
 ***************************************************************************/
 
+#include <cstdint>
+#include <unordered_map>
 #include "src/tMesh/tMesh.h"
 #include "src/Headers/globalIO.h"
+#include "src/tCNode/tCNode.h"
 
 #ifdef PARALLEL_TRIBS
 #include "src/tParallel/tParallel.h"
@@ -3463,7 +3466,7 @@ void tMesh<tSubNode>::TellAboutNode(tSubNode *cn){
 
 
 template<class tSubNode>
-void tMesh<tSubNode>::writeRestart(fstream & rStr)
+void tMesh<tSubNode>::writeRestart(ostream & rStr)
 {
   tMeshListIter< tSubNode > nodIter( nodeList );
   tSubNode *cn;
@@ -3481,12 +3484,33 @@ void tMesh<tSubNode>::writeRestart(fstream & rStr)
 
 
 template<class tSubNode>
-void tMesh<tSubNode>::readRestart(fstream & rStr)
+void tMesh<tSubNode>::readRestart(istream & rStr)
 {
   tMeshListIter< tSubNode > nodIter( nodeList );
   tSubNode *cn;
   for (cn = nodIter.FirstP(); nodIter.IsActive(); cn = nodIter.NextP())
     cn->readRestart(rStr);
+}
+
+template<class tSubNode>
+void tMesh<tSubNode>::readRestartGlobal(istream & rStr, int totalNodes)
+{
+  // Build a local nodeID → node pointer map so we can safely look up
+  // nodes by ID without risking out-of-bounds access on NodeTable.
+  unordered_map<int, tSubNode*> nodeMap;
+  tMeshListIter<tSubNode> nI(nodeList);
+  for (tSubNode* cn = nI.FirstP(); nI.IsActive(); cn = nI.NextP())
+    nodeMap[cn->getID()] = cn;
+
+  for (int i = 0; i < totalNodes; i++) {
+    int64_t nodeID;
+    BinaryRead(rStr, nodeID);
+    auto it = nodeMap.find(static_cast<int>(nodeID));
+    if (it != nodeMap.end())
+      it->second->readRestartBody(rStr);
+    else
+      tCNode::skipRestartBody(rStr);
+  }
 }
 
 

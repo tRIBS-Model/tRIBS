@@ -296,7 +296,7 @@ void tOutput<tSubNode>::CreateAndOpenPixel()
 				strcpy(pixelnode, nodeNum);
 				strcat(pixelnode, pixelext);		 
 				
-				CreateAndOpenFile( &pixinfo[i], pixelnode );
+				CreateAndOpenFileSingle( &pixinfo[i], pixelnode );
 				
 				// Write Header
 				pixinfo[i]<<"NodeID,"  //1

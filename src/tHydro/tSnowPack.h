@@ -130,9 +130,6 @@ public:
   //communication functions
   int getSnowOpt();
   
-  // Restart functions
-  void writeRestart(fstream &) const;
-  void readRestart(fstream &);
 
 protected:
   // New parameter variables

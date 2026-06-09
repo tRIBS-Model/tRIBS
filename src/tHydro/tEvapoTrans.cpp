@@ -689,7 +689,9 @@ void tEvapoTrans::callEvapoPotential()
           cNode->setShortRadIn(inShortR);
 
           //Set Soil/Surface Temperature
-          if (hourlyTimeStep == 0) {
+          // On restart, SurfTemp/SoilTemp are restored from the restart file and
+          // must not be overwritten with the airTemp-based initialization.
+          if (hourlyTimeStep == 0 && !isRestartStart) {
               cNode->setSoilTemp(Tlo - 273.15);
               cNode->setSurfTemp(Tso - 273.15);
           }
@@ -740,8 +742,9 @@ void tEvapoTrans::callEvapoPotential()
 	// Assign old time
 	oldTimeStep = hourlyTimeStep;
 	
-	// Update hourly time 
+	// Update hourly time
 	hourlyTimeStep++;
+	isRestartStart = false;
 	}
 
 /***************************************************************************
@@ -3014,6 +3017,47 @@ void tEvapoTrans::readHydroMetData(int num)
 	}
 	readDataFile.close();
 
+	// Find the row matching STARTDATE and trim everything before it
+	{
+		int startIdx = -1;
+		for (int i = 0; i < static_cast<int>(rows.size()); i++) {
+			std::istringstream ss(rows[i]);
+			std::string token;
+			std::getline(ss, token, ','); int ry = std::stoi(token);
+			std::getline(ss, token, ','); int rm = std::stoi(token);
+			std::getline(ss, token, ','); int rd = std::stoi(token);
+			std::getline(ss, token, ','); int rh = std::stoi(token);
+			if (ry == timer->yearS && rm == timer->monthS && rd == timer->dayS && rh == timer->hourS) {
+				startIdx = i;
+				break;
+			}
+		}
+		if (startIdx < 0) {
+			std::cerr << "\n\nFATAL ERROR in " << fileName << std::endl;
+			std::cerr << "Simulation start date " << timer->yearS << "/" << timer->monthS
+			          << "/" << timer->dayS << " " << timer->hourS << ":00"
+			          << " not found in file." << std::endl;
+			std::cerr << "Exiting Program...\n\n" << std::endl;
+			exit(1);
+		}
+		if (startIdx > 0)
+			rows.erase(rows.begin(), rows.begin() + startIdx);
+	}
+
+	// Verify enough data exists to cover the full simulation duration
+	{
+		int requiredSteps = static_cast<int>(std::round(timer->getEndTime() / timer->getEtIStep()));
+		if (static_cast<int>(rows.size()) < requiredSteps) {
+			std::cerr << "\n\nFATAL ERROR in " << fileName << std::endl;
+			std::cerr << "Insufficient data for simulation duration." << std::endl;
+			std::cerr << "Required: " << requiredSteps << " timesteps ("
+			          << timer->getEndTime() << " hrs at " << timer->getEtIStep() << " hr intervals)" << std::endl;
+			std::cerr << "Available after start date: " << rows.size() << " timesteps" << std::endl;
+			std::cerr << "Exiting Program...\n\n" << std::endl;
+			exit(1);
+		}
+	}
+
 	int numTimes = static_cast<int>(rows.size());
 	weatherStations[num].setParm(numParams);
 
@@ -3057,21 +3101,7 @@ void tEvapoTrans::readHydroMetData(int num)
 			SurfTemperature[count] = (fabs(tempo - 9999.99) > 1.0E-3 && (tempo < -60 || tempo > 70)) ? 9999.99 : tempo;
 
 
-			// Timestamp validation
-			if (count == 0) {
-				if (yr[0] != timer->yearS || mo[0] != timer->monthS ||
-					dy[0] != timer->dayS   || hr[0] != timer->hourS)
-				{
-					std::cerr << "\n\nFATAL ERROR in " << fileName << std::endl;
-					std::cerr << "The first timestamp in the file does not match the simulation start time." << std::endl;
-					std::cerr << "Simulation Start: " << timer->yearS << "/" << timer->monthS
-					          << "/" << timer->dayS << " " << timer->hourS << ":00" << std::endl;
-					std::cerr << "Found in File:    " << yr[0] << "/" << mo[0] << "/" << dy[0]
-					          << " " << hr[0] << ":00" << std::endl;
-					std::cerr << "Exiting Program...\n\n" << std::endl;
-					exit(1);
-				}
-			} else {
+			if (count > 0) {
 				int expected_yr = yr[count-1];
 				int expected_mo = mo[count-1];
 				int expected_dy = dy[count-1];
@@ -5023,315 +5053,6 @@ void tEvapoTrans::Debug(int time, int flag)
 		}
 	}
 	}
-
-/***************************************************************************
-**
-** tEvapoTrans::writeRestart() Function
-**
-** Called from tSimulator during simulation loop
-**
-***************************************************************************/
-void tEvapoTrans::writeRestart(fstream & rStr) const
-{ 
-  BinaryWrite(rStr, VerbID);
-  BinaryWrite(rStr, tsOption);
-  BinaryWrite(rStr, Rah);
-  BinaryWrite(rStr, Rstm);
-  BinaryWrite(rStr, SoilHeatCondTh);
-  BinaryWrite(rStr, SoilHeatCpctTh);
-  BinaryWrite(rStr, SoilHeatDiffTh);
-  BinaryWrite(rStr, Tlinke);
-  BinaryWrite(rStr, Is);
-  BinaryWrite(rStr, Ic);
-  BinaryWrite(rStr, Ics);
-  BinaryWrite(rStr, Id);
-  BinaryWrite(rStr, Ids);
-  BinaryWrite(rStr, vPressC);
-  BinaryWrite(rStr, Epot);;
-
-  BinaryWrite(rStr, numStations);
-  BinaryWrite(rStr, arraySize);
-  BinaryWrite(rStr, hourlyTimeStep);
-  BinaryWrite(rStr, nParm);
-  BinaryWrite(rStr, metdataOption);
-  BinaryWrite(rStr, Ioption);
-  BinaryWrite(rStr, gFluxOption);
-  BinaryWrite(rStr, ID);
-  BinaryWrite(rStr, gmt);
-  BinaryWrite(rStr, nodeHour);
-  BinaryWrite(rStr, thisStation);
-  BinaryWrite(rStr, oldTimeStep);
-  for (int i = 0; i < arraySize; i++)
-    BinaryWrite(rStr, assignedStation[i]);
-
-  BinaryWrite(rStr, timeStep);
-  BinaryWrite(rStr, timeCount);
-  BinaryWrite(rStr, coeffH);
-  BinaryWrite(rStr, coeffKt);
-  BinaryWrite(rStr, coeffAl);
-  BinaryWrite(rStr, coeffRs);
-  BinaryWrite(rStr, coeffV);
-  BinaryWrite(rStr, coeffKs);
-  BinaryWrite(rStr, coeffCs);
-  BinaryWrite(rStr, potEvap);
-  BinaryWrite(rStr, actEvap);
-  BinaryWrite(rStr, panEvap);
-  BinaryWrite(rStr, betaS);
-  BinaryWrite(rStr, betaT);
-  BinaryWrite(rStr, airTemp);
-  BinaryWrite(rStr, dewTemp);
-  BinaryWrite(rStr, surfTemp);
-  BinaryWrite(rStr, Tso);
-  BinaryWrite(rStr, Tlo);
-  BinaryWrite(rStr, rHumidity);
-  BinaryWrite(rStr, atmPress);
-  BinaryWrite(rStr, windSpeed);
-  BinaryWrite(rStr, skyCover);
-  BinaryWrite(rStr, latitude);
-  BinaryWrite(rStr, longitude);
-  BinaryWrite(rStr, vPress);
-  BinaryWrite(rStr, inLongR);
-  BinaryWrite(rStr, inShortR);
-  BinaryWrite(rStr, outLongR);
-  BinaryWrite(rStr, elevation);
-  BinaryWrite(rStr, slope);
-  BinaryWrite(rStr, aspect);
-  BinaryWrite(rStr, atmPressC);
-  BinaryWrite(rStr, surfTempC);
-  BinaryWrite(rStr, skyCoverC);
-  BinaryWrite(rStr, rHumidityC);
-  BinaryWrite(rStr, dewTempC);
-  BinaryWrite(rStr, windSpeedC);
-  BinaryWrite(rStr, netRadC);
-  BinaryWrite(rStr, gFlux);
-  BinaryWrite(rStr, hFlux);
-  BinaryWrite(rStr, lFlux);
-  BinaryWrite(rStr, rain);
-  BinaryWrite(rStr, Gso);
-  BinaryWrite(rStr, Io);
-  BinaryWrite(rStr, alphaD);
-  BinaryWrite(rStr, sinAlpha);
-  BinaryWrite(rStr, del);
-  BinaryWrite(rStr, phi);
-  BinaryWrite(rStr, tau);
-  BinaryWrite(rStr, circ);
-  BinaryWrite(rStr, sunaz);
-  BinaryWrite(rStr, SunRisHrLoc);
-  BinaryWrite(rStr, SunSetHrLoc);
-  BinaryWrite(rStr, DayLength);
-  BinaryWrite(rStr, deltaT);
-  BinaryWrite(rStr, RadDirObs);
-  BinaryWrite(rStr, RadDifObs);
-
-  BinaryWrite(rStr, snowOption); // Snow and Shelter
-  BinaryWrite(rStr, shelterOption);
-  BinaryWrite(rStr, luOption);
-  BinaryWrite(rStr, nParmLU);
-  BinaryWrite(rStr, luInterpOption);
-  BinaryWrite(rStr, metHour);
-  BinaryWrite(rStr, etHour);
-  BinaryWrite(rStr, rainInt);
-  BinaryWrite(rStr, coeffLAI);
-  BinaryWrite(rStr, shelterFactorGlobal); 
-  BinaryWrite(rStr, landRefGlobal);
-  BinaryWrite(rStr, horizonAngle);
-  BinaryWrite(rStr, ha0000); 
-  BinaryWrite(rStr, ha0225); 
-  BinaryWrite(rStr, ha0450); 
-  BinaryWrite(rStr, ha0675); 
-  BinaryWrite(rStr, ha0900); 
-  BinaryWrite(rStr, ha1125);
-  BinaryWrite(rStr, ha1350); 
-  BinaryWrite(rStr, ha1575); 
-  BinaryWrite(rStr, ha1800); 
-  BinaryWrite(rStr, ha2025); 
-  BinaryWrite(rStr, ha2250);
-  BinaryWrite(rStr, ha2475);
-  BinaryWrite(rStr, ha2700);
-  BinaryWrite(rStr, ha2925);
-  BinaryWrite(rStr, ha3150);
-  BinaryWrite(rStr, ha3375);
-  BinaryWrite(rStr, tempLapseRate);
-  BinaryWrite(rStr, SunHour);
-  BinaryWrite(rStr, AtFirstTimeStepLUFlag);
-    
-    // to get right time vegetation parameters after reading restart files. Ara Ko 2017
-    BinaryWrite(rStr, NowTillWhichALgrid); 
-    BinaryWrite(rStr, NowTillWhichTFgrid); // Ara Ko 2017
-    BinaryWrite(rStr, NowTillWhichVHgrid); // Ara Ko 2017
-    BinaryWrite(rStr, NowTillWhichSRgrid); // Ara Ko 2017
-    BinaryWrite(rStr, NowTillWhichVFgrid); // Ara Ko 2017
-    BinaryWrite(rStr, NowTillWhichCCgrid); // Ara Ko 2017
-    BinaryWrite(rStr, NowTillWhichDCgrid); // Ara Ko 2017
-    BinaryWrite(rStr, NowTillWhichDEgrid); // Ara Ko 2017
-    BinaryWrite(rStr, NowTillWhichOTgrid); // Ara Ko 2017
-    BinaryWrite(rStr, NowTillWhichLAgrid); // Ara Ko 2017
-    BinaryWrite(rStr, NowTillWhichSEgrid); // CJC2025
-    BinaryWrite(rStr, NowTillWhichSTgrid); // CJC2025
-
-  if (evapotransOption != 0) {
-    for (int i = 0; i < 3; i++) 
-       BinaryWrite(rStr, currentTime[i]);
-    if (metdataOption == 1)
-      for (int i = 0; i < numStations; i++)
-        weatherStations[i].writeRestart(rStr);
-  }
-}
-
-
-/***************************************************************************
-**
-** tEvapoTrans::readRestart() Function
-**
-** Called from tSimulator during simulation loop
-**
-***************************************************************************/
-
-void tEvapoTrans::readRestart(fstream & rStr)
-{
-  BinaryRead(rStr, VerbID);
-  BinaryRead(rStr, tsOption);
-  BinaryRead(rStr, Rah);
-  BinaryRead(rStr, Rstm);
-  BinaryRead(rStr, SoilHeatCondTh);
-  BinaryRead(rStr, SoilHeatCpctTh);
-  BinaryRead(rStr, SoilHeatDiffTh);
-  BinaryRead(rStr, Tlinke);
-  BinaryRead(rStr, Is);
-  BinaryRead(rStr, Ic);
-  BinaryRead(rStr, Ics);
-  BinaryRead(rStr, Id);
-  BinaryRead(rStr, Ids);
-  BinaryRead(rStr, vPressC);
-  BinaryRead(rStr, Epot);
-
-  BinaryRead(rStr, numStations);
-  BinaryRead(rStr, arraySize);
-  BinaryRead(rStr, hourlyTimeStep);
-  BinaryRead(rStr, nParm);
-  BinaryRead(rStr, metdataOption);
-  BinaryRead(rStr, Ioption);
-  BinaryRead(rStr, gFluxOption);
-  BinaryRead(rStr, ID);
-  BinaryRead(rStr, gmt);
-  BinaryRead(rStr, nodeHour);
-  BinaryRead(rStr, thisStation);
-  BinaryRead(rStr, oldTimeStep);
-  for (int i = 0; i < arraySize; i++)
-    BinaryRead(rStr, assignedStation[i]);
-
-  BinaryRead(rStr, timeStep);
-  BinaryRead(rStr, timeCount);
-  BinaryRead(rStr, coeffH);
-  BinaryRead(rStr, coeffKt);
-  BinaryRead(rStr, coeffAl);
-  BinaryRead(rStr, coeffRs);
-  BinaryRead(rStr, coeffV);
-  BinaryRead(rStr, coeffKs);
-  BinaryRead(rStr, coeffCs);
-  BinaryRead(rStr, potEvap);
-  BinaryRead(rStr, actEvap);
-  BinaryRead(rStr, panEvap);
-  BinaryRead(rStr, betaS);
-  BinaryRead(rStr, betaT);
-  BinaryRead(rStr, airTemp);
-  BinaryRead(rStr, dewTemp);
-  BinaryRead(rStr, surfTemp);
-  BinaryRead(rStr, Tso);
-  BinaryRead(rStr, Tlo);
-  BinaryRead(rStr, rHumidity);
-  BinaryRead(rStr, atmPress);
-  BinaryRead(rStr, windSpeed);
-  BinaryRead(rStr, skyCover);
-  BinaryRead(rStr, latitude);
-  BinaryRead(rStr, longitude);
-  BinaryRead(rStr, vPress);
-  BinaryRead(rStr, inLongR);
-  BinaryRead(rStr, inShortR);
-  BinaryRead(rStr, outLongR);
-  BinaryRead(rStr, elevation);
-  BinaryRead(rStr, slope);
-  BinaryRead(rStr, aspect);
-  BinaryRead(rStr, atmPressC);
-  BinaryRead(rStr, surfTempC);
-  BinaryRead(rStr, skyCoverC);
-  BinaryRead(rStr, rHumidityC);
-  BinaryRead(rStr, dewTempC);
-  BinaryRead(rStr, windSpeedC);
-  BinaryRead(rStr, netRadC);
-  BinaryRead(rStr, gFlux);
-  BinaryRead(rStr, hFlux);
-  BinaryRead(rStr, lFlux);
-  BinaryRead(rStr, rain);
-  BinaryRead(rStr, Gso);
-  BinaryRead(rStr, Io);
-  BinaryRead(rStr, alphaD);
-  BinaryRead(rStr, sinAlpha);
-  BinaryRead(rStr, del);
-  BinaryRead(rStr, phi);
-  BinaryRead(rStr, tau);
-  BinaryRead(rStr, circ);
-  BinaryRead(rStr, sunaz);
-  BinaryRead(rStr, SunRisHrLoc);
-  BinaryRead(rStr, SunSetHrLoc);
-  BinaryRead(rStr, DayLength);
-  BinaryRead(rStr, deltaT);
-  BinaryRead(rStr, RadDirObs);
-  BinaryRead(rStr, RadDifObs);
-
-  BinaryRead(rStr, snowOption); // Snow and Shelter
-  BinaryRead(rStr, shelterOption);
-  BinaryRead(rStr, luOption);
-  BinaryRead(rStr, nParmLU);
-  BinaryRead(rStr, luInterpOption);
-  BinaryRead(rStr, metHour);
-  BinaryRead(rStr, etHour);
-  BinaryRead(rStr, rainInt);
-  BinaryRead(rStr, coeffLAI);
-  BinaryRead(rStr, shelterFactorGlobal);
-  BinaryRead(rStr, landRefGlobal);
-  BinaryRead(rStr, horizonAngle);
-  BinaryRead(rStr, ha0000);
-  BinaryRead(rStr, ha0225);
-  BinaryRead(rStr, ha0450);
-  BinaryRead(rStr, ha0675);
-  BinaryRead(rStr, ha0900);
-  BinaryRead(rStr, ha1125);
-  BinaryRead(rStr, ha1350);
-  BinaryRead(rStr, ha1575);
-  BinaryRead(rStr, ha1800);
-  BinaryRead(rStr, ha2025);
-  BinaryRead(rStr, ha2250);
-  BinaryRead(rStr, ha2475);
-  BinaryRead(rStr, ha2700);
-  BinaryRead(rStr, ha2925);
-  BinaryRead(rStr, ha3150);
-  BinaryRead(rStr, ha3375);
-  BinaryRead(rStr, tempLapseRate);
-  BinaryRead(rStr, SunHour);
-  BinaryRead(rStr, AtFirstTimeStepLUFlag);
-  BinaryRead(rStr, NowTillWhichALgrid); // Ara Ko 2017
-  BinaryRead(rStr, NowTillWhichTFgrid); // Ara Ko 2017
-  BinaryRead(rStr, NowTillWhichVHgrid); // Ara Ko 2017
-  BinaryRead(rStr, NowTillWhichSRgrid); // Ara Ko 2017
-  BinaryRead(rStr, NowTillWhichVFgrid); // Ara Ko 2017
-  BinaryRead(rStr, NowTillWhichCCgrid); // Ara Ko 2017
-  BinaryRead(rStr, NowTillWhichDCgrid); // Ara Ko 2017
-  BinaryRead(rStr, NowTillWhichDEgrid); // Ara Ko 2017
-  BinaryRead(rStr, NowTillWhichOTgrid); // Ara Ko 2017
-  BinaryRead(rStr, NowTillWhichLAgrid); // Ara Ko 2017
-  BinaryRead(rStr, NowTillWhichSEgrid); // CJC2025
-  BinaryRead(rStr, NowTillWhichSTgrid); // CJC2025
-
-
-  if (evapotransOption != 0) {
-    for (int i = 0; i < 3; i++) 
-       BinaryRead(rStr, currentTime[i]);
-    if (metdataOption == 1)
-      for (int i = 0; i < numStations; i++)
-        weatherStations[i].readRestart(rStr);
-  }
-}
 
 
 //=========================================================================

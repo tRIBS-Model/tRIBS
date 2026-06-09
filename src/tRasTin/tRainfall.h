@@ -37,7 +37,7 @@ class tRainfall
 public:
   tRainfall();
   ~tRainfall();
-  tRainfall(SimulationControl*, tMesh<tCNode> *, tInputFile &, tResample *);
+  tRainfall(SimulationControl*, tMesh<tCNode> *, tInputFile &, tResample *, tRunTimer *);
   SimulationControl *simCtrl;    
   
   int  Compose_In_Mrain_Name(tRunTimer *);
@@ -54,8 +54,6 @@ public:
   void assignStationToNode();
   void callRainGauge(tRunTimer *);
   void setToNode();
-  void writeRestart(fstream &) const;
-  void readRestart(fstream &);
   
   char mrainfileIn[kMaxNameSize];
   int searchRain, rainfallType;
@@ -70,6 +68,8 @@ protected:
   int numStations, arraySize, hourlyTimeStep;
   int *assignedRain, *currentTime;
   double *curRain, *latitude, *longitude, *gaugeRain; 
+
+  tRunTimer *timer;
 
   // SKY2008Snow from AJR2007
   double precLapseRate;//AJR @ NMT 2007

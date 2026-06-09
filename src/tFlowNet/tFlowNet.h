@@ -105,8 +105,6 @@ public:
   double getCurrDischarge(int);
 
   void SetReachInformation();
-  void writeRestart(fstream &) const;
-  void readRestart(fstream &);
 
   tPtrList< tCNode >& getReachHeadList() { return NodesLstH; }
   tPtrList< tCNode >& getReachOutletList() { return NodesLstO; }

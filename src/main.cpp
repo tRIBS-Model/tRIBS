@@ -107,7 +107,7 @@ int serialSimulation( int argc, char **argv )
 						  &RsmplMaster, &Balance, &Timer );
 	
 	Cout<<"\nCreating Rainfall Setup...\n";
-	tRainfall Rainfall( &SimCtrl, &BasinMesh, InputFile, &RsmplMaster );
+	tRainfall Rainfall( &SimCtrl, &BasinMesh, InputFile, &RsmplMaster, &Timer );
 	
 	Cout<<"\nCreating EvapoTranspiration Setup...\n";
 	tEvapoTrans EvapoTrans( &SimCtrl, &BasinMesh, InputFile, &Timer, 
@@ -121,9 +121,7 @@ int serialSimulation( int argc, char **argv )
 	tSnowPack SnowPack( &SimCtrl, &BasinMesh, InputFile, &Timer, &RsmplMaster, &Moisture, &Rainfall); // SKY2008Snow from AJR2007
 
 	Cout<<"\nCreating Restart setup...\n";
-	tRestart<tCNode> Restart( &Timer, &BasinMesh, &Flow, &Balance,
-                              &Moisture, &Rainfall, &EvapoTrans, &Intercept,
-                              &SnowPack);
+	tRestart<tCNode> Restart( &Timer, &BasinMesh, &Flow, &SnowPack);
 
 	Cout<<"\n\nPart 7: Creating and Initializing Simulation"<<endl;
 	Cout<<"------------------------------------------------"<<endl<<endl;
@@ -135,11 +133,13 @@ int serialSimulation( int argc, char **argv )
 	optrestart = InputFile.ReadItem( optrestart, "RESTARTMODE");
 	if (optrestart == 2 || optrestart == 3 ) {
 		Simulant.readRestart(InputFile);
+		EvapoTrans.flagRestartStart();
+		SnowPack.flagRestartStart();
 	}
 
 	Cout<<"\n\nPart 8: Hydrologic Simulation Loop"<<endl;
 	Cout<<"--------------------------------------"<<endl;
-	Simulant.simulation_loop( &Moisture, &Flow, &EvapoTrans, 
+	Simulant.simulation_loop( &Moisture, &Flow, &EvapoTrans,
 							  &Intercept, &Balance, &SnowPack, // SKY2008Snow from AJR2007
 							  InputFile); // SKY2008Snow
 	Simulant.end_simulation( &Flow );
@@ -224,7 +224,7 @@ int parallelSimulation(int argc, char **argv)
                           &RsmplMaster, &Balance, &Timer );
 
 		cout<<"\nCreating Rainfall Setup...\n";
-		tRainfall Rainfall( &SimCtrl, &BasinMesh, InputFile, &RsmplMaster );
+		tRainfall Rainfall( &SimCtrl, &BasinMesh, InputFile, &RsmplMaster, &Timer );
 
 		cout<<"\nCreating EvapoTranspiration Setup...\n";
 		tEvapoTrans EvapoTrans( &SimCtrl, &BasinMesh, InputFile, &Timer, 
@@ -240,9 +240,7 @@ int parallelSimulation(int argc, char **argv)
 
 
 		cout<<"\nCreating Restart setup...\n";
-		tRestart<tCNode> Restart( &Timer, &BasinMesh, &Flow, &Balance,
-                              &Moisture, &Rainfall, &EvapoTrans, &Intercept,
-                              &SnowPack);
+		tRestart<tCNode> Restart( &Timer, &BasinMesh, &Flow, &SnowPack);
 
 		cout<<"\n\nPart 7: Creating and Initializing Simulation"<<endl;
 		Cout<<"------------------------------------------------"<<endl<<endl;
@@ -252,8 +250,11 @@ int parallelSimulation(int argc, char **argv)
 		// Simulation starts new or from restart file
 		int optrestart;
 		optrestart = InputFile.ReadItem( optrestart, "RESTARTMODE");
-		if (optrestart == 2 || optrestart == 3 )
+		if (optrestart == 2 || optrestart == 3 ) {
 			Simulant.readRestart(InputFile);
+			EvapoTrans.flagRestartStart();
+			SnowPack.flagRestartStart();
+		}
 
 		cout<<"\n\nPart 8: Hydrologic Simulation Loop"<<endl;
 		Cout<<"--------------------------------------"<<endl;
@@ -299,7 +300,7 @@ int parallelSimulation(int argc, char **argv)
                               &RsmplMaster, &Balance, &Timer );
 
 		Cout<<"\nCreating Rainfall Setup...\n";
-		tRainfall Rainfall( &SimCtrl, &BasinMesh, InputFile, &RsmplMaster );
+		tRainfall Rainfall( &SimCtrl, &BasinMesh, InputFile, &RsmplMaster, &Timer );
 
 		Cout<<"\nCreating EvapoTranspiration Setup...\n";
 		tEvapoTrans EvapoTrans( &SimCtrl, &BasinMesh, InputFile, &Timer,
@@ -314,9 +315,7 @@ int parallelSimulation(int argc, char **argv)
                         &Moisture, &Rainfall); // SKY2008Snow from AJR2007
 
 		Cout<<"\nCreating Restart setup...\n";
-		tRestart<tCNode> Restart( &Timer, &BasinMesh, &Flow, &Balance,
-                              &Moisture, &Rainfall, &EvapoTrans, &Intercept,
-                              &SnowPack);
+		tRestart<tCNode> Restart( &Timer, &BasinMesh, &Flow, &SnowPack);
 
 		Cout<<"\n\nPart 7: Creating and Initializing Simulation"<<endl;
 		Cout<<"------------------------------------------------"<<endl<<endl;
@@ -326,15 +325,17 @@ int parallelSimulation(int argc, char **argv)
 		// Simulation starts new or from restart file
 		int optrestart;
 		optrestart = InputFile.ReadItem( optrestart, "RESTARTMODE");
-		if (optrestart == 2 || optrestart == 3 ) { 
+		if (optrestart == 2 || optrestart == 3 ) {
 			Simulant.readRestart(InputFile);
-		}   
+			EvapoTrans.flagRestartStart();
+			SnowPack.flagRestartStart();
+		}
 
 		Cout<<"\n\nPart 8: Hydrologic Simulation Loop"<<endl;
 		Cout<<"--------------------------------------"<<endl;
-		Simulant.simulation_loop( &Moisture, &Flow, &EvapoTrans, 
+		Simulant.simulation_loop( &Moisture, &Flow, &EvapoTrans,
                               &Intercept, &Balance, &SnowPack, // SKY2008Snow from AJR2007
-                              InputFile); // SKY2008Snow  
+                              InputFile); // SKY2008Snow
 		Simulant.end_simulation( &Flow );
 	}
 

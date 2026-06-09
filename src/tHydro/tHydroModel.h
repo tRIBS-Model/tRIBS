@@ -85,8 +85,6 @@ public:
   double GetCellRunon(tCNode *, double);
   double ComputeSurfSoilMoist(double);
 
-  void    writeRestart(fstream &) const;
-  void    readRestart(fstream &);
 
   void   set_Suction_Term(double);    
   void   SetCellRunon(tCNode *, double, double, double, int);

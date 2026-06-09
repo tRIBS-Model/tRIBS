@@ -10,7 +10,6 @@
 - [ ] Package METIS from parallelization work with tRIBS
 - [ ] Rerun tRIBS through a profiler for improving runtimes
 - [ ] Integrate stomatal resistance changes from Becerra branch
-- [ ] Generalize restart functionality
 - [ ] Update input timeseries and raster forcing files to use ISO 8601 timestamp format. No chnage to outputs for now, will still be elasped simulation hours. Example from `_MMddYYYYhh.asc` to `_20240615T1200.asc`
 
 ### Finished
@@ -32,6 +31,7 @@
 - [x] Standardize input text files
 - [x] Add root zone depth as land use parameter. If specified to -9999 then use original 1m.
 - [x] Merge spatial outputs from parallel simulations within tRIBS
+- [x] Generalize restart functionality
 
 
 

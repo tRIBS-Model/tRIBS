@@ -119,8 +119,9 @@ class tKinemat : public tFlowNet
   double ComputeNodeFlowVel(int);
   double RetrieveQeff(tCNode *);
 
-  void writeRestart(fstream &) const;
-  void readRestart(fstream &);
+  void writeRestart(ostream &) const;
+  void readRestart(istream &);
+  void readRestartGlobal(istream &, int);
 
   ifstream GeomtFile;       // Channel geometry input file
   ofstream theOFStream;     // Output file to store all the info

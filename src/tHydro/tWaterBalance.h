@@ -52,8 +52,6 @@ public:
   void SaturatedBalance();
   void BasinStorage(double);
   void Print(double *);
-  void writeRestart(fstream &) const;
-  void readRestart(fstream &);
 
 protected:
   tMesh<tCNode> *gridPtr;      

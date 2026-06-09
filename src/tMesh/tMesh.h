@@ -109,8 +109,9 @@ public:
    void CheckLocallyDelaunay();
    void MoveNodes( double time = 0.0 );
    void TellAboutNode(tSubNode *);
-   void writeRestart(fstream &);
-   void readRestart(fstream &);
+   void writeRestart(ostream &);
+   void readRestart(istream &);
+   void readRestartGlobal(istream &, int);
   
 #ifndef NDEBUG
    void DumpEdges();
