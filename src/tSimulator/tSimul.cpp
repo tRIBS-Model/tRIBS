@@ -793,9 +793,11 @@ void Simulator::readRestart(tInputFile &InFl)
   }
 #endif
 
-  Cout << "READ RESTART: file written " << yr << "-" << mo << "-" << dy
-       << " hr=" << hr << " (simtime=" << fileCt << " hrs)"
-       << ", new run starts " << timer->getCurrentTime() << " hrs" << endl << endl;
+  Cout << "Restart loaded: "
+       << yr << "-" << setfill('0') << setw(2) << mo << "-" << setw(2) << dy
+       << " " << setw(2) << hr << ":00"
+       << " (" << fixed << setprecision(3) << fileCt << " simulation hrs elapsed)"
+       << endl << endl;
 
   // Each rank reads the full outlet block and node block, applying only the
   // records whose nodeIDs belong to this rank.
