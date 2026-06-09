@@ -110,8 +110,11 @@ public:
   void  SetFlowResVariables(tInputFile &, double);
   void  writeAndUpdate(double);
   void  store_rain(double,double);
+  void  store_rain(int init, double ratio, double value);
   void  store_maxminrain(double,double, int);
+  void  store_maxminrain(int init, double ratio, double value, int flag);
   void  store_saturation(double,double, int);
+  void  store_saturation(int init, double ratio, double value, int flag);
   void  free_results();
   void  write_inter_hyd(char *, char *);
   void  write_Runoff_Types(char *, char *);
