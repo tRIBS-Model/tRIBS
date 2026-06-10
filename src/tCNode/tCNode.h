@@ -650,6 +650,13 @@ public:
   double getSoilCutoff();
   double getRootCutoff();
 
+  // Performance caches (see tHydroModel: root cutoff / satOccur test)
+  void setRootCutoffDepth(double);
+  void setNwtSatThresh(double);
+
+  double getRootCutoffDepth();
+  double getNwtSatThresh();
+
 
 protected:
   double ContrArea;             // Surface contributing area for the node 
@@ -891,6 +898,14 @@ protected:
   // update to beta functions, variable store cutoff of soil and dry canopy evap once Nwt = Bedrock
   double soil_cutoff;
   double root_cutoff;
+
+  // Performance caches, both initialized to -1.0 i.e. "not yet computed":
+  // root_cutoff_depth: rootzone depth root_cutoff was last computed for, so
+  //   the cutoff is only recomputed when the rootzone depth changes
+  // nwt_sat_thresh: water table depth above which the top 1 mm of soil may
+  //   be saturated (depends only on static soil properties)
+  double root_cutoff_depth;
+  double nwt_sat_thresh;
 
 
 };

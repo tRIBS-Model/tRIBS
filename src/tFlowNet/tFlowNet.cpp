@@ -669,7 +669,10 @@ void tFlowNet::SurfaceFlow()
 		 // Fix for converting MDGW sloped depth to vertical depth CJC2025
 		// Get the slope correction factor for the current node.
 		tEdge *flowEdge = cn->getFlowEdg();
-		double cos_slope = cos(atan(flowEdge->getSlope()));
+		// Originally cos(atan(slope)); identical to 1/sqrt(1+s^2) but
+		// avoids two expensive trig calls per node per time step
+		double edgeSlope = flowEdge->getSlope();
+		double cos_slope = 1.0/sqrt(1.0 + edgeSlope*edgeSlope);
 		if (cos_slope < 1E-9) cos_slope = 1.E-9;
 		// Convert Nwt to a vertical depth.
 		double nwt_vertical = cn->getNwtNew() / cos_slope;

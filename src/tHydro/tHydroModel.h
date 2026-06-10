@@ -66,9 +66,10 @@ public:
   void   PrintNewVars(tCNode *, double); 
   void   PrintNewGWVars(tCNode *, int); 
   
-  double get_Total_Moist(double);         
-  double get_Upper_Moist(double, double); 
+  double get_Total_Moist(double);
+  double get_Upper_Moist(double, double);
   double get_Lower_Moist(double, double) const;
+  double PowPsibOverNwt(double);
   
   //double get_Z1Z2_Moist(double, double, double);
   // SKY2008Snow from AJR2007
@@ -84,6 +85,7 @@ public:
   double getTransmissivityInfD(double) const;
   double GetCellRunon(tCNode *, double);
   double ComputeSurfSoilMoist(double);
+  double ComputeNwtSatThreshold() const;
 
 
   void   set_Suction_Term(double);    
@@ -159,6 +161,13 @@ private:
   double G{};           			// Capillary drive across the wet front
   double SeIn{}, Se0{};   			// Effective saturation in the power
   double ThRiNf{}, ThReNf{};                // (3 + 1/lambda)
+
+  // Single-slot cache for pow((-Psib/Nwt),PoreInd), see PowPsibOverNwt().
+  // cachedPowNwt starts at -1 (depths are >= 0) to force the first compute
+  double cachedPowNwt{-1.0};
+  double cachedPowPsib{0.0};
+  double cachedPowPoreInd{0.0};
+  double cachedPowVal{0.0};
 
   double Ksat{};
   double F{};

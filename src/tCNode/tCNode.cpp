@@ -160,6 +160,10 @@ tCNode::tCNode() :tNode()
     soil_cutoff = 0.0;
     root_cutoff = 0.0;
 
+    // Performance caches: -1 means "not yet computed"
+    root_cutoff_depth = -1.0;
+    nwt_sat_thresh = -1.0;
+
 }
 
 // Input File Constructor 
@@ -306,6 +310,13 @@ tCNode::tCNode(tInputFile &infile) :tNode() {
     Porosity = 0.0;
     VolHeatCond = 0.0;
     SoilHeatCap = 0.0;
+
+    soil_cutoff = 0.0;
+    root_cutoff = 0.0;
+
+    // Performance caches: -1 means "not yet computed"
+    root_cutoff_depth = -1.0;
+    nwt_sat_thresh = -1.0;
 
 }
 
@@ -614,6 +625,9 @@ double tCNode::getSoilHeatCap() {return SoilHeatCap;}
 double tCNode::getSoilCutoff() {return soil_cutoff;}
 double tCNode::getRootCutoff() {return root_cutoff;}
 
+double tCNode::getRootCutoffDepth() {return root_cutoff_depth;}
+double tCNode::getNwtSatThresh() {return nwt_sat_thresh;}
+
 // Set Functions
 
 void tCNode::setMuOld(double value)  { MuOld = value; }
@@ -880,6 +894,9 @@ void tCNode::setSoilHeatCap(double value) { SoilHeatCap = value;}
 //beta update
 void tCNode::setSoilCutoff(double value) {soil_cutoff = value;}
 void tCNode::setRootCutoff(double value) {root_cutoff = value;}
+
+void tCNode::setRootCutoffDepth(double value) {root_cutoff_depth = value;}
+void tCNode::setNwtSatThresh(double value) {nwt_sat_thresh = value;}
 
 
 
