@@ -42,11 +42,12 @@ The v6.0.0 changes listed below are abbreviated. For specific details refer to t
     * Simplified `OPTINTERCEPT` to support only the Rutter method for calculating canopy interception. ([#109](https://github.com/tRIBS-Model/tRIBS/pull/109))
     * Removed multiple command line options that were either dead code or neaver used in practice. ([#113](https://github.com/tRIBS-Model/tRIBS/pull/113))
     * Removed legacy forecast module. ([#115](https://github.com/tRIBS-Model/tRIBS/pull/115))
-* **C++ Performance Optimizations:** ([#107](https://github.com/tRIBS-Model/tRIBS/pull/107))
+* **C++ Performance Optimizations:** ([#107](https://github.com/tRIBS-Model/tRIBS/pull/107), [#120](https://github.com/tRIBS-Model/tRIBS/pull/120)) 
+    * Overall performance optimizations have shown to be around a 15 to 20% improvement in total wall time.
     * **Memory Management:** Refactored geometry functions (`FindIntersectionCoords`, `PlaneFit`, and `setRVtx`) to pass `tArray<double>` by `const` reference, eliminating massive heap allocation overhead.
     * **Math:** Replaced `pow()` calls with `x*x` and `sqrt()` in core physics loops to reduce CPU cycles.
     * **Standardization:** Unified platform-specific headers and replaced `sprintf` with `snprintf` for modern compiler compatibility.
-* **Error Warning Outputs:** While running the modle in parallel there were many error messages that would be duplicated across all processors or other issues resulting in massive log files. Many error messsages modified to only print 10 times before being silenced.
+* **Error Warning Outputs:** While running the model in parallel there were many error messages that would be duplicated across all processors or other issues resulting in massive log files. Many error messsages modified to only print 10 times before being silenced.
 * **Solar Position Calculation Inputs:** Previously the input values for solar position calculations were required in multiple input files. They have been moved to the main input file under the keywords: `UTCOFFSET`, `CENTROIDLAT`, and `CENTROIDLONG`. ([#116](https://github.com/tRIBS-Model/tRIBS/pull/116))
 
 ### Removed
