@@ -633,6 +633,12 @@ void tFlowNet::SurfaceFlow()
 	
 	setMaxTravelTime();
 
+	// Pre-compute timestep constants once — invariant across all nodes in the loop
+	double dcalc    = timer->getTimeStep();
+	double satRatio = dcalc / timer->getOutputInterval();
+	int    satInit  = timer->getResStep(-0.01 * dcalc);
+	int    satEnd   = timer->getResStep(-0.99 * dcalc);
+
 	// Runoff Storage in tFlowResults (zero travel time: accumulate in current bin)
 	for ( cn=nodIter.FirstP(); nodIter.IsActive(); cn=nodIter.NextP() ) {
 
@@ -663,76 +669,50 @@ void tFlowNet::SurfaceFlow()
 		 // Fix for converting MDGW sloped depth to vertical depth CJC2025
 		// Get the slope correction factor for the current node.
 		tEdge *flowEdge = cn->getFlowEdg();
-		double cos_slope = cos(atan(flowEdge->getSlope()));
+		// Originally cos(atan(slope)); identical to 1/sqrt(1+s^2) but
+		// avoids two expensive trig calls per node per time step
+		double edgeSlope = flowEdge->getSlope();
+		double cos_slope = 1.0/sqrt(1.0 + edgeSlope*edgeSlope);
 		if (cos_slope < 1E-9) cos_slope = 1.E-9;
 		// Convert Nwt to a vertical depth.
 		double nwt_vertical = cn->getNwtNew() / cos_slope;
 
-		// Rainfall and Saturation Storage in tFlowResults
-		res->store_rain(0.0, AreaF*cn->getRain());
-		
-		// Min/Max Rainfall and Fractional Rainfall 
-		res->store_maxminrain(0.0, cn->getRain(), 0);
-		if (cn->getRain() > 0.0)
-			res->store_maxminrain(0.0, AreaF, 1);
-		
-		// Mean Soil Moisture (top 100 mm, Root and unsaturated zone) 
-		// and Saturated Area
-		res->store_saturation(0.0, AreaF*cn->getSoilMoistureSC(), 0);
-		res->store_saturation(0.0, AreaF*cn->getRootMoistureSC(), 1);
-		res->store_saturation(0.0, AreaF*cn->getSoilMoistureUNSC(), 2);
-		if (cn->getSoilMoistureSC() >= 1)
-			res->store_saturation(0.0, AreaF, 3);
-		// Mean groundwater level
-		res->store_saturation(0.0, AreaF*nwt_vertical, 4);
-		//Mean Evapotranspiration
-		res->store_saturation(0.0, AreaF*cn->getEvapoTrans(), 5);
+		if (satInit == satEnd) {
+			res->store_rain(satInit, satRatio, AreaF*cn->getRain());
+			res->store_maxminrain(satInit, satRatio, cn->getRain(), 0);
+			if (cn->getRain() > 0.0)
+				res->store_maxminrain(satInit, satRatio, AreaF, 1);
+			res->store_saturation(satInit, satRatio, AreaF*cn->getSoilMoistureSC(), 0);
+			res->store_saturation(satInit, satRatio, AreaF*cn->getRootMoistureSC(), 1);
+			res->store_saturation(satInit, satRatio, AreaF*cn->getSoilMoistureUNSC(), 2);
+			if (cn->getSoilMoistureSC() >= 1)
+				res->store_saturation(satInit, satRatio, AreaF, 3);
+			res->store_saturation(satInit, satRatio, AreaF*nwt_vertical, 4);
+			res->store_saturation(satInit, satRatio, AreaF*cn->getEvapoTrans(), 5);
 
-		// SKY2008Snow from AJR2007
-		//Mean SWE
-		res->store_saturation(0.0, AreaF*(cn->getIceWE() + cn->getLiqWE()),6);//added by AJR 2007 @ NMT
-		//Mean melt
-		res->store_saturation(0.0, AreaF*cn->getLiqRouted(),7);//added by AJR 2007 @ NMT
-		//Mean ST
-		res->store_saturation(0.0, AreaF*cn->getSnTempC(),8);//added by AJR 2007 @ NMT
-		//Mean DU
-		res->store_saturation(0.0, AreaF*cn->getDU(),9);//added by AJR 2007 @ NMT
-		//Mean sLHF
-		res->store_saturation(0.0, AreaF*cn->getSnLHF(), 10);//added by AJR 2007 @ NMT
-     		//Mean sSHF
-		res->store_saturation(0.0, AreaF*cn->getSnSHF(), 11);//added by AJR 2007 @ NMT
-     		//Mean sGHF
-		res->store_saturation(0.0, AreaF*cn->getSnGHF(), 12);//added by AJR 2007 @ NMT
-     		//Mean sPHF
-		res->store_saturation(0.0, AreaF*cn->getSnPHF(), 13);//added by AJR 2007 @ NMT
-     		//Mean sRLi
-		res->store_saturation(0.0, AreaF*cn->getSnRLin(), 14);//added by AJR 2007 @ NMT
-     		//Mean sRLo
-		res->store_saturation(0.0, AreaF*cn->getSnRLout(), 15);//added by AJR 2007 @ NMT
-     		//Mean sRSi
-		res->store_saturation(0.0, AreaF*cn->getSnRSin(), 16);//added by AJR 2007 @ NMT
-     		//Mean intSWE
-		res->store_saturation(0.0, AreaF*cn->getIntSWE(),17);//added by AJR 2007 @ NMT
-		//Mean intSub
-		res->store_saturation(0.0, AreaF*cn->getIntSub(),18);//added by AJR 2007 @ NMT
-		//Mean intUnl
-		res->store_saturation(0.0, AreaF*cn->getIntSnUnload(),19);//added by AJR 2007 @ NMT
-     		//SCA
-		if ((cn->getIceWE() + cn->getLiqWE()) > 0.0)
-			val = 1.0;
-		else
-			val = 0.0;
-		res->store_saturation(0.0, AreaF*val,20);//added by AJR 2007 @ NMT -- SCA
-			//Mean SnSub
-		res->store_saturation(0.0, AreaF*cn->getSnSub(),21);// Calculated mean snowpack sublimation CJC2020 
-			//Mean SnSub
-		res->store_saturation(0.0, AreaF*cn->getSnEvap(),22);// Calculated mean snowpack sublimation CJC2020
-		//Mean Qunsat
-		res->store_saturation(0.0, AreaF*(cn->getQpout() - cn->getQpin()) * 1.E-6 / cn->getVArea(),24); // CJC 2025
-
-        //ASM Percolation option
-        if (percolationOption != 0)
-            res->store_saturation(0.0, cn->getChannelPerc(),23);
+			// SKY2008Snow from AJR2007
+			res->store_saturation(satInit, satRatio, AreaF*(cn->getIceWE() + cn->getLiqWE()), 6);
+			res->store_saturation(satInit, satRatio, AreaF*cn->getLiqRouted(), 7);
+			res->store_saturation(satInit, satRatio, AreaF*cn->getSnTempC(), 8);
+			res->store_saturation(satInit, satRatio, AreaF*cn->getDU(), 9);
+			res->store_saturation(satInit, satRatio, AreaF*cn->getSnLHF(), 10);
+			res->store_saturation(satInit, satRatio, AreaF*cn->getSnSHF(), 11);
+			res->store_saturation(satInit, satRatio, AreaF*cn->getSnGHF(), 12);
+			res->store_saturation(satInit, satRatio, AreaF*cn->getSnPHF(), 13);
+			res->store_saturation(satInit, satRatio, AreaF*cn->getSnRLin(), 14);
+			res->store_saturation(satInit, satRatio, AreaF*cn->getSnRLout(), 15);
+			res->store_saturation(satInit, satRatio, AreaF*cn->getSnRSin(), 16);
+			res->store_saturation(satInit, satRatio, AreaF*cn->getIntSWE(), 17);
+			res->store_saturation(satInit, satRatio, AreaF*cn->getIntSub(), 18);
+			res->store_saturation(satInit, satRatio, AreaF*cn->getIntSnUnload(), 19);
+			val = ((cn->getIceWE() + cn->getLiqWE()) > 0.0) ? 1.0 : 0.0;
+			res->store_saturation(satInit, satRatio, AreaF*val, 20);
+			res->store_saturation(satInit, satRatio, AreaF*cn->getSnSub(), 21);
+			res->store_saturation(satInit, satRatio, AreaF*cn->getSnEvap(), 22);
+			res->store_saturation(satInit, satRatio, AreaF*(cn->getQpout() - cn->getQpin()) * 1.E-6 / cn->getVArea(), 24);
+			if (percolationOption != 0)
+				res->store_saturation(satInit, satRatio, cn->getChannelPerc(), 23);
+		}
 
 	}
 	return;

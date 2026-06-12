@@ -501,6 +501,7 @@ void tHydroModel::InitSet(tResample *resamp)
 
         cn->setSoilCutoff(get_Upper_Moist(surfaceSoilDepth,bedRock)/surfaceSoilDepth); // volumetric soil moisture content of soil zone if water table reaches bedrock
         cn->setRootCutoff(get_Upper_Moist(RZ_LU,bedRock)/RZ_LU); // volumetric soil moisture content of root zone if water table reaches bedrock
+        cn->setRootCutoffDepth(RZ_LU); // cache the rootzone depth the cutoff was computed for
 
 
 
@@ -798,9 +799,19 @@ void tHydroModel::UnSaturatedZone(double dt)
 		// Get geometry properties
 		ce = cn->getFlowEdg();
 
-		alpha = atan(ce->getSlope());
-		(alpha > 0.0 ? Cos = fabs(cos(alpha)) : Cos = 1.0);
-		(alpha > 0.0 ? Sin = fabs(sin(alpha)) : Sin = 0.0);
+		// Slope factors. Originally: alpha = atan(slope); Cos = cos(alpha);
+		// Sin = sin(alpha). Rewritten with the identities
+		// cos(atan(s)) = 1/sqrt(1+s^2) and sin(atan(s)) = s/sqrt(1+s^2)
+		// to avoid three expensive trig calls per node
+		double edgeSlope = ce->getSlope();
+		if (edgeSlope > 0.0) {
+			Cos = 1.0/sqrt(1.0 + edgeSlope*edgeSlope);
+			Sin = edgeSlope*Cos;
+		}
+		else {
+			Cos = 1.0;
+			Sin = 0.0;
+		}
 		
 		// Get Bedrock depth for computing Nwt
 		DtoBedrock = cn->getBedrockDepth(); // Added by CJC2020
@@ -2095,7 +2106,15 @@ void tHydroModel::UnSaturatedZone(double dt)
 			ThSurf = ComputeSurfSoilMoist(rzDepth);
 			cn->setRootMoisture( ThSurf );
 			cn->setRootMoistureSC( ThSurf/Ths );
-			cn->setRootCutoff( get_Upper_Moist(rzDepth, DtoBedrock) / rzDepth );
+			// RootCutoff = get_Upper_Moist(rzDepth, DtoBedrock)/rzDepth depends
+			// only on the rootzone depth, bedrock depth and the static soil
+			// properties, so recompute it only when the rootzone depth changes
+			// (e.g. dynamic land-use grids) instead of every time step: the
+			// pow() calls inside get_Upper_Moist showed up in runtime profiles
+			if (rzDepth != cn->getRootCutoffDepth()) {
+				cn->setRootCutoff( get_Upper_Moist(rzDepth, DtoBedrock) / rzDepth );
+				cn->setRootCutoffDepth(rzDepth);
+			}
 		}
 		cn->addAvSoilMoisture((Mdelt*AA + cn->getRootMoisture()/Ths)/(AA+1.0)*1.0E-1);
 
@@ -2111,8 +2130,22 @@ void tHydroModel::UnSaturatedZone(double dt)
 			cn->sbsrfOccur=cn->sbsrfOccur+floor(sbsrf*1.0E+3)+1.0E-6;
 		if (psrf>0.0)
 			cn->psrfOccur=cn->psrfOccur+floor(psrf*1.0E+3)+1.0E-6;
-		if (ComputeSurfSoilMoist(1.0)/Ths > 0.999)
-			cn->satOccur = cn->satOccur + 1;
+
+		// Saturation occurrence counter. The original test was simply
+		//     if (ComputeSurfSoilMoist(1.0)/Ths > 0.999) satOccur++;
+		// i.e. the average moisture in the top 1 mm exceeds 99.9% of
+		// saturation. ComputeSurfSoilMoist is expensive (pow/exp/log), so in
+		// the most common state like initial hydrostatic profile (no wetting
+		// front) with a deep enough water table it is skipped: moisture
+		// only increases with depth, so the top 1 mm cannot be near
+		// saturation when NwtNew >= NwtSatThresh (see ComputeNwtSatThreshold
+		// for the derivation). The counter values are unchanged.
+		if (cn->getNwtSatThresh() < 0.0)
+			cn->setNwtSatThresh(ComputeNwtSatThreshold());
+		if (!((NfNew == 0.0 || NfNew == NwtNew) && NwtNew >= cn->getNwtSatThresh())) {
+			if (ComputeSurfSoilMoist(1.0)/Ths > 0.999)
+				cn->satOccur = cn->satOccur + 1;
+		}
 
 		// The term with 'sbsrf' is not exactly right...
 		cn->RechDisch=cn->RechDisch+((NwtOld-NwtNew)+sbsrf*dt*Cos/Ths)*1.0E-3;
@@ -2275,6 +2308,31 @@ void tHydroModel::UnSaturatedZone(double dt)
 
 /*************************************************************************
 **
+**  tHydroModel::PowPsibOverNwt( double )
+**
+**  Returns pow((-Psib/Nwt), PoreInd), the Brooks-Corey term shared by
+**  get_Total_Moist and get_Upper_Moist. Those functions are called
+**  several times per node per time step with the same water table depth
+**  Nwt, so the last result is cached and reused: pow() is expensive and
+**  dominated the runtime profile. The cache keys on all three inputs
+**  (Nwt, Psib, PoreInd), so a stale value can never be returned. The
+**  result is always identical to calling pow() directly.
+**
+*************************************************************************/
+double tHydroModel::PowPsibOverNwt(double Nwt)
+{
+	if (Nwt != cachedPowNwt || Psib != cachedPowPsib ||
+		PoreInd != cachedPowPoreInd) {
+		cachedPowNwt = Nwt;
+		cachedPowPsib = Psib;
+		cachedPowPoreInd = PoreInd;
+		cachedPowVal = pow((-Psib/Nwt), PoreInd);
+	}
+	return cachedPowVal;
+}
+
+/*************************************************************************
+**
 **  tHydroModel::get_Total_Moist( double )
 **
 **  Allows to get the total moisture value in the initial profile
@@ -2288,7 +2346,7 @@ double tHydroModel::get_Total_Moist(double Nwt)
 			dM = Thr*(Nwt+Psib)-fabs(Psib)*(Ths-Thr)*log((-Psib)/Nwt)-Ths*Psib;
 		else
 			dM = Thr*(Nwt+Psib)-Ths*Psib-(Ths-Thr)/(PoreInd-1.0)*
-				(Psib + Nwt*pow((-Psib/Nwt),PoreInd));
+				(Psib + Nwt*PowPsibOverNwt(Nwt)); // = pow((-Psib/Nwt),PoreInd), cached
 	}
 	else if (Nwt == 0.0)
 		dM = 0.0;
@@ -2323,14 +2381,14 @@ double tHydroModel::get_Upper_Moist(double Nf, double Nwt)
 			dM = Thr*Nf + fabs(Psib)*(Ths-Thr)*log(Nwt/(Nwt-Nf));
 		else
 			dM = Thr*Nf - (Ths-Thr)/(PoreInd-1.0)*
-				((Nf-Nwt)*pow((Psib/(Nf-Nwt)),PoreInd) + Nwt*pow((-Psib/Nwt),PoreInd));
+				((Nf-Nwt)*pow((Psib/(Nf-Nwt)),PoreInd) + Nwt*PowPsibOverNwt(Nwt));
 	}
 	else {
 		if (PoreInd >(1.0-1.0E-6) && PoreInd <(1.0+1.0E-6))
 			dM = get_Total_Moist(Nwt) + Ths*Psib + Ths*(Nf-(Nwt+Psib));
 		else
 			dM = Thr*(Nwt+Psib) - (Ths-Thr)/(PoreInd-1.0)*
-				(Psib + Nwt*pow((-Psib/Nwt),PoreInd)) + Ths*(Nf-(Nwt+Psib));
+				(Psib + Nwt*PowPsibOverNwt(Nwt)) + Ths*(Nf-(Nwt+Psib));
 	}
 	return dM;
 }
@@ -2392,19 +2450,32 @@ double tHydroModel::get_EdgeMoist_depthZ(double Nf) const
 **
 **  Note: ThRiNf & ThReNf must be defined before the function run
 **
+**  Computes, with PoreIndF = PoreInd*exp(-F*Nf/2) being the pore-size
+**  distribution index adjusted for the conductivity decay with depth:
+**
+**     Se(theta) = ((theta - Thr)/(Ths - Thr)) ^ (3 + 1/PoreIndF)
+**     G = -Psib*(Se0 - SeIn)/(3*PoreIndF + 1)        [mm]
+**
+**  where SeIn uses theta = ThRiNf, Se0 uses theta = ThReNf, and Se0 = 1
+**  in the saturated phase (ThReNf == Ths). The exp() term and the Se
+**  exponent are evaluated once and reused.
+**
 *************************************************************************/
 void tHydroModel::set_Suction_Term(double Nf)
 {
+	double PoreIndF = PoreInd*exp(-F*Nf/2.);
+	double SeExp    = 3. + 1./PoreIndF;
+
+	SeIn = pow(((ThRiNf-Thr)/(Ths-Thr)), SeExp);
+
 	if (ThReNf == Ths) { // <--- Saturated phase
-		SeIn = pow(((ThRiNf-Thr)/(Ths-Thr)),(3. + 1./(PoreInd*exp(-F*Nf/2.))));
-		G = -Psib*(1. - SeIn)/(3*PoreInd*exp(-F*Nf/2.) + 1.);  // UNITS: mm
+		G = -Psib*(1. - SeIn)/(3.*PoreIndF + 1.);  // UNITS: mm
 	}
 	else {
-		SeIn = pow(((ThRiNf-Thr)/(Ths-Thr)),(3. + 1./(PoreInd*exp(-F*Nf/2.))));
-		Se0  = pow(((ThReNf-Thr)/(Ths-Thr)),(3. + 1./(PoreInd*exp(-F*Nf/2.))));
-		G = -Psib*(Se0 - SeIn)/(3.0*PoreInd*exp(-F*Nf/2.) + 1.);  // UNITS: mm
+		Se0  = pow(((ThReNf-Thr)/(Ths-Thr)), SeExp);
+		G = -Psib*(Se0 - SeIn)/(3.*PoreIndF + 1.);  // UNITS: mm
 	}
-	}
+}
 
 /*************************************************************************
 **
@@ -2566,8 +2637,10 @@ void tHydroModel::ComputeFluxesNodes1D()
 	for ( cn=nodIter.FirstP(); nodIter.IsActive(); cn=nodIter.NextP() ) {
 		WTSlope = -999.0;
 		cnorg = cn;
-		alpha = atan((cnorg->getFlowEdg())->getSlope());
-		Cos1 = cos(alpha);
+		// Originally Cos1 = cos(atan(slope)); identical to 1/sqrt(1+s^2)
+		// but avoids two expensive trig calls per node
+		double slpOrg = (cnorg->getFlowEdg())->getSlope();
+		Cos1 = 1.0/sqrt(1.0 + slpOrg*slpOrg);
 
         // Giuseppe 2016 - Begin changes to allow reading soil properties from grids
 		//soilPtr->setSoilPtr( cnorg->getSoilID() );
@@ -2595,8 +2668,9 @@ void tHydroModel::ComputeFluxesNodes1D()
 				 (cnorg->getBoundaryFlag()  != kClosedBoundary) &&
 				 (cndest->getBoundaryFlag() != kClosedBoundary) ) {
 
-				alpha = atan( (cndest->getFlowEdg())->getSlope() );
-				Cos2 = cos(alpha);
+				// Originally Cos2 = cos(atan(slope)), see Cos1 above
+				double slpDest = (cndest->getFlowEdg())->getSlope();
+				Cos2 = 1.0/sqrt(1.0 + slpDest*slpDest);
 
                 // Giuseppe 2016 - Begin changes to allow reading soil properties from grids
 				//                soilPtr->setSoilPtr( cndest->getSoilID() );
@@ -2726,10 +2800,13 @@ void tHydroModel::ComputeFluxesEdgesND()
 			 &&  (cnorg->getBoundaryFlag() != kClosedBoundary) &&
 			 (cndest->getBoundaryFlag() != kClosedBoundary) ) {
 
-			alpha = atan( (cnorg->getFlowEdg())->getSlope() );    //Slope for subsurface fl.
-			Cos1 = cos(alpha);
-			alpha = atan( (cndest->getFlowEdg())->getSlope() );   //Slope for subsurface fl.
-			Cos2 = cos(alpha);
+			// Slopes for subsurface fl. Originally cos(atan(slope));
+			// identical to 1/sqrt(1+s^2) but avoids four expensive trig
+			// calls per edge
+			double slpOrg  = (cnorg->getFlowEdg())->getSlope();
+			double slpDest = (cndest->getFlowEdg())->getSlope();
+			Cos1 = 1.0/sqrt(1.0 + slpOrg*slpOrg);
+			Cos2 = 1.0/sqrt(1.0 + slpDest*slpDest);
 
             // Giuseppe 2016 - Begin changes to allow reading soil properties from grids
 			//            soilPtr->setSoilPtr( cnorg->getSoilID() );
@@ -3081,9 +3158,10 @@ void tHydroModel::SaturatedZone(double dtGW)
 		// Initialize runoff
 		srf = satsrf = 0.0;
 
-		// Get geometry
-		alpha = atan(cn->getFlowEdg()->getSlope());
-		(alpha > 0.0 ? Cos = fabs(cos(alpha)) : Cos = 1.0);
+		// Get geometry. Originally Cos = cos(atan(slope)); identical to
+		// 1/sqrt(1+s^2) but avoids two expensive trig calls per node
+		double edgeSlope = cn->getFlowEdg()->getSlope();
+		Cos = (edgeSlope > 0.0) ? 1.0/sqrt(1.0 + edgeSlope*edgeSlope) : 1.0;
 
 		Area = cn->getVArea();   // M^2;
 		
@@ -3509,9 +3587,15 @@ void tHydroModel::SaturatedZone(double dtGW)
             cn->satsrfOccur = cn->satsrfOccur + floor(satsrf * 1.0E+3) + 1.0E-6;
         }
 
-		if (ComputeSurfSoilMoist(1.0)/Ths > 0.999) {
-            cn->satOccur = cn->satOccur + 1;
-        }
+		// Saturation occurrence counter: same gated test as in
+		// UnSaturatedZone(), see the comment there. Original test:
+		//     if (ComputeSurfSoilMoist(1.0)/Ths > 0.999) satOccur++;
+		if (cn->getNwtSatThresh() < 0.0)
+			cn->setNwtSatThresh(ComputeNwtSatThreshold());
+		if (!((NfNew == 0.0 || NfNew == NwtNew) && NwtNew >= cn->getNwtSatThresh())) {
+			if (ComputeSurfSoilMoist(1.0)/Ths > 0.999)
+				cn->satOccur = cn->satOccur + 1;
+		}
 
 		cn->RechDisch=cn->RechDisch+((NwtOld-NwtNew)+satsrf*dtGW*Cos/Ths)*1.0E-3;
 
@@ -3543,7 +3627,11 @@ void tHydroModel::SaturatedZone(double dtGW)
 			ThSurf = ComputeSurfSoilMoist(rzDepth);
 			cn->setRootMoisture( ThSurf );
 			cn->setRootMoistureSC( ThSurf/Ths );
-			cn->setRootCutoff( get_Upper_Moist(rzDepth, DtoBedrock) / rzDepth );
+			// Recompute RootCutoff only when the rootzone depth changes
+			if (rzDepth != cn->getRootCutoffDepth()) {
+				cn->setRootCutoff( get_Upper_Moist(rzDepth, DtoBedrock) / rzDepth );
+				cn->setRootCutoffDepth(rzDepth);
+			}
 		}
 		cn->addAvSoilMoisture((Mdelt*AA + cn->getRootMoisture()/Ths)/(AA+1.0)*1.0E-1);
 
@@ -3690,6 +3778,36 @@ double tHydroModel::ComputeSurfSoilMoist(double Z)
 
 /*************************************************************************
 **
+**  tHydroModel::ComputeNwtSatThreshold()
+**
+**  Returns the water table depth (mm) above which the top 1 mm of soil
+**  can possibly be saturated, used to skip the expensive satOccur test
+**  ComputeSurfSoilMoist(1.0)/Ths > 0.999 when it must be false.
+**
+**  Derivation, valid for the initial hydrostatic profile (no wetting
+**  front), where moisture only increases with depth toward the water
+**  table, so the top 1 mm average cannot exceed the moisture at 1 mm:
+**
+**     theta(1mm) = Thr + (Ths-Thr)*(-Psib/(Nwt-1))^PoreInd  >  0.999*Ths
+**
+**  rearranges to Nwt < NwtSatThresh with
+**
+**     NwtSatThresh = 1 + (-Psib)*((Ths-Thr)/(0.999*Ths-Thr))^(1/PoreInd)
+**
+**  Depends only on static soil properties: computed once per node and
+**  cached in tCNode.
+**
+*************************************************************************/
+double tHydroModel::ComputeNwtSatThreshold() const
+{
+	double denom = 0.999*Ths - Thr;
+	if (denom <= 0.0)
+		return 1.0E+9; // degenerate soil parameters: never skip the full test
+	return 1.0 + (-Psib)*pow((Ths-Thr)/denom, 1.0/PoreInd);
+}
+
+/*************************************************************************
+**
 ** tHydroModel::get_Z1Z2_Moist(double Z1, double Z2, double Nwt)
 **
 ** Allows to get a moisture content in the initial profile between depths
@@ -3750,8 +3868,9 @@ double tHydroModel::GetCellRunon( tCNode *cn, double DTUS )
 
 	runon = 0.0;
 
-	alpha = atan(cn->getFlowEdg()->getSlope());
-	(alpha > 0.0 ? Cos = fabs(cos(alpha)) : Cos = 1.0);
+	// Originally Cos = cos(atan(slope)) = 1/sqrt(1+s^2), avoids trig calls
+	double edgeSlope = cn->getFlowEdg()->getSlope();
+	Cos = (edgeSlope > 0.0) ? 1.0/sqrt(1.0 + edgeSlope*edgeSlope) : 1.0;
 
 	firstedg = cn->getFlowEdg();
 	curedg = firstedg->getCCWEdg();
@@ -3825,8 +3944,9 @@ void tHydroModel::SetCellRunon( tCNode *cn, double runoff,
 			// Find upslope element contributing to the current element
 			if (cnn->getFlowEdg()->getDestinationPtrNC() == (tNode*)cn &&
 				cnn->getSrf() > 0.0) {
-				alpha = atan(cnn->getFlowEdg()->getSlope());
-				(alpha > 0.0 ? Cos1 = fabs(cos(alpha)) : Cos1 = 1.0);
+				// Originally Cos1 = cos(atan(slope)) = 1/sqrt(1+s^2)
+				double slpNbr = cnn->getFlowEdg()->getSlope();
+				Cos1 = (slpNbr > 0.0) ? 1.0/sqrt(1.0 + slpNbr*slpNbr) : 1.0;
 
 				// Account for area and slope differences [mm hour^-1]
 				runoff = ((cnn->getSrf())/DTUS);
@@ -4222,20 +4342,49 @@ double tHydroModel::rtsafe_mod(double c1, double c2, double c3,
 **  the value of its derivative (dv). Used in Newton iterative procedure
 **  to find root of an equation.
 **
+**  Evaluates the polynomial and its derivative:
+**     fv = C1*x^PoreInd + C3*x^(PoreInd-1) + C2
+**     dv = C1*PoreInd*x^(PoreInd-1) + C3*(PoreInd-1)*x^(PoreInd-2)
+**
+**  PERFORMANCE NOTE: pow() is expensive and this function runs inside the
+**  Newton/rtsafe iteration loops (up to ~30 calls per node per time step).
+**  The three powers above differ only by whole numbers, so instead of five
+**  pow() calls we compute x^(PoreInd-2) once and multiply up by x:
+**     x^(PoreInd-1) = x^(PoreInd-2) * x
+**     x^PoreInd     = x^(PoreInd-1) * x
+**  The math is essentially identical to the equations above.
+**
 ***************************************************************************/
 void tHydroModel::polyn(double x, double& fv, double& dv,
                         double C1, double C2, double C3) const
 {
-	fv = C1*pow(x,PoreInd) + C3*pow(x,(PoreInd-1.0)) + C2;
-	dv = C1*PoreInd*pow(x,(PoreInd-1.0)) + C3*(PoreInd-1.0)*pow(x,(PoreInd-2.0));
+	double xPm2 = pow(x,(PoreInd-2.0)); // x^(PoreInd-2)
+	double xPm1 = xPm2*x;               // x^(PoreInd-1)
+	double xP   = xPm1*x;               // x^PoreInd
+	fv = C1*xP + C3*xPm1 + C2;
+	dv = C1*PoreInd*xPm1 + C3*(PoreInd-1.0)*xPm2;
 }
 
+/***************************************************************************
+**
+**  Second form, written in terms of the depth difference (Nwt - x):
+**     fv = C1*x*(Nwt-x)^(PoreInd-1) + C3*(Nwt-x)^(PoreInd-1) - C2
+**     dv = C1*(Nwt-x)^(PoreInd-1) - C1*(PoreInd-1)*x*(Nwt-x)^(PoreInd-2)
+**          - C3*(PoreInd-1)*(Nwt-x)^(PoreInd-2)
+**
+**  Same change as above: (Nwt-x)^(PoreInd-2) is computed with a
+**  single pow() call and (Nwt-x)^(PoreInd-1) is obtained by multiplying
+**  by (Nwt-x), replacing five pow() calls with one.
+**
+***************************************************************************/
 void tHydroModel::polyn(double x, double Nwt, double& fv, double& dv,
 						double C1, double C2, double C3) const
 {
-	fv = C1*x*pow((Nwt-x),(PoreInd-1.0)) + C3*pow((Nwt-x),(PoreInd-1.0)) - C2;
-	dv = C1*pow((Nwt-x),(PoreInd-1.0))-C1*(PoreInd-1.0)*x*pow((Nwt-x),(PoreInd-2.0))-
-		C3*(PoreInd-1.0)*pow((Nwt-x),(PoreInd-2.0));
+	double y    = Nwt - x;
+	double yPm2 = pow(y,(PoreInd-2.0)); // (Nwt-x)^(PoreInd-2)
+	double yPm1 = yPm2*y;               // (Nwt-x)^(PoreInd-1)
+	fv = C1*x*yPm1 + C3*yPm1 - C2;
+	dv = C1*yPm1 - C1*(PoreInd-1.0)*x*yPm2 - C3*(PoreInd-1.0)*yPm2;
 }
 
 

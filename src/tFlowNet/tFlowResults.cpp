@@ -940,8 +940,13 @@ void tFlowResults::store_rain(double time, double value)
 	return;
 }
 
+void tFlowResults::store_rain(int init, double ratio, double value)
+{
+	crr[init] += value * ratio;
+}
+
 /***************************************************************************
-** 
+**
 **  tFlowResults: store_maxminrain(double time, double value)
 **
 ***************************************************************************/
@@ -969,8 +974,18 @@ void tFlowResults::store_maxminrain(double time, double value, int flag)
 	return;
 }
 
+void tFlowResults::store_maxminrain(int init, double ratio, double value, int flag)
+{
+	if (flag == 0) {
+		if (value > max[init]) max[init] = value;
+		if (value <= min[init]) min[init] = value;
+	} else if (flag == 1) {
+		frac[init] += value * ratio;
+	}
+}
+
 /***************************************************************************
-** 
+**
 **  tFlowResults: store_saturation(double time, double value)
 **  TODO is it possible to optimize this part of the code?
 **  dcalc, dres, and init are invariant across all store_saturation calls
@@ -1046,6 +1061,38 @@ void tFlowResults::store_saturation(double time, double value, int flag)
 
     }
 	return;
+}
+
+void tFlowResults::store_saturation(int init, double ratio, double value, int flag)
+{
+	double scaled = value * ratio;
+	switch (flag) {
+		case  0: msm[init]    += scaled; break;
+		case  1: msmRt[init]  += scaled; break;
+		case  2: msmU[init]   += scaled; break;
+		case  3: sat[init]    += scaled; break;
+		case  4: mgw[init]    += scaled; break;
+		case  5: met[init]    += scaled; break;
+		case  6: swe[init]    += scaled; break;
+		case  7: melt[init]   += scaled; break;
+		case  8: stC[init]    += scaled; break;
+		case  9: DUint[init]  += scaled; break;
+		case 10: slhf[init]   += scaled; break;
+		case 11: sshf[init]   += scaled; break;
+		case 12: sghf[init]   += scaled; break;
+		case 13: sphf[init]   += scaled; break;
+		case 14: srli[init]   += scaled; break;
+		case 15: srlo[init]   += scaled; break;
+		case 16: srsi[init]   += scaled; break;
+		case 17: intsn[init]  += scaled; break;
+		case 18: intsub[init] += scaled; break;
+		case 19: intunl[init] += scaled; break;
+		case 20: sca[init]    += scaled; break;
+		case 21: snsub[init]  += scaled; break;
+		case 22: snevap[init] += scaled; break;
+		case 23: Perc[init]   += value * 225; break;
+		case 24: qunsat[init] += scaled; break;
+	}
 }
 
 //=========================================================================
