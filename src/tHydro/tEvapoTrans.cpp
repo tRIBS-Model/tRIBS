@@ -225,8 +225,9 @@ void tEvapoTrans::SetEvapTVariables(tInputFile &infile, tHydroModel *hydro)
 		soilPtr = hydro->soilPtr;
 		initializeVariables();
 		SetSunVariables();
+		readRsMonthlyFactors(infile); // JB2025 @ ASU
 
-		
+
 		if (gFluxOption != 1 && gFluxOption != 2) {
 			Cout<<"\nGround Heat Flux Option "<< gFluxOption;
 			Cout<<" not valid if evapotranspiration routine active."<<endl;
@@ -242,7 +243,82 @@ void tEvapoTrans::SetEvapTVariables(tInputFile &infile, tHydroModel *hydro)
 
 /***************************************************************************
 **
-** tEvapoTrans::CreateHydroMetAndLU() 
+** tEvapoTrans::readRsMonthlyFactors()                       JB2025 @ ASU
+**
+** Optional, opt-in monthly scaling of the minimum stomatal resistance.
+** Activated solely by the presence of the RSPARAMFILE keyword in the input
+** file, no separate option flag. When absent, every monthly factor stays
+** at its default of 1.0 and stomResist() reproduces the legacy behavior.
+**
+** RSPARAMFILE:
+**   - one header row that is skipped (e.g. "Jan,Feb,...,Dec")
+**   - one data row of 12 comma-separated multipliers applied to coeffRs
+**
+***************************************************************************/
+void tEvapoTrans::readRsMonthlyFactors(tInputFile &infile)
+{
+	const int kMonths = 12;
+
+	// The feature is opt-in: keyword absent then keep default diurnal scaling.
+	if (!infile.IsItemIn("RSPARAMFILE")) {
+		Cout << "\nStomatal resistance: no RSPARAMFILE specified; "
+		     << "using default diurnal scaling." << endl;
+		return;
+	}
+
+	char rsParamFile[kName];
+	infile.ReadItem(rsParamFile, "RSPARAMFILE");
+
+	ifstream Inp(rsParamFile);
+	if (!Inp) {
+		Cout << "\nError: RSPARAMFILE '" << rsParamFile << "' not found." << endl;
+		Cout << "Exiting Program...\n\n" << endl;
+		exit(1);
+	}
+
+	// Skip and validate the header row.
+	std::string header;
+	std::getline(Inp, header);
+	if (!header.empty() && header.back() == '\r') header.pop_back();
+	int colCount = 1;
+	for (char c : header)
+		if (c == ',') ++colCount;
+	if (colCount != kMonths) {
+		Cout << "\nError: RSPARAMFILE '" << rsParamFile << "' header has " << colCount
+		     << " columns, expected " << kMonths << " (Jan..Dec)." << endl;
+		Cout << "Exiting Program...\n\n" << endl;
+		exit(1);
+	}
+
+	// Read the single data row of 12 monthly multipliers.
+	std::string line;
+	if (!std::getline(Inp, line)) {
+		Cout << "\nError: RSPARAMFILE '" << rsParamFile << "' has no data row." << endl;
+		Cout << "Exiting Program...\n\n" << endl;
+		exit(1);
+	}
+	if (!line.empty() && line.back() == '\r') line.pop_back();
+
+	std::istringstream ss(line);
+	std::string token;
+	for (int i = 0; i < kMonths; i++) {
+		if (!std::getline(ss, token, ',')) {
+			Cout << "\nError: RSPARAMFILE '" << rsParamFile << "' data row has fewer than "
+			     << kMonths << " values." << endl;
+			Cout << "Exiting Program...\n\n" << endl;
+			exit(1);
+		}
+		rsMonthlyFactor[i] = std::stod(token);
+	}
+	Inp.close();
+
+	Cout << "\nStomatal resistance: applying monthly scaling factors from '"
+	     << rsParamFile << "'." << endl;
+}
+
+/***************************************************************************
+**
+** tEvapoTrans::CreateHydroMetAndLU()
 **
 ** Auxiliary function used by the constructor
 **  
@@ -1347,22 +1423,26 @@ double tEvapoTrans::aeroResist() {
 ** coefficient rsRatio. Depends on having set currentTime.
 **
 ***************************************************************************/
-double tEvapoTrans::stomResist() 
+double tEvapoTrans::stomResist()
 {
-	double rs;
-	int currenthour;
-	double rsRatio[24] = {3.837, 3.589, 3.21, 2.43, 1.617, 1.196, 1.067, 1.014, 
+	// Empirical diurnal multipliers (hourly): ~1 near solar noon, rising to
+	// ~4 overnight to mimic stomatal closure with the loss of solar radiation.
+	static const double rsRatio[24] = {3.837, 3.589, 3.21, 2.43, 1.617, 1.196, 1.067, 1.014,
 		0.995, 0.976, 0.976, 1.0, 1.053, 1.167, 1.354, 1.637,
 		2.043, 2.66, 3.215, 3.507, 3.689, 3.818, 3.923, 4.024};
-	
-	currenthour = currentTime[3];
-	rs = coeffRs*rsRatio[currenthour];
-	
-	// A simple way to constrain transpiration during hours 
+
+	int currenthour  = currentTime[3];
+	int currentmonth = currentTime[1];
+
+	// rsMonthlyFactor defaults to 1.0 for every month, so without an
+	// RSPARAMFILE this reduces exactly to coeffRs*rsRatio[currenthour].
+	double rs = coeffRs*rsRatio[currenthour]*rsMonthlyFactor[currentmonth - 1];
+
+	// A simple way to constrain transpiration during hours
 	// when there is no incoming solar radiation
 	if (alphaD < 0.0)
 		rs *= 1000.0;
-	
+
 	return rs;
 }
 

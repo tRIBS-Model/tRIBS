@@ -48,6 +48,7 @@ class tEvapoTrans
   void DeleteEvapoTrans(); 
   void deleteLUGrids();
   void SetEvapTVariables(tInputFile &, tHydroModel *);
+  void readRsMonthlyFactors(tInputFile &); // JB2025 @ ASU
   void CreateHydroMetAndLU(tInputFile &); // SKYnGM2008LU
   void SetSunVariables();
   void SetEnvironment();
@@ -176,6 +177,9 @@ class tEvapoTrans
   double RadDirObs{}, RadDifObs{};
   // CJC2025: New parameters
   double coeffSE{}, coeffST{};
+  // JB2025 @ ASU: optional monthly scaling of the minimum stomatal resistance.
+  // Defaults to 1.0 for every month (identity) unless an RSPARAMFILE is given.
+  double rsMonthlyFactor[12]{1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0};
   // SKY2008Snow from AJR2007
   //new for sheltering algorithm
   //	RMK: THE HA* VARIABLES SHOULD ACTUALLY BE HANDLED IN AN ARRAY
