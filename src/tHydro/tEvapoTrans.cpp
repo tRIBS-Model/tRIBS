@@ -484,7 +484,7 @@ void tEvapoTrans::initializeVariables()
 	ha2700 = 0.0; ha2925 = 0.0;
 	ha3150 = 0.0; ha3375 = 0.0;
 
-	hourlyTimeStep = 0; thisStation = 0; oldTimeStep = 0;
+	hourlyTimeStep = 0; thisStation = 0;
 	tsOption = 0;
 	
 	currentTime = new int[4];
@@ -534,15 +534,16 @@ void tEvapoTrans::assignStationToNode()
 ** tEvapoTrans::setTime() Function
 **
 ***************************************************************************/
-void tEvapoTrans::setTime(int time)
+void tEvapoTrans::setTime()
 {
 	// Get current calendar time
 	if (metdataOption == 1) {
-		currentTime[0] = weatherStations[0].getYear(time); 
+		int time = currentMetIndex();
+		currentTime[0] = weatherStations[0].getYear(time);
 		currentTime[1] = weatherStations[0].getMonth(time);
 		currentTime[2] = weatherStations[0].getDay(time);
 		currentTime[3] = weatherStations[0].getHour(time);
-		
+
 		// Obtain current hour
 		nodeHour = timer->hour;
 	}
@@ -551,11 +552,34 @@ void tEvapoTrans::setTime(int time)
 		currentTime[1] = timer->month;
 		currentTime[2] = timer->day;
 		currentTime[3] = timer->hour;
-		
+
 		// Obtain current hour
 		nodeHour = timer->hour;
 	}
 	}
+
+/***************************************************************************
+**
+** tEvapoTrans::currentMetIndex() Function
+**
+** Returns the station met record corresponding to the current simulation
+** time. Station forcing is stored at METSTEP cadence, so the record index
+** is the number of elapsed met steps -- NOT the ET/I step counter. This
+** keeps sub-metstep ET/I/snow timesteps reading the same met record within
+** a met interval instead of marching past the end of the series. The series
+** is trimmed to STARTDATE on read, so this is also restart-safe (currentTime
+** is 0 at the start). The clamp guards the final timestep landing exactly on
+** endTime (index == series length).
+**
+***************************************************************************/
+int tEvapoTrans::currentMetIndex() const
+{
+	int idx = timer->getElapsedMETSteps(timer->getCurrentTime());
+	int n   = weatherStations[0].getTime();
+	if (idx < 0)   idx = 0;
+	if (idx >= n)  idx = n - 1;
+	return idx;
+}
 
 
 //=========================================================================
@@ -572,8 +596,8 @@ void tEvapoTrans::setTime(int time)
 ***************************************************************************/
 void tEvapoTrans::SetEnvironment() {
 
-    // Set time variables ('hourlyTimeStep' is a 'tEvapoTrans' variable)
-    setTime(hourlyTimeStep);
+    // Set calendar/time variables from the current met record (see currentMetIndex)
+    setTime();
 
     // Compute Sun variables for given hour (basin average,
     // although spatially distributed variables can be easily
@@ -731,7 +755,7 @@ void tEvapoTrans::callEvapoPotential()
       	  //updates meteorological variables
           if (metdataOption == 1) {
               thisStation = assignedStation[count];
-              newHydroMetData(hourlyTimeStep); //read in met data from station file -- inherited function
+              newHydroMetData(); //read in met data from station file -- inherited function
 
               if (fabs(skyCover-9999.99)<1.0E-3){ // work around since nodata from grids only set to 9999.99 once in tvariannt
                   skycover_flag =1;
@@ -815,10 +839,8 @@ void tEvapoTrans::callEvapoPotential()
 
 	timeCount++; // bug fixed by Pat - June 2009
 
-	// Assign old time
-	oldTimeStep = hourlyTimeStep;
-	
-	// Update hourly time
+	// Update ET/I step counter (used for snow pack-age timestamps and the
+	// first-step init guard; met records are indexed by time, see currentMetIndex)
 	hourlyTimeStep++;
 	isRestartStart = false;
 	}
@@ -1062,7 +1084,7 @@ void tEvapoTrans::ComputeETComponents(tIntercept *Intercept, tCNode *cNode,
 		// Assign hydromet vars
 		if (metdataOption == 1) {
 			thisStation = assignedStation[count];
-			newHydroMetData(hourlyTimeStep);//AJR 2008 -- CHANGED FROM OLDTIMESTEP TO HOURLYTIMESTEP
+			newHydroMetData();
 		}
 		else if (metdataOption == 2) {
 			newHydroMetGridData(cNode);
@@ -3757,8 +3779,9 @@ void tEvapoTrans::createStaticVariantLU()
 ** nodes based on the results of the tResample Thiessen polygon routine.
 **
 ***************************************************************************/
-void tEvapoTrans::newHydroMetData(int time) 
+void tEvapoTrans::newHydroMetData()
 {
+	int time = currentMetIndex();
 
 	// Obtain values from tHydroMet
 	for (int i=0; i<numStations;i++) {
@@ -3778,7 +3801,7 @@ void tEvapoTrans::newHydroMetData(int time)
 				tsOption = (fabs(inShortR - 9999.99) > 1.0E-3) ? 2 : 0;
 
 
-				if (time == 0) {
+				if (hourlyTimeStep == 0) {
 					Tso = weatherStations[i].getAirTemp(time) + 273.15;
 					Tlo = Tso;
 				}

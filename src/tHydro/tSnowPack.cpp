@@ -426,7 +426,7 @@ void tSnowPack::callSnowPack(tIntercept *Intercept, int flag) {
         //updates meteorological variables if not in stochastic mode
         if (metdataOption == 1) {
             thisStation = assignedStation[count];
-            newHydroMetData(hourlyTimeStep); //read in met data from station file -- inherited function
+            newHydroMetData(); //read in met data from station file -- inherited function
 
             if (fabs(skyCover-9999.99)<1.0E-3){ // assumed if first value is 9999.99 the rest are
                 skycover_flag =1;
@@ -862,7 +862,6 @@ void tSnowPack::callSnowPack(tIntercept *Intercept, int flag) {
 
     }//end while-nodes
     timeCount++;
-    oldTimeStep = hourlyTimeStep;
     hourlyTimeStep++;
     isRestartStart = false;
 }
