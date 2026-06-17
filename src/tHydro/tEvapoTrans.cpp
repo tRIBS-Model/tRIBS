@@ -3126,12 +3126,12 @@ void tEvapoTrans::readHydroMetData(int num)
 
 	// Verify enough data exists to cover the full simulation duration
 	{
-		int requiredSteps = static_cast<int>(std::round(timer->getEndTime() / timer->getEtIStep()));
+		int requiredSteps = static_cast<int>(std::round(timer->getEndTime() / timer->getMetStep()));
 		if (static_cast<int>(rows.size()) < requiredSteps) {
 			std::cerr << "\n\nFATAL ERROR in " << fileName << std::endl;
 			std::cerr << "Insufficient data for simulation duration." << std::endl;
 			std::cerr << "Required: " << requiredSteps << " timesteps ("
-			          << timer->getEndTime() << " hrs at " << timer->getEtIStep() << " hr intervals)" << std::endl;
+			          << timer->getEndTime() << " hrs at " << timer->getMetStep() << " hr intervals)" << std::endl;
 			std::cerr << "Available after start date: " << rows.size() << " timesteps" << std::endl;
 			std::cerr << "Exiting Program...\n\n" << std::endl;
 			exit(1);
