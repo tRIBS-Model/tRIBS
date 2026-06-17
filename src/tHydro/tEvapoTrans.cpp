@@ -259,10 +259,17 @@ void tEvapoTrans::readRsMonthlyFactors(tInputFile &infile)
 {
 	const int kMonths = 12;
 
+	// Both the tEvapoTrans and tSnowPack objects run this setup, so print the
+	// status line only once (the file is still read into each object's state).
+	static bool rsStatusPrinted = false;
+
 	// The feature is opt-in: keyword absent then keep default diurnal scaling.
 	if (!infile.IsItemIn("RSPARAMFILE")) {
-		Cout << "\nStomatal resistance: no RSPARAMFILE specified; "
-		     << "using default diurnal scaling." << endl;
+		if (!rsStatusPrinted) {
+			Cout << "\nStomatal resistance: no RSPARAMFILE specified; "
+			     << "using default diurnal scaling." << endl;
+			rsStatusPrinted = true;
+		}
 		return;
 	}
 
@@ -312,8 +319,11 @@ void tEvapoTrans::readRsMonthlyFactors(tInputFile &infile)
 	}
 	Inp.close();
 
-	Cout << "\nStomatal resistance: applying monthly scaling factors from '"
-	     << rsParamFile << "'." << endl;
+	if (!rsStatusPrinted) {
+		Cout << "\nStomatal resistance: applying monthly scaling factors from '"
+		     << rsParamFile << "'." << endl;
+		rsStatusPrinted = true;
+	}
 }
 
 /***************************************************************************
