@@ -3186,7 +3186,7 @@ void tEvapoTrans::readHydroMetData(int num)
 				int expected_mo = mo[count-1];
 				int expected_dy = dy[count-1];
 				int expected_hr = hr[count-1];
-				expected_hr += timer->getEtIStep();
+				expected_hr += timer->getMetStep();
 				while (expected_hr >= 24) {
 					expected_hr -= 24;
 					expected_dy++;
