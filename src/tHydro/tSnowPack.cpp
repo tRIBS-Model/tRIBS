@@ -426,7 +426,7 @@ void tSnowPack::callSnowPack(tIntercept *Intercept, int flag) {
         //updates meteorological variables if not in stochastic mode
         if (metdataOption == 1) {
             thisStation = assignedStation[count];
-            newHydroMetData(hourlyTimeStep); //read in met data from station file -- inherited function
+            newHydroMetData(); //read in met data from station file -- inherited function
 
             if (fabs(skyCover-9999.99)<1.0E-3){ // assumed if first value is 9999.99 the rest are
                 skycover_flag =1;
@@ -862,7 +862,6 @@ void tSnowPack::callSnowPack(tIntercept *Intercept, int flag) {
 
     }//end while-nodes
     timeCount++;
-    oldTimeStep = hourlyTimeStep;
     hourlyTimeStep++;
     isRestartStart = false;
 }
@@ -1188,20 +1187,22 @@ void tSnowPack::setToNodeSnP(tCNode *node) {
     }
 
     if (snWE > 1e-5) {
-        persMaxtemp += 1.0;
+        // Accumulate persistence in hours (timeSteph = etistep) rather than in
+        // integration-step counts, so the diagnostic is timestep-independent.
+        persMaxtemp += timeSteph;
 
         if (persMaxtemp > persMax) {
             persMax = persMaxtemp;
 
-            if (persMaxtemp - 1 < 1)
-                inittimeTemp = hourlyTimeStep;
+            if (persMaxtemp - timeSteph < timeSteph) // first step of this pack
+                inittimeTemp = hourlyTimeStep * timeSteph; // elapsed hours
 
         }
     }
 
     if (snWE >= peakSnWE) {
         peakSnWE = snWE;
-        peaktime = hourlyTimeStep;
+        peaktime = hourlyTimeStep * timeSteph; // elapsed hours
         inittime = inittimeTemp;
     }
 
@@ -1372,7 +1373,7 @@ double tSnowPack::drainageCalc(double liqWE_m, double snDepth_m, double rho, dou
     // Flux = K_sat * (S_eff)^3, 3 is a theoretical value from Colbeck
     double drainage_flux_mps = kSatRef * S_eff * S_eff * S_eff;
 
-    // Since timestep is hardcoded to 1 hour, Flux (m/hr) = Volume (m)
+    // Integrate the flux (m/s) over the timestep (dt_sec) to a volume (m).
     double route_vol = drainage_flux_mps * dt_sec;
 
     // Mass Balance Limit

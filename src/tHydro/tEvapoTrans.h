@@ -58,12 +58,13 @@ class tEvapoTrans
   void assignStationToNode();
   void resampleGrids(tRunTimer *);
   void setCoeffs(tCNode *);
-  void setTime(int);
+  void setTime();
+  int  currentMetIndex() const; // station met record for the current sim time
   void readHydroMetData(int);
   void readHydroMetStat(char*);
   void readHydroMetGrid(char*);
   void readLUGrid(char*); // SKYnGM2008LU: added by AJR 2007
-  void newHydroMetData(int);
+  void newHydroMetData();
   void newHydroMetGridData(tCNode *);
   void newLUGridData(tCNode *); // SKYnGM2008LU: added by AJR 2007
   void createVariant();
@@ -145,7 +146,7 @@ class tEvapoTrans
   int snowOption{}; // NEW FOR SNOW.... SKY2008Snow from AJR2007
   int shelterOption{}; // NEW FOR SHELTERING... SKY2008Snow from AJR2007
   int gFluxOption{}, ID{};
-  int gmt{}, nodeHour{}, thisStation{}, oldTimeStep{};
+  int gmt{}, nodeHour{}, thisStation{};
   int numStations{}, arraySize{}, hourlyTimeStep{}, nParm{};
   bool isRestartStart{false};
   int tsOption{};
