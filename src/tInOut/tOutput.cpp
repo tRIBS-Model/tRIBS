@@ -292,10 +292,12 @@ void tOutput<tSubNode>::ReadNodeOutputList() {
 
 	for (int i = 0; i < numNodes; i++) {
 		if (coordMode) {
-			// Pixel output may be requested for any node, so search all nodes.
-			nodeList[i] = FindNearestNodeID(xs[i], ys[i], false);
+			// Pixel output may be requested for any active node.
+			double snapDist;
+			nodeList[i] = FindNearestNodeID(xs[i], ys[i], false, snapDist);
 			Cout<<"\nNode output coordinate ("<<xs[i]<<", "<<ys[i]
-				<<") resolved to nearest node ID "<<nodeList[i]<<endl;
+				<<") resolved to nearest node ID "<<nodeList[i]
+				<<" ("<<snapDist<<" meters away)"<<endl;
 		} else {
 			nodeList[i] = ids[i];
 		}
@@ -307,23 +309,41 @@ void tOutput<tSubNode>::ReadNodeOutputList() {
 **
 **  tOutput::FindNearestNodeID()
 **
-**  Returns the ID of the nearest eligible mesh node to (x, y). For pixel
-**  output (streamOnly false) only active computational nodes
-**  (kNonBoundary / kStream) are considered, since boundary nodes carry no
-**  hydrologic state. For streamflow outlets (streamOnly true) the search is
-**  restricted to the channel network (kStream / kOpenBoundary outlet).
-**  In parallel each processor finds its local nearest node and an
-**  MPI_MINLOC reduction selects the globally nearest across the
-**  partitioned mesh.
+**  Returns the ID of the nearest eligible mesh node to (x, y) and reports the
+**  straight-line snap distance through snapDist. For pixel output (streamOnly
+**  false) only active computational nodes (kNonBoundary / kStream) are
+**  considered, since boundary nodes carry no hydrologic state. For streamflow
+**  outlets (streamOnly true) the search is restricted to the channel network
+**  (kStream / kOpenBoundary outlet).
+**
+**  Two sanity checks are emitted as warnings (the nearest node is still
+**  returned so the run proceeds):
+**    - the request falls outside the domain bounding box (likely a typo or
+**      wrong projection, e.g. lat/lon vs. UTM);
+**    - for outlets, the nearest stream node is much farther than the nearest
+**      node of ANY type, i.e. the coordinate is not actually on the channel.
+**      This gap test is self-calibrating: on-channel points have both
+**      distances comparable regardless of mesh resolution.
+**
+**  In parallel each processor searches its partition and the results are
+**  combined with MPI reductions (MINLOC for the nearest node, MIN/MAX for the
+**  bounding box and nearest-any distance).
 **
 *************************************************************************/
 template< class tSubNode >
-int tOutput<tSubNode>::FindNearestNodeID(double x, double y, bool streamOnly)
+int tOutput<tSubNode>::FindNearestNodeID(double x, double y, bool streamOnly,
+                                         double &snapDist)
 {
 	tSubNode *cnn;
 	tMeshListIter<tSubNode> niter( g->getNodeList() );
-	double bestDist2 = -1.0;
+	double bestDist2 = -1.0;     // nearest eligible (selected) node
 	int bestID = -1;
+	double anyDist2 = -1.0;      // nearest node of any type (for the gap test)
+
+	// Full-domain extent of real (non closed-boundary) nodes, used to flag a
+	// coordinate that falls outside the model domain.
+	double loBox[2] = { +1.0e300, +1.0e300 };   // min x, min y
+	double hiBox[2] = { -1.0e300, -1.0e300 };   // max x, max y
 
 #ifdef PARALLEL_TRIBS
 	for ( cnn=niter.FirstP(); niter.IsActive(); cnn=niter.NextP() ) {
@@ -331,36 +351,78 @@ int tOutput<tSubNode>::FindNearestNodeID(double x, double y, bool streamOnly)
 	for ( cnn=niter.FirstP(); !(niter.AtEnd()); cnn=niter.NextP() ) {
 #endif
 		int bf = cnn->getBoundaryFlag();
-		if ( streamOnly ) {
-			// Streamflow outlets live on the channel network: stream nodes
-			// plus the open-boundary basin outlet.
-			if ( bf != kStream && bf != kOpenBoundary )
-				continue;
-		} else {
-			// Pixel output is only meaningful on active (computational) nodes;
-			// closed/open boundary nodes carry no hydrologic state and are not
-			// in the Voronoi output, so never resolve a coordinate to one.
-			if ( bf != kNonBoundary && bf != kStream )
-				continue;
-		}
-		double dx = cnn->getX() - x;
-		double dy = cnn->getY() - y;
+		if ( bf == kClosedBoundary )
+			continue;            // closed boundary nodes are never candidates
+
+		double nx = cnn->getX();
+		double ny = cnn->getY();
+		double dx = nx - x;
+		double dy = ny - y;
 		double d2 = dx*dx + dy*dy;
+
+		// Domain extent and nearest-of-any-type, over all real nodes.
+		if ( nx < loBox[0] ) loBox[0] = nx;
+		if ( nx > hiBox[0] ) hiBox[0] = nx;
+		if ( ny < loBox[1] ) loBox[1] = ny;
+		if ( ny > hiBox[1] ) hiBox[1] = ny;
+		if ( anyDist2 < 0.0 || d2 < anyDist2 )
+			anyDist2 = d2;
+
+		// Eligibility of this node for the requested output type.
+		bool eligible = streamOnly ? ( bf == kStream || bf == kOpenBoundary )
+		                           : ( bf == kNonBoundary || bf == kStream );
+		if ( !eligible )
+			continue;
 		if ( bestDist2 < 0.0 || d2 < bestDist2 ) {
 			bestDist2 = d2;
 			bestID = cnn->getID();
 		}
 	}
 
+	double resolvedDist2 = bestDist2;
+
 #ifdef PARALLEL_TRIBS
-	// Select the globally nearest node across all processors. The processor
-	// that owns the winning node broadcasts its ID to everyone.
+	// Select the globally nearest eligible node across all processors. The
+	// processor that owns the winning node broadcasts its ID to everyone.
 	struct { double dist; int rank; } local, global;
 	local.dist = (bestDist2 < 0.0) ? 1.0e300 : bestDist2;
 	local.rank = tParallel::getMyProc();
 	MPI_Allreduce(&local, &global, 1, MPI_DOUBLE_INT, MPI_MINLOC, MPI_COMM_WORLD);
 	MPI_Bcast(&bestID, 1, MPI_INT, global.rank, MPI_COMM_WORLD);
+	resolvedDist2 = global.dist;
+	// Reduce the domain bounding box and the nearest-any distance.
+	double gLo[2], gHi[2];
+	MPI_Allreduce(loBox, gLo, 2, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
+	MPI_Allreduce(hiBox, gHi, 2, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+	loBox[0] = gLo[0]; loBox[1] = gLo[1];
+	hiBox[0] = gHi[0]; hiBox[1] = gHi[1];
+	double localAny = (anyDist2 < 0.0) ? 1.0e300 : anyDist2;
+	MPI_Allreduce(&localAny, &anyDist2, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
 #endif
+
+	snapDist = (resolvedDist2 < 0.0) ? -1.0 : sqrt(resolvedDist2);
+
+	// Warn if the request landed outside the domain: a strong sign of a typo
+	// or coordinates given in the wrong projection (e.g. lat/lon vs. UTM).
+	if ( bestID >= 0 &&
+	     ( x < loBox[0] || x > hiBox[0] || y < loBox[1] || y > hiBox[1] ) ) {
+		Cout<<"\nWARNING: requested coordinate ("<<x<<", "<<y<<") is OUTSIDE the "
+			<<"model domain\n         (x: "<<loBox[0]<<" to "<<hiBox[0]
+			<<", y: "<<loBox[1]<<" to "<<hiBox[1]<<").\n"
+			<<"         Snapped to node "<<bestID<<", "<<snapDist
+			<<" meters away. Check that coordinates use the mesh projection "
+			<<"(not lat/lon)."<<endl;
+	}
+
+	// For outlets, warn if the chosen stream node is much farther than the
+	// nearest node of any type: the coordinate is not on the channel. The
+	// factor adapts to mesh resolution, so no absolute threshold is needed.
+	if ( streamOnly && bestID >= 0 && anyDist2 >= 0.0 &&
+	     resolvedDist2 > 9.0 * anyDist2 ) {     // 9.0 = (3x distance)^2
+		Cout<<"\nWARNING: outlet coordinate ("<<x<<", "<<y<<") is "<<snapDist
+			<<" meters from the nearest stream node, but only "<<sqrt(anyDist2)
+			<<" meters from the nearest (non-stream) node."<<endl;
+	}
 
 	return bestID;
 }
@@ -2102,9 +2164,11 @@ void tCOutput<tSubNode>::ReadOutletNodeList(char *nodeFileO)
 	for (int i = 0; i < numOutlets; i++) {
 		if (coordMode) {
 			// Outlets must lie on the channel network: restrict to stream nodes.
-			OutletList[i] = this->FindNearestNodeID(xs[i], ys[i], true);
+			double snapDist;
+			OutletList[i] = this->FindNearestNodeID(xs[i], ys[i], true, snapDist);
 			Cout<<"\nOutlet coordinate ("<<xs[i]<<", "<<ys[i]
-				<<") resolved to nearest stream node ID "<<OutletList[i]<<endl;
+				<<") resolved to nearest stream node ID "<<OutletList[i]
+				<<" ("<<snapDist<<" meters away)"<<endl;
 		} else {
 			OutletList[i] = ids[i];
 		}

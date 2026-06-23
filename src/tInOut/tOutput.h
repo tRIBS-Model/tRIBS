@@ -62,7 +62,7 @@ public:
   void CreateAndOpenFile(ofstream*, char*);
   void CreateAndOpenFileSingle(ofstream*, char*);
   void ReadNodeOutputList();
-  int  FindNearestNodeID(double x, double y, bool streamOnly);
+  int  FindNearestNodeID(double x, double y, bool streamOnly, double &snapDist);
   void CreateAndOpenPixel();
   void CreateAndOpenDynVar();
   void end_simulation();
