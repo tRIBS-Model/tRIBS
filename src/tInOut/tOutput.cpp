@@ -228,15 +228,22 @@ void tOutput<tSubNode>::CreateAndOpenFileSingle( ofstream *theOFStream,
 **
 **  tOutput::ReadNodeOutputList()
 **
-**  Opens and Reads the node list from a *.nol file whose structure is:
+**  Opens and reads the node list from a *.nol CSV file. The first line is
+**  a header flag declaring how the rows are specified, followed by one
+**  record per row (no count line):
 **
-**  Number of Nodes
-**  Node1 Node2 Node3 Node4 Node5 ...
+**    ID              X,Y
+**    105             456000.0,3812000.0
+**    250             457500.0,3813200.0
+**
+**  In "ID" mode each row is a Voronoi node ID. In "X,Y" mode each row is a
+**  coordinate pair, which is resolved here to the ID of the nearest node so
+**  that all downstream output handling is identical to the ID case.
 **
 *************************************************************************/
 template< class tSubNode >
 void tOutput<tSubNode>::ReadNodeOutputList() {
-	
+
 	ifstream readNOL(nodeFile);
 	if (!readNOL) {
 		Cout << "\nFile "<<nodeFile<<" not found..."<<endl;
@@ -248,8 +255,31 @@ void tOutput<tSubNode>::ReadNodeOutputList() {
         pixinfo = nullptr;
 		return;
 	}
-	
-	readNOL >> numNodes;
+
+	// First line is the header flag: a comma signals coordinate ("X,Y") mode,
+	// otherwise rows are interpreted as node IDs.
+	string header;
+	getline(readNOL, header);
+	bool coordMode = (header.find(',') != string::npos);
+
+	// Read every remaining non-empty row.
+	vector<int> ids;
+	vector<double> xs, ys;
+	string line;
+	while (getline(readNOL, line)) {
+		for (char &c : line) if (c == ',') c = ' ';   // CSV -> whitespace
+		istringstream iss(line);
+		if (coordMode) {
+			double x, y;
+			if (iss >> x >> y) { xs.push_back(x); ys.push_back(y); }
+		} else {
+			int id;
+			if (iss >> id) ids.push_back(id);
+		}
+	}
+	readNOL.close();
+
+	numNodes = coordMode ? (int)xs.size() : (int)ids.size();
 	nodeList = new int[numNodes];
 	uzel = new tSubNode*[numNodes];
 	pixinfo = new ofstream[numNodes];
@@ -261,11 +291,140 @@ void tOutput<tSubNode>::ReadNodeOutputList() {
 #endif
 
 	for (int i = 0; i < numNodes; i++) {
-		readNOL >> nodeList[i]; 
+		if (coordMode) {
+			// Pixel output may be requested for any active node.
+			double snapDist;
+			nodeList[i] = FindNearestNodeID(xs[i], ys[i], false, snapDist);
+			Cout<<"\nNode output coordinate ("<<xs[i]<<", "<<ys[i]
+				<<") resolved to nearest node ID "<<nodeList[i]
+				<<" ("<<snapDist<<" meters away)"<<endl;
+		} else {
+			nodeList[i] = ids[i];
+		}
 	}
-	
-	readNOL.close();
 	return;
+}
+
+/*************************************************************************
+**
+**  tOutput::FindNearestNodeID()
+**
+**  Returns the ID of the nearest eligible mesh node to (x, y) and reports the
+**  straight-line snap distance through snapDist. For pixel output (streamOnly
+**  false) only active computational nodes (kNonBoundary / kStream) are
+**  considered, since boundary nodes carry no hydrologic state. For streamflow
+**  outlets (streamOnly true) the search is restricted to the channel network
+**  (kStream / kOpenBoundary outlet).
+**
+**  Two sanity checks are emitted as warnings (the nearest node is still
+**  returned so the run proceeds):
+**    - the request falls outside the domain bounding box (likely a typo or
+**      wrong projection, e.g. lat/lon vs. UTM);
+**    - for outlets, the nearest stream node is much farther than the nearest
+**      node of ANY type, i.e. the coordinate is not actually on the channel.
+**      This gap test is self-calibrating: on-channel points have both
+**      distances comparable regardless of mesh resolution.
+**
+**  In parallel each processor searches its partition and the results are
+**  combined with MPI reductions (MINLOC for the nearest node, MIN/MAX for the
+**  bounding box and nearest-any distance).
+**
+*************************************************************************/
+template< class tSubNode >
+int tOutput<tSubNode>::FindNearestNodeID(double x, double y, bool streamOnly,
+                                         double &snapDist)
+{
+	tSubNode *cnn;
+	tMeshListIter<tSubNode> niter( g->getNodeList() );
+	double bestDist2 = -1.0;     // nearest eligible (selected) node
+	int bestID = -1;
+	double anyDist2 = -1.0;      // nearest node of any type (for the gap test)
+
+	// Full-domain extent of real (non closed-boundary) nodes, used to flag a
+	// coordinate that falls outside the model domain.
+	double loBox[2] = { +1.0e300, +1.0e300 };   // min x, min y
+	double hiBox[2] = { -1.0e300, -1.0e300 };   // max x, max y
+
+#ifdef PARALLEL_TRIBS
+	for ( cnn=niter.FirstP(); niter.IsActive(); cnn=niter.NextP() ) {
+#else
+	for ( cnn=niter.FirstP(); !(niter.AtEnd()); cnn=niter.NextP() ) {
+#endif
+		int bf = cnn->getBoundaryFlag();
+		if ( bf == kClosedBoundary )
+			continue;            // closed boundary nodes are never candidates
+
+		double nx = cnn->getX();
+		double ny = cnn->getY();
+		double dx = nx - x;
+		double dy = ny - y;
+		double d2 = dx*dx + dy*dy;
+
+		// Domain extent and nearest-of-any-type, over all real nodes.
+		if ( nx < loBox[0] ) loBox[0] = nx;
+		if ( nx > hiBox[0] ) hiBox[0] = nx;
+		if ( ny < loBox[1] ) loBox[1] = ny;
+		if ( ny > hiBox[1] ) hiBox[1] = ny;
+		if ( anyDist2 < 0.0 || d2 < anyDist2 )
+			anyDist2 = d2;
+
+		// Eligibility of this node for the requested output type.
+		bool eligible = streamOnly ? ( bf == kStream || bf == kOpenBoundary )
+		                           : ( bf == kNonBoundary || bf == kStream );
+		if ( !eligible )
+			continue;
+		if ( bestDist2 < 0.0 || d2 < bestDist2 ) {
+			bestDist2 = d2;
+			bestID = cnn->getID();
+		}
+	}
+
+	double resolvedDist2 = bestDist2;
+
+#ifdef PARALLEL_TRIBS
+	// Select the globally nearest eligible node across all processors. The
+	// processor that owns the winning node broadcasts its ID to everyone.
+	struct { double dist; int rank; } local, global;
+	local.dist = (bestDist2 < 0.0) ? 1.0e300 : bestDist2;
+	local.rank = tParallel::getMyProc();
+	MPI_Allreduce(&local, &global, 1, MPI_DOUBLE_INT, MPI_MINLOC, MPI_COMM_WORLD);
+	MPI_Bcast(&bestID, 1, MPI_INT, global.rank, MPI_COMM_WORLD);
+	resolvedDist2 = global.dist;
+	// Reduce the domain bounding box and the nearest-any distance.
+	double gLo[2], gHi[2];
+	MPI_Allreduce(loBox, gLo, 2, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
+	MPI_Allreduce(hiBox, gHi, 2, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+	loBox[0] = gLo[0]; loBox[1] = gLo[1];
+	hiBox[0] = gHi[0]; hiBox[1] = gHi[1];
+	double localAny = (anyDist2 < 0.0) ? 1.0e300 : anyDist2;
+	MPI_Allreduce(&localAny, &anyDist2, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
+#endif
+
+	snapDist = (resolvedDist2 < 0.0) ? -1.0 : sqrt(resolvedDist2);
+
+	// Warn if the request landed outside the domain: a strong sign of a typo
+	// or coordinates given in the wrong projection (e.g. lat/lon vs. UTM).
+	if ( bestID >= 0 &&
+	     ( x < loBox[0] || x > hiBox[0] || y < loBox[1] || y > hiBox[1] ) ) {
+		Cout<<"\nWARNING: requested coordinate ("<<x<<", "<<y<<") is OUTSIDE the "
+			<<"model domain\n         (x: "<<loBox[0]<<" to "<<hiBox[0]
+			<<", y: "<<loBox[1]<<" to "<<hiBox[1]<<").\n"
+			<<"         Snapped to node "<<bestID<<", "<<snapDist
+			<<" meters away. Check that coordinates use the mesh projection "
+			<<"(not lat/lon)."<<endl;
+	}
+
+	// For outlets, warn if the chosen stream node is much farther than the
+	// nearest node of any type: the coordinate is not on the channel. The
+	// factor adapts to mesh resolution, so no absolute threshold is needed.
+	if ( streamOnly && bestID >= 0 && anyDist2 >= 0.0 &&
+	     resolvedDist2 > 9.0 * anyDist2 ) {     // 9.0 = (3x distance)^2
+		Cout<<"\nWARNING: outlet coordinate ("<<x<<", "<<y<<") is "<<snapDist
+			<<" meters from the nearest stream node, but only "<<sqrt(anyDist2)
+			<<" meters from the nearest (non-stream) node."<<endl;
+	}
+
+	return bestID;
 }
 
 /*************************************************************************
@@ -1957,10 +2116,11 @@ void tCOutput<tSubNode>::WriteOutletInfo( double time )
 **
 **  tCOutput::ReadOutletList()
 **
-**  Opens and Reads the node list from a *.oul file whose structure is:
-**
-**  Number of Outlet Nodes
-**  NodeID1 NodeID2 NodeID3 NodeID4 NodeID5 ...
+**  Opens and reads the outlet list from a *.oul CSV file. The format mirrors
+**  the node output list (see tOutput::ReadNodeOutputList): a header flag line
+**  ("ID" or "X,Y") followed by one record per row, with no count line. In
+**  "X,Y" mode each coordinate is resolved to the nearest *stream* node, since
+**  streamflow outlets are only meaningful on the channel network.
 **
 *************************************************************************/
 template< class tSubNode >
@@ -1973,21 +2133,53 @@ void tCOutput<tSubNode>::ReadOutletNodeList(char *nodeFileO)
 		numOutlets = 0;
 		return;
 	}
-	
-	readOUL>>numOutlets;
+
+	// First line is the header flag: a comma signals coordinate ("X,Y") mode,
+	// otherwise rows are interpreted as node IDs.
+	string header;
+	getline(readOUL, header);
+	bool coordMode = (header.find(',') != string::npos);
+
+	vector<int> ids;
+	vector<double> xs, ys;
+	string line;
+	while (getline(readOUL, line)) {
+		for (char &c : line) if (c == ',') c = ' ';   // CSV -> whitespace
+		istringstream iss(line);
+		if (coordMode) {
+			double x, y;
+			if (iss >> x >> y) { xs.push_back(x); ys.push_back(y); }
+		} else {
+			int id;
+			if (iss >> id) ids.push_back(id);
+		}
+	}
+	readOUL.close();
+
+	numOutlets = coordMode ? (int)xs.size() : (int)ids.size();
 	OutletList  = new int[numOutlets];
 	Outlets     = new tSubNode*[numOutlets];
 	outletinfo  = new ofstream[numOutlets];
-	for (int i = 0; i < numOutlets; i++)
-		readOUL>>OutletList[i]; 
-	
+
+	for (int i = 0; i < numOutlets; i++) {
+		if (coordMode) {
+			// Outlets must lie on the channel network: restrict to stream nodes.
+			double snapDist;
+			OutletList[i] = this->FindNearestNodeID(xs[i], ys[i], true, snapDist);
+			Cout<<"\nOutlet coordinate ("<<xs[i]<<", "<<ys[i]
+				<<") resolved to nearest stream node ID "<<OutletList[i]
+				<<" ("<<snapDist<<" meters away)"<<endl;
+		} else {
+			OutletList[i] = ids[i];
+		}
+	}
+
 #ifdef PARALLEL_TRIBS
   // Initialize Outlets to NULL, used to determine local Outlets
   for (int i = 0; i < numOutlets; i++)
     Outlets[i] = NULL;
 #endif
 
-	readOUL.close();
 	return;
 }
 
