@@ -4057,7 +4057,7 @@ double tHydroModel::LambertW(double z)
 	n = 0;
 	setComplex(&t, 1000, 1000);
 
-	while ((n < 15) && (fabs(t.r) > xy) || (fabs(t.i) > xx)) {
+	while (n < 15 && (fabs(t.r) > xy || fabs(t.i) > xx)) {
 		xx = exp(Cr(&w));
 		setComplex(&p, (xx*cos(Ci(&w))), (xx*sin(Ci(&w))));
 
