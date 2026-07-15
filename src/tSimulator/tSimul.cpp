@@ -778,20 +778,31 @@ void Simulator::readRestart(tInputFile &InFl)
          << ". Snow state may be inconsistent." << endl;
   }
 
+  // Expected number of active-node records for this mesh. The read is keyed by
+  // node ID (records are matched into the mesh and unknown IDs are skipped), so
+  // a header count LARGER than the active count is harmless: the extra loop
+  // iterations run past EOF and are no-ops. A header count SMALLER than the
+  // active count means the file is missing records and cannot restore the mesh.
+  // Legacy restart files (written before the header carried the active count)
+  // advertise the full node count including boundary nodes; accept them with a
+  // warning rather than rejecting.
 #ifdef PARALLEL_TRIBS
-  int32_t globalNodes = static_cast<int32_t>(tParallel::sumBroadcast(restart->getNumNodes()));
-  if (totalN != globalNodes) {
-    cerr << "ERROR: Restart file node count (" << totalN
-         << ") does not match mesh (" << globalNodes << ")." << endl;
-    exit(1);
-  }
+  int32_t expectedNodes = static_cast<int32_t>(tParallel::sumBroadcast(restart->getNumNodes()));
 #else
-  if (totalN != restart->getNumNodes()) {
+  int32_t expectedNodes = static_cast<int32_t>(restart->getNumNodes());
+#endif
+  if (totalN < expectedNodes) {
     cerr << "ERROR: Restart file node count (" << totalN
-         << ") does not match mesh (" << restart->getNumNodes() << ")." << endl;
+         << ") is fewer than the mesh active nodes (" << expectedNodes
+         << "); the file is missing records." << endl;
     exit(1);
   }
-#endif
+  if (totalN != expectedNodes) {
+    cerr << "WARNING: Restart file node count (" << totalN
+         << ") differs from mesh active nodes (" << expectedNodes
+         << "). Reading by node ID, extra records will be skipped."
+         << endl;
+  }
 
   Cout << "\nRESTART FILE DETAILS: " << yr << "-" << mo << "-" << dy
        << " hr=" << hr <<  ":00" << " at elasped simulation time of " << fileCt << " hrs" << endl << endl;

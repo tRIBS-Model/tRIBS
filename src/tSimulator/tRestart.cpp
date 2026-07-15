@@ -46,7 +46,12 @@ int tRestart<tSubNode>::getSnowOpt() const
 template< class tSubNode >
 int tRestart<tSubNode>::getNumNodes() const
 {
-  return mesh->getNodeList()->getSize();
+  // Must return the active (non-boundary) node count, not getSize(): the
+  // restart write path (tMesh::writeRestart) serializes only IsActive() nodes,
+  // so this count is both the header record count and the read-loop bound in
+  // tMesh::readRestartGlobal. Using getSize() (which includes boundary nodes)
+  // would advertise more records than are actually written.
+  return mesh->getNodeList()->getActiveSize();
 }
 
 template< class tSubNode >
