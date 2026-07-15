@@ -1382,14 +1382,21 @@ void tHydroModel::UnSaturatedZone(double dt)
 								else {
 									BB = -dt*(qn - R1)/(Ths-Thr) - Eps/F*exp(-F*NtOld/Eps);
 									AA = -exp(F*(BB-NtOld)/Eps);
-									NtNew = NtOld + (Eps/F*LambertW(AA) - BB);
+									// AA below the Lambert W branch point (-1/e) has no
+									// real W0 value; clamp to the branch-point limit
+									// W0(-1/e) = -1 instead of driving the Halley
+									// iteration into a non-convergent region.
+									// Original: NtNew = NtOld + (Eps/F*LambertW(AA) - BB);
 									if (AA < (-1/exp(1.0))) {
+										NtNew = NtOld + (Eps/F*(-1.0) - BB);
 										static int warnLambert1 = 0;
 										if (++warnLambert1 <= 10)
 											cout<<"\nWarning: Value for LAMBERT f-n is too small\n\n";
 										else if (warnLambert1 == 11)
 											cout<<"\nWarning: Value for LAMBERT f-n is too small (further warnings suppressed)\n\n";
 									}
+									else
+										NtNew = NtOld + (Eps/F*LambertW(AA) - BB);
 									RuNew = Ksat*exp(-F*NtNew);
 								}
 							}
@@ -1795,14 +1802,21 @@ void tHydroModel::UnSaturatedZone(double dt)
                         else {
                             BB = -dt*(qn - R1)/(Ths-Thr) - Eps/F*exp(-F*NtOld/Eps);
                             AA = -exp(F*(BB-NtOld)/Eps);
+                            // AA below the Lambert W branch point (-1/e) has no
+                            // real W0 value; clamp to the branch-point limit
+                            // W0(-1/e) = -1 instead of driving the Halley
+                            // iteration into a non-convergent region.
+                            // Original: NtNew = NtOld + (Eps/F*LambertW(AA) - BB);
                             if (AA < (-1.0/exp(1.0))) {
+                                NtNew = NtOld + (Eps/F*(-1.0) - BB);
                                 static int warnLambert2 = 0;
                                 if (++warnLambert2 <= 10)
                                     cout<<"\n\n\t\tWarning: Value for LAMBERT f-n is too small\n\n";
                                 else if (warnLambert2 == 11)
                                     cout<<"\n\n\t\tWarning: Value for LAMBERT f-n is too small (further warnings suppressed)\n\n";
                             }
-                            NtNew = NtOld + (Eps/F*LambertW(AA) - BB);
+                            else
+                                NtNew = NtOld + (Eps/F*LambertW(AA) - BB);
                             RuNew = Ksat*exp(-F*NtNew);
                         }
 
@@ -4057,7 +4071,7 @@ double tHydroModel::LambertW(double z)
 	n = 0;
 	setComplex(&t, 1000, 1000);
 
-	while ((n < 15) && (fabs(t.r) > xy) || (fabs(t.i) > xx)) {
+	while (n < 15 && (fabs(t.r) > xy || fabs(t.i) > xx)) {
 		xx = exp(Cr(&w));
 		setComplex(&p, (xx*cos(Ci(&w))), (xx*sin(Ci(&w))));
 
