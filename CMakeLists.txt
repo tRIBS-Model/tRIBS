@@ -33,7 +33,7 @@ if(parallel)
     set(exe "tRIBSpar")
     project(${exe}
             DESCRIPTION "Parallel Distribution of the TIN-based Real-time Integrated Basin Simulator Distributed Hydrological Model"
-            VERSION 5.9.9
+            VERSION 6.0.0
     )
     add_executable(${exe} src/main.cpp)
 
@@ -154,7 +154,7 @@ else()
     set(exe "tRIBS")
     project(${exe}
             DESCRIPTION "Serial Distribution of the TIN-based Real-time Integrated Basin Simulator Distributed Hydrological Model"
-            VERSION 5.9.9)
+            VERSION 6.0.0)
     add_executable(${exe} src/main.cpp)
     message(WARNING "Compiling serial version of tRIBS")
 
