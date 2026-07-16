@@ -641,8 +641,10 @@ void tKinemat::RunRoutingModel(int it, int *check, double timeStep) {
         cHead = NodesIterH.DatPtr();
         cOutlet = NodesIterO.DatPtr();
 
-        //can calculate the number of time steps to check for transient period here ASM
-        CountLimit = TransientTime / (dt / 60);
+        // Number of routing time steps the transient conductivity stays active:
+        // TransientTime is in hours, dt in seconds. Round to nearest so
+        // sub-hourly time steps don't truncate the limit to zero.
+        CountLimit = (int) (TransientTime * 3600.0 / dt + 0.5);
 
         // Initialize widths, lengths, slopes, levels, C, Y1, Y2, Y3
         InitializeStreamReach(NNodesIter.DatRef(), CountLimit);
