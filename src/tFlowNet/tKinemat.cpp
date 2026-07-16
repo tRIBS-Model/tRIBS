@@ -661,9 +661,6 @@ void tKinemat::RunRoutingModel(int it, int *check, double timeStep) {
         }
 
 
-        // Assign reach percolation to total channel percolation ASM 2/10/2017
-        Pchannel += Preach;
-
         // Run kinematic wave routing model
         if (NNodesIter.DatRef() == 2)
             SolveForTwoNodeReach(C, Y1, Y2, Y3, reis, his, qit, H0);
@@ -673,10 +670,40 @@ void tKinemat::RunRoutingModel(int it, int *check, double timeStep) {
         // Clamp computed water depths to zero. Transmission losses can drive depths
         // slightly negative during low-flow conditions. Negative depths cause pow(h, 5/3) to produce NaN.
         // This "post-solve clamp" is a practical approach. The alternative would be bounding
-        // res[i] more tightly before solving so depths never go below zero but we would have 
+        // res[i] more tightly before solving so depths never go below zero but we would have
         // to know the available water volume per link in advance i.e. its circular.
-        for (int i = 0; i < n; i++)
-            if (his[i] < 0.0) his[i] = 0.0;
+        // While clamping, track the mass the clamp puts back: each node's depth
+        // deficit times its control surface area (width times half of each
+        // adjacent link length).
+        double restoredVol = 0.0; // [m3]
+        for (int i = 0; i < n; i++) {
+            if (his[i] < 0.0) {
+                double ctrlLen = 0.0;
+                if (i > 0)
+                    ctrlLen += 0.5 * ais[i - 1];
+                if (i < n - 1)
+                    ctrlLen += 0.5 * ais[i];
+                restoredVol += -his[i] * bis[i] * ctrlLen;
+                his[i] = 0.0;
+            }
+        }
+
+        // clis/Preach hold the potential Darcy sink handed to the solver, but the
+        // clamp above returned any mass the sink demanded that was not actually in
+        // the channel. Scale the percolation ledger down by the restored fraction
+        // so the reported loss (setChannelPerc -> mrf ChannelPerc) reflects the
+        // water truly withdrawn. Routing itself is unchanged by this.
+        if (restoredVol > 0.0 && Preach > 0.0) {
+            double scale = 1.0 - restoredVol / (Preach * dt);
+            if (scale < 0.0)
+                scale = 0.0;
+            for (int i = 0; i < m; i++)
+                clis[i] *= scale;
+            Preach *= scale;
+        }
+
+        // Assign reach percolation to total channel percolation ASM 2/10/2017
+        Pchannel += Preach;
 
         // Update computed values of levels & Qs
 
@@ -1194,6 +1221,8 @@ void tKinemat::AssignLateralInflux() {
                 // negative, which the kinematic wave solver correctly interprets as
                 // a net sink withdrawing water from in-channel flow.
                 // When the channel is dry, loss is capped at available lateral inflow.
+                // NOTE: clis[i] set here is the potential sink; RunRoutingModel
+                // rescales it after the solve to the water actually withdrawn.
                 if (his[i] > 0.0) {
                     clis[i] = NodeLoss[i];
                     reis[i] -= NodeLoss[i];
