@@ -27,6 +27,36 @@
 
 /***************************************************************************
 **
+**  ParseTableToken()
+**
+**  Shared helper for the soil and land parameter-table readers below.
+**  Converts one comma-separated table token to a double and fails fast (exit)
+**  on a non-numeric entry. Every table cell must be numeric; a parameter that
+**  is instead supplied by a gridded map (OPTSOILTYPE=1, OPTLANDUSE grid modes)
+**  uses the numeric 9999.99 no-data placeholder, which parses fine and is
+**  overwritten by the grid value downstream. Non-numeric text such as
+**  "undefined" is never valid, so report the file and column and stop rather
+**  than silently substituting a value that would corrupt the run.
+**
+***************************************************************************/
+static double ParseTableToken(const std::string &token, const char *tableName,
+                              int column)
+{
+	try {
+		return std::stod(token);
+	}
+	catch (const std::exception &) {
+		cout << "\nError: Non-numeric entry '" << token << "' in parameter table '"
+		     << tableName << "' (column " << (column + 1) << ")." << endl;
+		cout << "All soil/land table values must be numeric; use the 9999.99 "
+		     << "no-data value for a parameter that is supplied by a grid." << endl;
+		cout << "Exiting Program...\n\n" << endl;
+		exit(2);
+	}
+}
+
+/***************************************************************************
+**
 **  GenericSoilData(tInputFile *)
 **
 **  Constructor and Destructor for GenericSoilData Class
@@ -87,7 +117,7 @@ GenericSoilData::GenericSoilData(tMesh<tCNode> *mesh,
 		std::vector<double> row(kSoilColumns);
 		for (int j = 0; j < kSoilColumns; j++) {
 			std::getline(ss, token, ',');
-			row[j] = std::stod(token);
+			row[j] = ParseTableToken(token, soilTable, j);
 		}
 		rows.push_back(row);
 	}
@@ -463,7 +493,7 @@ void GenericSoilData::SetSoilParameters(tMesh<tCNode> *mesh,
 		std::vector<double> row(kSoilColumns);
 		for (int j = 0; j < kSoilColumns; j++) {
 			std::getline(ss, token, ',');
-			row[j] = std::stod(token);
+			row[j] = ParseTableToken(token, soilTable, j);
 		}
 		rows.push_back(row);
 	}
@@ -642,6 +672,8 @@ static void ValidateLandUseRow(const std::vector<double> &row,
 	int classID = static_cast<int>(row[0]);
 	for (const Bound &b : bounds) {
 		double v = row[b.col];
+		if (v == 9999.99)
+			continue;   // gridded/unspecified placeholder; nothing to validate
 		bool bad = (v < b.lo) || (b.hi >= 0.0 && v > b.hi);
 		if (bad) {
 			cout << "\nError: Land use table '" << tableName
@@ -714,7 +746,7 @@ GenericLandData::GenericLandData(tMesh<tCNode> *mesh,
 		std::vector<double> row(kLandColumns);
 		for (int j = 0; j < kLandColumns; j++) {
 			std::getline(ss, token, ',');
-			row[j] = std::stod(token);
+			row[j] = ParseTableToken(token, landTable, j);
 		}
 		ValidateLandUseRow(row, landTable);
 		rows.push_back(row);
@@ -815,7 +847,7 @@ void GenericLandData::SetLtypeParameters(tMesh<tCNode> *mesh,
 		std::vector<double> row(kLandColumns);
 		for (int j = 0; j < kLandColumns; j++) {
 			std::getline(ss, token, ',');
-			row[j] = std::stod(token);
+			row[j] = ParseTableToken(token, landTable, j);
 		}
 		ValidateLandUseRow(row, landTable);
 		rows.push_back(row);
