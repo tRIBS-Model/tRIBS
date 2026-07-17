@@ -34,9 +34,8 @@
 **  on a non-numeric entry. Every table cell must be numeric; a parameter that
 **  is instead supplied by a gridded map (OPTSOILTYPE=1, OPTLANDUSE grid modes)
 **  uses the numeric 9999.99 no-data placeholder, which parses fine and is
-**  overwritten by the grid value downstream. Non-numeric text such as
-**  "undefined" is never valid, so report the file and column and stop rather
-**  than silently substituting a value that would corrupt the run.
+**  overwritten by the grid value downstream. Non-numeric text is never valid,
+**  so report the file and column and stop.
 **
 ***************************************************************************/
 static double ParseTableToken(const std::string &token, const char *tableName,
