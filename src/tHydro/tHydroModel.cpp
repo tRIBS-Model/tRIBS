@@ -796,7 +796,7 @@ void tHydroModel::UnSaturatedZone(double dt)
 	double ThSurf;
 	double EvapSoi, EvapVeg;
 	double airTemp, Ta_hi, Ta_lo, alphat;
-	double mbR1used, totSurf;
+	double totSurf;
 
    Ractual = xxsrf = 0.0;        //SMM - added 08132008
    Mperch = Mdelt = Mdva = AA = BB = 0.0; //SMM - added 08132008
