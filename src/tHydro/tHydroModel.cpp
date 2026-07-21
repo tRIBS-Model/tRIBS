@@ -1898,20 +1898,36 @@ void tHydroModel::UnSaturatedZone(double dt)
                                 NfNew += (MuNew - (AA+BB))/(Ths - ThRiNf);
 
                                 if (NfNew >= (NwtNew+Psib)) {
-                                    if (NtNew > 0.0) {
-                                        NwtNew = NtNew - Psib;
-                                        NfNew = NtNew = NwtNew;
-                                        MuNew = MiNew = get_Total_Moist(NwtNew);
-                                        RiNew = RuNew = 0.0;
-                                    }
-                                    else if (NtNew == 0.0) {
+                                    // Front reached the capillary fringe:
+                                    // collapse the wedge into the water table
+                                    // conservatively, solve for the WT whose
+                                    // hydrostatic profile holds exactly MuNew,
+                                    // exporting any above-saturation excess.
+                                    // The original code resets here (MuNew =
+                                    // get_Total_Moist(NtNew-Psib) for NtNew>0,
+                                    // MuNew = 0 with full saturation for
+                                    // NtNew==0) discarded the difference and
+                                    // destroyed wedge water. CJC2026
+                                    if (MuNew >= NwtOld*Ths) {
+                                        sbsrf += (MuNew - NwtOld*Ths)/dt;
                                         NwtNew = NfNew = NtNew = 0.0;
                                         MuNew = MiNew = 0.0;
                                         RiNew = RuNew = 0.0;
                                     }
+                                    else {
+                                        Mdelt = Ths*NwtOld - MuNew;
+                                        NwtNew = Newton(Mdelt, NwtOld);
+                                        MiNew = get_Total_Moist(NwtNew);
+                                        MuNew = MiNew;
+                                        NfNew = NtNew = NwtNew;
+                                        RiNew = RuNew = 0.0;
+                                    }
                                 }
                                 else {
-                                    MuNew = AA+BB;
+                                    // The wedge excess was absorbed by
+                                    // advancing NfNew above; MuNew already
+                                    // holds it. The original code, MuNew = AA+BB
+                                    // reset destroyed that excess. CJC2026
                                     if (NtNew == 0.0)
                                         RuNew = Ksat*F*NfNew/expm1(F*NfNew);
 									}
