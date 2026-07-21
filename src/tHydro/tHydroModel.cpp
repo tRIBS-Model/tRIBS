@@ -717,6 +717,48 @@ void tHydroModel::SetupNodeUSZ(tCNode *cn)
 		cn->setSrf_Hr(0.0);
 }
 
+/*************************************************************************
+**
+**  tHydroModel::MaxSoilETRate(tCNode *, double)
+**
+**  Maximum soil-sourced ET rate [mm hr^-1, horizontal plane] the column
+**  can deliver this step. tEvapoTrans calls this before committing ET so
+**  that soil evaporation and transpiration are supply-limited at
+**  formation: the column cannot dry below the hydrostatic profile with
+**  the water table pinned at bedrock (Newton() clamps Nwt at DtoBedrock),
+**  so any demand beyond this rate would be silently refused by the
+**  unsaturated update while remaining reported as ET, creating phantom
+**  water.
+**
+*************************************************************************/
+double tHydroModel::MaxSoilETRate(tCNode *cn, double dt)
+{
+	double DtoB = cn->getBedrockDepth();
+
+	// Brooks-Corey retention parameters (as SetupNodeUSZ sets them)
+	Ths     = cn->getThetaS();
+	Thr     = cn->getThetaR();
+	PoreInd = cn->getPoreSize();
+	Psib    = cn->getAirEBubPres();
+
+	double NwtOldL = cn->getNwtOld();
+	double MuOldL  = cn->getMuOld();
+
+	// Extractable water above the water-table-at-bedrock floor [mm],
+	// slope-normal
+	double extractable = MuOldL + Ths*(DtoB - NwtOldL) - get_Total_Moist(DtoB);
+	if (extractable < 0.0)
+		extractable = 0.0;
+
+	// Slope factor, matching UnSaturatedZone()'s Cos. R1 carries ET as
+	// Ractual*Cos, so the horizontal ET rate the column can supply is
+	// extractable / (dt*Cos).
+	double edgeSlope = cn->getFlowEdg()->getSlope();
+	double Cos = (edgeSlope > 0.0) ? 1.0/sqrt(1.0 + edgeSlope*edgeSlope) : 1.0;
+
+	return extractable/(dt*Cos);
+}
+
 //=========================================================================
 //
 //
