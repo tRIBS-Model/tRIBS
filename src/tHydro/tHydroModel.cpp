@@ -1041,14 +1041,22 @@ void tHydroModel::UnSaturatedZone(double dt)
 			//----------------
 			case WTStaysAtSurf:
 
-				if (R > 0.0)
-					sbsrf = R*Cos;
-
-				// Exfiltration occurs due to lateral inflows
+				// Saturated column: all net influx leaves as runoff, so
+				// psrf + sbsrf must equal R1 (>= 0 by the state entry
+				// condition). R carries ET with its sign, a negative R
+				// (ET on a laterally-supplied saturated node) is debited
+				// against the inflow, not dropped; the pair is clamped
+				// so both components stay non-negative. CJC2026
 				if (QpIn > QpOut)
 					psrf = (QpIn-QpOut)*Cos;
 				else
-					sbsrf -= (QpOut-QpIn)*Cos;
+					psrf = 0.0;
+
+				sbsrf = R1 - psrf;
+				if (sbsrf < 0.0) {
+					psrf += sbsrf;
+					sbsrf = 0.0;
+				}
 
 				MiNew=0.0;
 				MuNew=0.0;
@@ -1076,19 +1084,26 @@ void tHydroModel::UnSaturatedZone(double dt)
 			case WTGetsToSurf:
 
 				// Partitioning into sbsrf & psrf
-				if (QpIn > QpOut) {
+				// Column fills to the surface: runoff is the net influx
+				// beyond the remaining deficit, psrf + sbsrf =
+				// R1 - (NwtOld*Ths - MuOld)/dt (>= 0 by the state entry
+				// condition). Lateral inflow fills the deficit first and
+				// its excess exits as psrf; the rain-side R carries ET
+				// with its sign so a negative R is debited against the
+				// lateral excess, not dropped; the pair is clamped so
+				// both components stay non-negative. CJC2026
+				totSurf = R1 + MuOld/dt - NwtOld*Ths/dt;
+				if (QpIn > QpOut)
 					psrf = (QpIn - QpOut)*Cos + MuOld/dt - NwtOld*Ths/dt;
-					if (psrf < 0.0) {
-						sbsrf = R*Cos + psrf;
-						psrf = 0.0;
-					}
-					else {
-						if (R > 0.0)
-							sbsrf = R*Cos;
-					}
-				}
 				else
-					sbsrf = (R + (QpIn - QpOut))*Cos + MuOld/dt - NwtOld*Ths/dt;
+						psrf = 0.0;
+				if (psrf < 0.0)
+					psrf = 0.0;
+				sbsrf = totSurf - psrf;
+				if (sbsrf < 0.0) {
+					psrf += sbsrf;
+					sbsrf = 0.0;
+				}
 
 				MuNew=0.0;
 				RiNew=0.0;
