@@ -1090,7 +1090,9 @@ void tFlowResults::store_saturation(int init, double ratio, double value, int fl
 		case 20: sca[init]    += scaled; break;
 		case 21: snsub[init]  += scaled; break;
 		case 22: snevap[init] += scaled; break;
-		case 23: Perc[init]   += value * 225; break;
+		// ChannelPerc is a rate [m3/s]: integrate over the routing time step
+		// (getTimeStep() is in hours) to accumulate a volume [m3].
+		case 23: Perc[init]   += value * timer->getTimeStep() * 3600.; break;
 		case 24: qunsat[init] += scaled; break;
 	}
 }

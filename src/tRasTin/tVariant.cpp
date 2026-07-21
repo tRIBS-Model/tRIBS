@@ -155,6 +155,43 @@ void tVariant::updateVariable(char *param)
 	return;
 }
 
+/***************************************************************************
+**
+** ValidateLandUseGridValue() Function
+**
+** Physical-range validation for a time-varying land-use grid value. Mirrors
+** the .ldt table checks in tInvariant (GenericLandData) so that an out-of-range
+** grid (e.g. VegFraction > 1) cannot silently corrupt the canopy water balance
+** by driving the rain partition (coeffV*netP_veg + (1-coeffV)*rainfall)
+** negative. Exits with a message naming the parameter, value, and node index.
+** The 9999.99 no-data sentinel is skipped (e.g. unused root-zone depth grids).
+**
+***************************************************************************/
+static void ValidateLandUseGridValue(const char *param, double value,
+                                     int nodeIndex, const char *gridFile)
+{
+	const double noData = 9999.99;
+	if (value == noData)
+		return;   // sentinel no-data; nothing to validate
+
+	// Fraction-type parameters must lie in [0,1]; all others must be >= 0.
+	bool isFraction = (strcmp(param,"AL") == 0 || strcmp(param,"TF") == 0 ||
+	                   strcmp(param,"VF") == 0 || strcmp(param,"OT") == 0);
+	bool bad = (value < 0.0) || (isFraction && value > 1.0);
+
+	if (bad) {
+		cout << "\nError: Land use grid '" << gridFile << "' parameter " << param
+		     << " = " << value << " at node index " << nodeIndex
+		     << " is out of physical range ";
+		if (isFraction)
+			cout << "[0, 1].";
+		else
+			cout << "(must be >= 0).";
+		cout << "\nExiting Program...\n\n" << endl;
+		exit(2);
+	}
+}
+
 // SKYnGM2008LU
 /***************************************************************************
 **
@@ -182,9 +219,10 @@ void tVariant::updateLUVarOfPrevGrid(const char *param, char *GridFileName)
 	id = 0;
 	cn = nodeIter.FirstP();
 	while( nodeIter.IsActive() ) {
-		if (strcmp(param,"AL") == 0) { 
+		ValidateLandUseGridValue(param, resample[id], id, GridFileName);
+		if (strcmp(param,"AL") == 0) {
 			cn->setLandUseAlbInPrevGrid( resample[id] );
-			cn->setLandUseAlb( resample[id] ); 
+			cn->setLandUseAlb( resample[id] );
 		}
 		else if (strcmp(param,"TF") == 0) {
 			cn->setThroughFallInPrevGrid( resample[id] );
@@ -265,7 +303,8 @@ void tVariant::updateLUVarOfBothGrids(const char *param, char *GridFileName)
 	id = 0;
 	cn = nodeIter.FirstP();
 	while( nodeIter.IsActive() ) {
-		if (strcmp(param,"AL") == 0) { 
+		ValidateLandUseGridValue(param, resample[id], id, GridFileName);
+		if (strcmp(param,"AL") == 0) {
 			cn->setLandUseAlbInPrevGrid( cn->getLandUseAlbInUntilGrid() );
 			cn->setLandUseAlb(cn->getLandUseAlbInUntilGrid() ); 
 			cn->setLandUseAlbInUntilGrid( resample[id] );

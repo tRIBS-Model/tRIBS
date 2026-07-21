@@ -86,6 +86,7 @@ public:
   double GetCellRunon(tCNode *, double);
   double ComputeSurfSoilMoist(double);
   double ComputeNwtSatThreshold() const;
+  double MaxSoilETRate(tCNode *, double);
 
 
   void   set_Suction_Term(double);    

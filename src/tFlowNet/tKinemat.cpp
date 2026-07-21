@@ -641,8 +641,10 @@ void tKinemat::RunRoutingModel(int it, int *check, double timeStep) {
         cHead = NodesIterH.DatPtr();
         cOutlet = NodesIterO.DatPtr();
 
-        //can calculate the number of time steps to check for transient period here ASM
-        CountLimit = TransientTime / (dt / 60);
+        // Number of routing time steps the transient conductivity stays active:
+        // TransientTime is in hours, dt in seconds. Round to nearest so
+        // sub-hourly time steps don't truncate the limit to zero.
+        CountLimit = (int) (TransientTime * 3600.0 / dt + 0.5);
 
         // Initialize widths, lengths, slopes, levels, C, Y1, Y2, Y3
         InitializeStreamReach(NNodesIter.DatRef(), CountLimit);
@@ -671,7 +673,7 @@ void tKinemat::RunRoutingModel(int it, int *check, double timeStep) {
         // Clamp computed water depths to zero. Transmission losses can drive depths
         // slightly negative during low-flow conditions. Negative depths cause pow(h, 5/3) to produce NaN.
         // This "post-solve clamp" is a practical approach. The alternative would be bounding
-        // res[i] more tightly before solving so depths never go below zero but we would have 
+        // res[i] more tightly before solving so depths never go below zero but we would have
         // to know the available water volume per link in advance i.e. its circular.
         for (int i = 0; i < n; i++)
             if (his[i] < 0.0) his[i] = 0.0;
@@ -1193,7 +1195,19 @@ void tKinemat::AssignLateralInflux() {
                 // a net sink withdrawing water from in-channel flow.
                 // When the channel is dry, loss is capped at available lateral inflow.
                 if (his[i] > 0.0) {
-                    clis[i] = NodeLoss[i];
+                    // The solver still receives the full potential sink (routing
+                    // unchanged), but the ledger (clis -> setChannelPerc -> mrf
+                    // ChannelPerc) books only what the node can supply this time
+                    // step: stored water in its control volume plus incoming
+                    // lateral influx. Otherwise the full Darcy rate is reported
+                    // indefinitely off tiny recession depths.
+                    double ctrlLen = 0.5 * ais[i];
+                    if (i > 0)
+                        ctrlLen += 0.5 * ais[i - 1];
+                    double availRate = his[i] * bis[i] * ctrlLen / dt;
+                    if (reis[i] > 0.0)
+                        availRate += reis[i];
+                    clis[i] = (NodeLoss[i] < availRate) ? NodeLoss[i] : availRate;
                     reis[i] -= NodeLoss[i];
                 } else if (reis[i] > NodeLoss[i]) {
                     clis[i] = NodeLoss[i];
@@ -1267,9 +1281,16 @@ void tKinemat::AssignLateralInflux() {
                 //}
                 Preach += clis[i];
             } else if (percolationOption == 1 || percolationOption == 2) {
-                // Same logic as interior links above applied to the last link in reach.
+                // Same logic as interior links above applied to the last link in
+                // reach, including the availability cap on the booked loss.
                 if (his[i] > 0.0) {
-                    clis[i] = NodeLoss[i];
+                    double ctrlLen = 0.5 * ais[i];
+                    if (i > 0)
+                        ctrlLen += 0.5 * ais[i - 1];
+                    double availRate = his[i] * bis[i] * ctrlLen / dt;
+                    if (reis[i] > 0.0)
+                        availRate += reis[i];
+                    clis[i] = (NodeLoss[i] < availRate) ? NodeLoss[i] : availRate;
                     reis[i] -= NodeLoss[i];
                 } else if (reis[i] > NodeLoss[i]) {
                     clis[i] = NodeLoss[i];

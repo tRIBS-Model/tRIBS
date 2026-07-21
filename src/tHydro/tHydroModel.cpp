@@ -717,6 +717,48 @@ void tHydroModel::SetupNodeUSZ(tCNode *cn)
 		cn->setSrf_Hr(0.0);
 }
 
+/*************************************************************************
+**
+**  tHydroModel::MaxSoilETRate(tCNode *, double)
+**
+**  Maximum soil-sourced ET rate [mm hr^-1, horizontal plane] the column
+**  can deliver this step. tEvapoTrans calls this before committing ET so
+**  that soil evaporation and transpiration are supply-limited at
+**  formation: the column cannot dry below the hydrostatic profile with
+**  the water table pinned at bedrock (Newton() clamps Nwt at DtoBedrock),
+**  so any demand beyond this rate would be silently refused by the
+**  unsaturated update while remaining reported as ET, creating phantom
+**  water.
+**
+*************************************************************************/
+double tHydroModel::MaxSoilETRate(tCNode *cn, double dt)
+{
+	double DtoB = cn->getBedrockDepth();
+
+	// Brooks-Corey retention parameters (as SetupNodeUSZ sets them)
+	Ths     = cn->getThetaS();
+	Thr     = cn->getThetaR();
+	PoreInd = cn->getPoreSize();
+	Psib    = cn->getAirEBubPres();
+
+	double NwtOldL = cn->getNwtOld();
+	double MuOldL  = cn->getMuOld();
+
+	// Extractable water above the water-table-at-bedrock floor [mm],
+	// slope-normal
+	double extractable = MuOldL + Ths*(DtoB - NwtOldL) - get_Total_Moist(DtoB);
+	if (extractable < 0.0)
+		extractable = 0.0;
+
+	// Slope factor, matching UnSaturatedZone()'s Cos. R1 carries ET as
+	// Ractual*Cos, so the horizontal ET rate the column can supply is
+	// extractable / (dt*Cos).
+	double edgeSlope = cn->getFlowEdg()->getSlope();
+	double Cos = (edgeSlope > 0.0) ? 1.0/sqrt(1.0 + edgeSlope*edgeSlope) : 1.0;
+
+	return extractable/(dt*Cos);
+}
+
 //=========================================================================
 //
 //
@@ -754,6 +796,7 @@ void tHydroModel::UnSaturatedZone(double dt)
 	double ThSurf;
 	double EvapSoi, EvapVeg;
 	double airTemp, Ta_hi, Ta_lo, alphat;
+	double totSurf;
 
    Ractual = xxsrf = 0.0;        //SMM - added 08132008
    Mperch = Mdelt = Mdva = AA = BB = 0.0; //SMM - added 08132008
@@ -998,14 +1041,22 @@ void tHydroModel::UnSaturatedZone(double dt)
 			//----------------
 			case WTStaysAtSurf:
 
-				if (R > 0.0)
-					sbsrf = R*Cos;
-
-				// Exfiltration occurs due to lateral inflows
+				// Saturated column: all net influx leaves as runoff, so
+				// psrf + sbsrf must equal R1 (>= 0 by the state entry
+				// condition). R carries ET with its sign, a negative R
+				// (ET on a laterally-supplied saturated node) is debited
+				// against the inflow, not dropped; the pair is clamped
+				// so both components stay non-negative. CJC2026
 				if (QpIn > QpOut)
 					psrf = (QpIn-QpOut)*Cos;
 				else
-					sbsrf -= (QpOut-QpIn)*Cos;
+					psrf = 0.0;
+
+				sbsrf = R1 - psrf;
+				if (sbsrf < 0.0) {
+					psrf += sbsrf;
+					sbsrf = 0.0;
+				}
 
 				MiNew=0.0;
 				MuNew=0.0;
@@ -1033,19 +1084,26 @@ void tHydroModel::UnSaturatedZone(double dt)
 			case WTGetsToSurf:
 
 				// Partitioning into sbsrf & psrf
-				if (QpIn > QpOut) {
+				// Column fills to the surface: runoff is the net influx
+				// beyond the remaining deficit, psrf + sbsrf =
+				// R1 - (NwtOld*Ths - MuOld)/dt (>= 0 by the state entry
+				// condition). Lateral inflow fills the deficit first and
+				// its excess exits as psrf; the rain-side R carries ET
+				// with its sign so a negative R is debited against the
+				// lateral excess, not dropped; the pair is clamped so
+				// both components stay non-negative. CJC2026
+				totSurf = R1 + MuOld/dt - NwtOld*Ths/dt;
+				if (QpIn > QpOut)
 					psrf = (QpIn - QpOut)*Cos + MuOld/dt - NwtOld*Ths/dt;
-					if (psrf < 0.0) {
-						sbsrf = R*Cos + psrf;
-						psrf = 0.0;
-					}
-					else {
-						if (R > 0.0)
-							sbsrf = R*Cos;
-					}
-				}
 				else
-					sbsrf = (R + (QpIn - QpOut))*Cos + MuOld/dt - NwtOld*Ths/dt;
+						psrf = 0.0;
+				if (psrf < 0.0)
+					psrf = 0.0;
+				sbsrf = totSurf - psrf;
+				if (sbsrf < 0.0) {
+					psrf += sbsrf;
+					sbsrf = 0.0;
+				}
 
 				MuNew=0.0;
 				RiNew=0.0;
@@ -1314,6 +1372,8 @@ void tHydroModel::UnSaturatedZone(double dt)
 							// Check possible situations with Nf & Nwt
 							if (fabs(NfNew - (NwtNew+Psib)) <= 1.0E-3) {
 								NwtNew = NtOld-Psib;
+								if (NwtNew > DtoBedrock)
+									NwtNew = DtoBedrock;
 								cdest = (tCNode*)ce->getDestinationPtrNC();
 								NwtNext = cdest->getNwtOld();
 								NfNext  = cdest->getNfOld();
@@ -1325,6 +1385,8 @@ void tHydroModel::UnSaturatedZone(double dt)
 							}
 							else if (NfNew > (NwtNew+Psib)) {
 								NwtNew = NtOld-Psib;
+								if (NwtNew > DtoBedrock)
+									NwtNew = DtoBedrock;
 								cdest = (tCNode*)ce->getDestinationPtrNC();
 								NwtNext = cdest->getNwtOld();
 								NfNext  = cdest->getNfOld();
@@ -1747,10 +1809,14 @@ void tHydroModel::UnSaturatedZone(double dt)
 				// Check for possible situations with Nf and Nwt
 				if (fabs(NfNew - (NwtNew+Psib)) <= 1.0E-3) {
 					NwtNew = NtOld-Psib;
+					if (NwtNew > DtoBedrock)
+						NwtNew = DtoBedrock;
 					NfNew = NwtNew;
 				}
                 else if (NfNew > (NwtNew+Psib)) {
                     NwtNew = NtOld-Psib;
+                    if (NwtNew > DtoBedrock)
+                        NwtNew = DtoBedrock;
                     NfNew = NwtNew;
                     R1 += qn - ((NwtOld+Psib-NfOld)*(Ths-ThRiNf)/dt + RiNew*Cos);
                 }
@@ -1832,20 +1898,36 @@ void tHydroModel::UnSaturatedZone(double dt)
                                 NfNew += (MuNew - (AA+BB))/(Ths - ThRiNf);
 
                                 if (NfNew >= (NwtNew+Psib)) {
-                                    if (NtNew > 0.0) {
-                                        NwtNew = NtNew - Psib;
-                                        NfNew = NtNew = NwtNew;
-                                        MuNew = MiNew = get_Total_Moist(NwtNew);
-                                        RiNew = RuNew = 0.0;
-                                    }
-                                    else if (NtNew == 0.0) {
+                                    // Front reached the capillary fringe:
+                                    // collapse the wedge into the water table
+                                    // conservatively, solve for the WT whose
+                                    // hydrostatic profile holds exactly MuNew,
+                                    // exporting any above-saturation excess.
+                                    // The original code resets here (MuNew =
+                                    // get_Total_Moist(NtNew-Psib) for NtNew>0,
+                                    // MuNew = 0 with full saturation for
+                                    // NtNew==0) discarded the difference and
+                                    // destroyed wedge water. CJC2026
+                                    if (MuNew >= NwtOld*Ths) {
+                                        sbsrf += (MuNew - NwtOld*Ths)/dt;
                                         NwtNew = NfNew = NtNew = 0.0;
                                         MuNew = MiNew = 0.0;
                                         RiNew = RuNew = 0.0;
                                     }
+                                    else {
+                                        Mdelt = Ths*NwtOld - MuNew;
+                                        NwtNew = Newton(Mdelt, NwtOld);
+                                        MiNew = get_Total_Moist(NwtNew);
+                                        MuNew = MiNew;
+                                        NfNew = NtNew = NwtNew;
+                                        RiNew = RuNew = 0.0;
+                                    }
                                 }
                                 else {
-                                    MuNew = AA+BB;
+                                    // The wedge excess was absorbed by
+                                    // advancing NfNew above; MuNew already
+                                    // holds it. The original code, MuNew = AA+BB
+                                    // reset destroyed that excess. CJC2026
                                     if (NtNew == 0.0)
                                         RuNew = Ksat*F*NfNew/expm1(F*NfNew);
 									}

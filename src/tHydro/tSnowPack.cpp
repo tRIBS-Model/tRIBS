@@ -1053,7 +1053,9 @@ void tSnowPack::updateRipeSnowPack(double precip) {
              3600; // Removed snUnload term CJC2020
 
     if (liqWE + snEvap <= 0) {
-        snEvap = liqWE;
+        // Demand exceeds available liquid: actual evaporation is the whole
+        // remaining store, kept negative per the loss-flux convention
+        snEvap = -liqWE;
         liqWE = 0;
     } else {
         liqWE += snEvap;
@@ -1077,7 +1079,9 @@ void tSnowPack::updateSolidSnowPack(double precip) {
     iceWE += cmtonaught * (mtoc * (precip * snowFracCalc())) * timeSteps / 3600;
 
     if (iceWE + snSub <= 0) {
-        snSub = iceWE;
+        // Demand exceeds available ice: actual sublimation is the whole
+        // remaining store, kept negative per the loss-flux convention
+        snSub = -iceWE;
         iceWE = 0;
     } else {
         iceWE += snSub;

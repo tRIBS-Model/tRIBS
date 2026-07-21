@@ -1171,6 +1171,35 @@ void tEvapoTrans::ComputeETComponents(tIntercept *Intercept, tCNode *cNode,
             evapSoil = potEvaporationRemaining*betaS;
         }
 
+		// Supply-limit soil-sourced ET by the water the column can actually
+		// deliver above the water-table-at-bedrock floor. Without this cap the
+		// unsaturated update silently refuses undeliverable demand (Newton()
+		// clamps the water table at bedrock) while the full ET stays reported,
+		// creating phantom water. Capping here, before ET is committed, keeps
+		// reported ET equal to delivered ET with no downstream reconciliation.
+		// Only column-sourced fluxes count: bare-soil evaporation and dry-canopy
+		// transpiration. Under snow only transpiration draws from the
+		// soil column (UnSaturatedZone sets Ractual = 10*routeWE - EvapVeg), so
+		// bare-soil evaporation is excluded from the capped demand there. CJC2026
+		{
+			int snowActive = 0;
+			if (snowOption) {
+				double snWE = cNode->getLiqWE() + cNode->getIceWE();
+				if ((snWE > 1e-3) || (cNode->getLiqRouted() > 0.0))
+					snowActive = 1;
+			}
+			double soilDemand = snowActive ? evapDryCanopy : (evapSoil + evapDryCanopy);
+			if (soilDemand > 0.0) {
+				double maxSoilET = hydrPtr->MaxSoilETRate(cNode, timer->getTimeStep());
+				if (soilDemand > maxSoilET) {
+					double scale = maxSoilET/soilDemand;
+					evapDryCanopy *= scale;
+					if (!snowActive)
+						evapSoil *= scale;
+				}
+			}
+		}
+
 		// Total Evapotranspiration
 		evapoTranspiration = evapWetCanopy + evapDryCanopy + evapSoil;
 		
