@@ -796,15 +796,12 @@ void tHydroModel::UnSaturatedZone(double dt)
 	double ThSurf;
 	double EvapSoi, EvapVeg;
 	double airTemp, Ta_hi, Ta_lo, alphat;
-	double etInR, availWater, overdraft, etRed, redSoil, redVeg, teSteps;
-	int snowActive;
+	double mbR1used, totSurf;
 
    Ractual = xxsrf = 0.0;        //SMM - added 08132008
    Mperch = Mdelt = Mdva = AA = BB = 0.0; //SMM - added 08132008
    qn = Nstar = NwtNext = NfNext = 0.0;   //SMM - added 08132008
    ThSurf = 0;
-   etInR = availWater = overdraft = etRed = redSoil = redVeg = teSteps = 0.0;
-   snowActive = 0;
 
 	// SKY2008Snow from AJR2007
 	double routeWE, snWE; //RINEHART 2007 @ NMT
@@ -896,14 +893,12 @@ void tHydroModel::UnSaturatedZone(double dt)
 		TotRain += (Ractual*dt*cn->getVArea()/1000.);
 
 		// SKY2008Snow from AJR2007
-		snowActive = 0;
 		if (SnOpt) {
 			snWE = cn->getLiqWE() + cn->getIceWE();
 			routeWE = cn->getLiqRouted();
 			if ((snWE > 1e-3) || (routeWE > 0.)) {
                 //WR 12182023 removed EvapVeg from route water following above approach and because transpiration can still occur w/snow
 				Ractual = 10.0*routeWE-EvapVeg; //have to convert to mm // Changed from R to Ractual CJC2020
-				snowActive = 1;
 			}
 		}
 
@@ -923,59 +918,6 @@ void tHydroModel::UnSaturatedZone(double dt)
 		// Total rate of in/outfluxes [mm hr^-1]
 		R1 = (Ractual + (QpIn-QpOut))*Cos + qrunon;  // Moved this line to be below routeWE  calculation CJC2020
 		R = Ractual; // Moved this line to be below routeWE  calculation CJC2020
-
-		// Cap ET extraction by deliverable soil water. The column cannot
-		// dry below the hydrostatic profile with the water table at
-		// bedrock (Newton() clamps Nwt at DtoBedrock), so ET demand
-		// beyond that floor was never actually withdrawn while the full
-		// demand remained reported as ET, creating phantom water. Reduce
-		// the extraction demand and the reported ET together so that
-		// reported ET equals delivered ET. CJC2026
-		etInR = 0.0;
-		if (snowActive)
-			etInR = EvapVeg;
-		else if (EToption != 0)
-			etInR = EvapSoi + EvapVeg;
-
-		if (etInR > 0.0 && R1 < 0.0) {
-			// Extractable water above the bedrock-floor profile [mm]
-			availWater = MuOld + Ths*(DtoBedrock - NwtOld) - get_Total_Moist(DtoBedrock);
-			if (availWater < 0.0)
-				availWater = 0.0;
-			overdraft = -(R1*dt + availWater); // Demand beyond deliverable [mm]
-			if (overdraft > 0.0) {
-				etRed = overdraft/(dt*Cos);    // [mm hr^-1]
-				if (etRed > etInR)
-					etRed = etInR;
-				if (snowActive) {
-					redVeg  = etRed;
-					redSoil = 0.0;
-				}
-				else {
-					redSoil = etRed*EvapSoi/etInR;
-					redVeg  = etRed - redSoil;
-				}
-				EvapSoi -= redSoil;
-				EvapVeg -= redVeg;
-				Ractual += etRed;
-				R  = Ractual;
-				R1 += etRed*Cos;
-				if (!snowActive)
-					TotRain += (etRed*dt*cn->getVArea()/1000.);
-
-				// Reconcile the ET stored/accumulated by tEvapoTrans
-				// earlier this step so all downstream reporting (mrf MET,
-				// pixel files, tWaterBalance) sees delivered ET
-				cn->setEvapSoil(cn->getEvapSoil() - redSoil);
-				cn->setEvapDryCanopy(cn->getEvapDryCanopy() - redVeg);
-				cn->setEvapoTrans(cn->getEvapoTrans() - etRed);
-				cn->addTotEvap(-etRed*dt);
-				cn->addBarEvap(-redSoil*dt);
-				teSteps = (double)timer->getElapsedETISteps(timer->getCurrentTime());
-				if (teSteps >= 1.0)
-					cn->setAvET(cn->getAvET() - etRed*dt/teSteps);
-			}
-		}
 
 
 		// Step1: Compute K_unsaturated and rainfall
