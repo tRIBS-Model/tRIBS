@@ -17,6 +17,7 @@
 #include "src/Headers/globalIO.h"
 #include "src/Headers/Definitions.h"
 #include "src/tMeshList/tMeshList.h"
+#include "src/tPartition/tPartition.h"
 
 #ifdef PARALLEL_TRIBS
 #include "src/tParallel/tParallel.h"
@@ -294,28 +295,31 @@ void tGraph::partition(int np, tInputFile& InputFile) {
   
   // More than 1 partition
   else {
-    // Check for partitioning file option
-    int optgfile = 0;
-    optgfile = InputFile.ReadItem( optgfile, "GRAPHOPTION"); 
+    // GRAPHOPTION selects the partitioning method used when generating:
+    //   1 = SF    (surface flow: flow edges only)
+    //   2 = SSF   (surface-subsurface: flow + subsurface flux edges)
+    //   3 = SSF-H (SSF plus a headwater balancing constraint)
+    int method = 1;
+    method = InputFile.ReadItem( method, "GRAPHOPTION" );
 
-    // Check for partitioning file
-    if (optgfile == 1 || optgfile == 2) {
-      char pfile[256];
-      strcpy(pfile,"");
-      InputFile.ReadItem( pfile, "GRAPHFILE" );
+    char pfile[256];
+    strcpy(pfile,"");
+    InputFile.ReadItem( pfile, "GRAPHFILE" );
 
-      // If a file was given, read in partitioning based
-      // on file format type
-      if (optgfile == 1)
-        readReachPartitionFromFile(pfile);
-      else
-        readInletOutletPartitionFromFile(pfile);
+    // If the graph file already exists, read the precomputed reach->partition
+    // mapping. Otherwise generate it in-process with METIS and write it there
+    // so subsequent runs can reuse it (replaces the MeshBuilder workflow).
+    ifstream graphTest(pfile);
+    bool haveGraphFile = (strlen(pfile) > 0 && graphTest.good());
+    graphTest.close();
+
+    if (haveGraphFile) {
+      readReachPartitionFromFile(pfile);
     }
-
-    // Else no partition file was given,
-    // create a simple default partitioning
     else {
-        createDefaultPartition(np);
+      Cout << "\nGraph file not found -- generating partition in-process "
+           << "(method " << method << ", " << np << " partitions)..." << endl;
+      generatePartition(np, method, pfile);
     }
 
     // Collect local reaches together
@@ -339,51 +343,6 @@ void tGraph::partition(int np, tInputFile& InputFile) {
            << endl;
   }
 }
-
-/*************************************************************************
-**
-** Read graph partitioning from file.
-** The inlet/outlet format is as follows:
-**
-** A line for each reach should contain:
-**   <partition number> <inlet ID> <outlet ID>
-**
-** Example (7 reaches on 4 processors):
-**
-**  0 1082 1145
-**  0 1083 1145
-**  1 1085 1156
-**  1 1145 1156
-**  2 1084 1190
-**  2 1156 1190
-**  3 1190 1198
-**
-*************************************************************************/
-
-void tGraph::readInletOutletPartitionFromFile(char* pfile) {
-
-    ifstream partFile;
-    partFile.open(pfile);
-    int whichPart, headID, outletID;
-    int nr = 0;
-    while (nr < numGlobalReach && !partFile.eof()) {
-        partFile >> whichPart >> headID >> outletID;
-        int preach = whichReach(headID, outletID);
-        if (sim->debug == 'Y') {
-            Cout << "Partition = " << whichPart
-                 << " head = " << headID
-                 << " outlet = " << outletID
-                 << " reach = " << preach
-                 << endl;
-        }
-        nr++;
-        assert(preach >= 0 && preach < numGlobalReach);
-        reach2partition[preach] = whichPart;
-    }
-    partFile.close();
-    Cout << "\nPartitioning read from inlet/output file " << pfile << endl;
-}
-
 
 /*************************************************************************
 **
@@ -453,6 +412,87 @@ void tGraph::createDefaultPartition(int np) {
         reach2partition[j] = i;
     }
 
+}
+
+/*************************************************************************
+**
+** Generate partitions in-process via METIS from the in-memory reach graph.
+**
+** Replaces the external MeshBuilder + gpmetis + perl workflow: instead of
+** reading a precomputed .reach file, build the weighted reach graph here and
+** call METIS_PartGraphKway (via tPartition::ComputePartition).
+**
+** Runs before update(), so all mesh nodes/edges are still active -- the node
+** counts (METIS vertex weights) and the reach-flux adjacency are computed here
+** with read-only passes and do NOT touch the shared conn/pointsPerReach that
+** update() manages later.
+**
+**   method: 1=SF (flow edges only)
+**           2=SSF (flow + subsurface flux edges)
+**           3=SSF-H (flow + flux, plus a headwater balancing constraint)
+**
+*************************************************************************/
+
+void tGraph::generatePartition(int np, int method, const char* outPath) {
+
+  // 1. Node count per reach == METIS vertex weight. Read-only pass over all
+  //    active nodes (every node is still active at partition time).
+  std::vector<int> counts(numGlobalReach, 0);
+  tMeshList<tCNode>* nlist = mesh->getNodeList();
+  tMeshListIter<tCNode> niter(nlist);
+  for (tCNode* cn = niter.FirstP(); niter.IsActive() && cn != 0;
+       cn = niter.NextP()) {
+    int r = cn->getReach();
+    if (r >= 0 && r < numGlobalReach) counts[r]++;
+  }
+
+  // 2. Reach-level subsurface flux adjacency (SSF / SSF-H only). Same rule as
+  //    update(): an edge whose endpoints lie in different reaches couples those
+  //    two reaches. Computed into a local structure, not conn.
+  bool useFlux = (method == tPartition::SSF || method == tPartition::SSF_H);
+  std::vector< std::set<int> > fluxAdj(numGlobalReach);
+  if (useFlux) {
+    tMeshList<tEdge>* elist = mesh->getEdgeList();
+    tMeshListIter<tEdge> eiter(elist);
+    for (tEdge* ce = eiter.FirstP(); eiter.IsActive() && ce != 0;
+         ce = eiter.NextP()) {
+      tCNode* co = (tCNode*)ce->getOriginPtrNC();
+      tCNode* cd = (tCNode*)ce->getDestinationPtrNC();
+      int a = co->getReach();
+      int b = cd->getReach();
+      if (a != b && a >= 0 && a < numGlobalReach &&
+                    b >= 0 && b < numGlobalReach) {
+        fluxAdj[a].insert(b);
+        fluxAdj[b].insert(a);
+      }
+    }
+  }
+
+  // 3. Build the reach list for tPartition from the in-memory graph.
+  std::vector<tPartition::Reach> reaches(numGlobalReach);
+  for (int i = 0; i < numGlobalReach; i++) {
+    reaches[i].id         = i;
+    reaches[i].pointCount = counts[i];
+    reaches[i].headID     = hid[i];
+    reaches[i].outletID   = oid[i];
+    reaches[i].downstream = conn[i].getDownstream();   // flow edges
+    if (useFlux)
+      reaches[i].flux.assign(fluxAdj[i].begin(), fluxAdj[i].end());
+  }
+
+  // 4. Partition and copy the result into reach2partition.
+  std::vector<int> part = tPartition::ComputePartition(
+      reaches, np, static_cast<tPartition::PartMethod>(method));
+  for (int i = 0; i < numGlobalReach; i++)
+    reach2partition[i] = part[i];
+
+  // 5. Persist the generated partition so it can be reused / inspected.
+  bool isMaster = true;
+#ifdef PARALLEL_TRIBS
+  isMaster = tParallel::isMaster();
+#endif
+  if (outPath != 0 && strlen(outPath) > 0 && isMaster)
+    tPartition::WriteReachFile(reaches, part, np, outPath);
 }
 
 /*************************************************************************

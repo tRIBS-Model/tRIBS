@@ -81,10 +81,12 @@ public:
   static void partition(int n, tInputFile& InputFile);
   /// Read reach-based partitions from file
   static void readReachPartitionFromFile(char* pfile);
-  /// Read inlet/outlet-based partitions from file
-  static void readInletOutletPartitionFromFile(char* pfile);
   /// Create default partitions
   static void createDefaultPartition(int np);
+  /// Generate partitions in-process via METIS from the in-memory reach graph.
+  /// method: 1=SF (flow only), 2=SSF (flow+flux), 3=SSF-H (flow+flux+headwaters).
+  /// If outPath is non-empty, the master writes the resulting .reach file there.
+  static void generatePartition(int np, int method, const char* outPath);
 
   /// List ids of all active nodes
   static void listActiveNodes();
