@@ -67,24 +67,8 @@ public:
   static void initialize(SimulationControl* s, tMesh<tCNode>* m, tKinemat* f,
     tInputFile& InputFile);
 
-  /// Initialize for MeshBuilder input where reach partition happens first
-  static void initialize(SimulationControl* s, tMesh<tCNode>* m,
-    tInputFile& InputFile);
-
-  /// Set the tKinemat separately for MeshBuilder because it has not been
-  /// constructed at the point that initialize has been called
-  static void setFlowNet(tKinemat* f)	{ flow = f; }
-
   /// Finalize
   static void finalize();
-
-  /// Build graph, partition and mesh from MeshBuilder files (option 9)
-  static void ReadDirectoryFromMeshBuilder();
-  static void ReadFlowMesh();
-  static void ReadFlowNode(fstream&, tCNode*);
-  static void ReadFlowNode(fstream&, int* id, int* edge, int* flow, int* node);
-  static void ReadFlowEdge(fstream&, tEdge*, int* orig, int* dest);
-  static void ReadFlowEdge(fstream&, int* id, int* ccw);
 
   /// Determine stream reach connectivity
   static void connectivity();
@@ -225,7 +209,6 @@ private:
 
   static int*                    hid;             //!< Reach head node IDs
   static int*                    oid;             //!< Reach outlet node IDs
-  static int*                    aboveid;         //!< node above outlet IDs
 
   static std::vector<tCNode*>    nodeAboveOutlet; //!< Node above outlet
   static std::set<tCNode*,IDOrder>* upFlow;      //!< Upstream flow nodes
@@ -234,25 +217,6 @@ private:
   static std::set<tCNode*,IDOrder>* localFlux;   //!< Send overlap flux nodes
   static std::set<tCNode*,IDOrder>* remoteFlux;  //!< Receive overlap flux nodes
   static bool                    lastReach;      //!< Contains last reach
-
-  // MeshBuilder required variables
-  static int  numGlobalNodes;           //!< # of nodes in problem
-  static int  numGlobalEdges;           //!< # of edges in problem
-  static int  nodeBytes;                //!< Size of MeshBuilder node
-  static int  edgeBytes;                //!< Size of MeshBuilder edge
-
-  static int* nodesPerReach;            //!< Nodes in each reach
-  static int* internalEdgesPerReach;    //!< Edges internal to each reach
-  static int* externalEdgesPerReach;    //!< Edges external to each reach
-
-  static int* fluxNodesPerReach;        //!< Flux external nodes in each reach
-  static int* fluxEdgesPerReach;	//!< Flux external edges to each reach
-
-  static int* nodeOffset;               //!< Offset within nodes file
-  static int* edgeOffset;               //!< Offset within edges file
-
-  static int* fluxNodeOffset;           //!< Offset within flux node file
-  static int* fluxEdgeOffset;		//!< Offset within flux edge file
 };
 
 #endif

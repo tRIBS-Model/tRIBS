@@ -175,169 +175,80 @@ int parallelSimulation(int argc, char **argv)
 	// Timer, checks environmental variables 
 	tRunTimer Timer( InputFile );
 
-	// Option 9 with more than one processor behaves differently in that
-	// only nodes and edges for reaches on that processor are read
-	// tMesh is created as an empty structure and tGraph is called next so that
-	// partition can be decided and appropriate nodes loaded on each processor
-	// Then tKinemat can be called because the reaches were assigned and it
-	// does not run most tFlowNet code, but simply loads meshb information
-	// This means that when tGraph is called with option 9 it does not have
-	// a working Flow structure
-
+	// Build the full mesh, then the stream network, then partition the reach
+	// graph. tGraph generates the partition in-process via METIS when no
+	// GRAPHFILE is supplied (or reads it when one exists).
 	int numberOfProcessors = tParallel::getNumProcs();
-	int option = InputFile.ReadItem(option, "OPTMESHINPUT");
 
-	if (option == 9) {
+	tMesh<tCNode> BasinMesh( &SimCtrl, InputFile );
 
-		cout<<"\n\nPart 2: Creating empty basic mesh" <<endl;
-    	Cout<<"---------------------------------------------------"<<endl;
-		tMesh<tCNode> BasinMesh( &SimCtrl );
+	Cout<<"\n\nPart 3: Creating Stream Network from Mesh "<<endl;
+	Cout<<"---------------------------------------------"<<endl;
+	tKinemat Flow( &SimCtrl, &BasinMesh, InputFile, &Timer );
 
-		cout<<"\n\nPart 2b: Creating Stream Reach partitioning "<<endl;
-		Cout<<"-----------------------------------------------"<<endl;
-		tGraph::initialize( &SimCtrl, &BasinMesh, InputFile);
+	Cout<<"\n\nPart 3b: Creating Stream Reach partitioning "<<endl;
+	Cout<<"-----------------------------------------------"<<endl;
+	tGraph::initialize( &SimCtrl, &BasinMesh, &Flow, InputFile);
 
-		cout<<"\n\nPart 3: Creating Stream Network from Mesh "<<endl;
-		Cout<<"---------------------------------------------"<<endl;
-		tKinemat Flow( &SimCtrl, &BasinMesh, InputFile, &Timer );
-		tGraph::setFlowNet(&Flow);
+	Cout<<"\n\nPart 4: Creating Resampling Object"<<endl;
+	Cout<<"--------------------------------------"<<endl;
+	tResample RsmplMaster( &SimCtrl, &BasinMesh );  
 
-		cout<<"\n\nPart 4: Creating Resampling Object"<<endl;
-		Cout<<"--------------------------------------"<<endl;
-		tResample RsmplMaster( &SimCtrl, &BasinMesh );  
+	Cout<<"\n\nPart 4a: Creating Sheltering Object for DEM Input" << endl;
+	Cout<<"----------------------------------------------------"<<endl;
+	tShelter Shelter( &SimCtrl, &BasinMesh, InputFile );// SKY2008Snow from AJR2007
 
-		cout<<"\n\nPart 4a: Creating Sheltering Object for DEM Input" << endl;
-		Cout<<"----------------------------------------------------"<<endl;
-		tShelter Shelter( &SimCtrl, &BasinMesh, InputFile );// SKY2008Snow from AJR2007
-
-		cout<<"\n\nPart 5: Creating Output Files from "<<"'"<<argv[1]<<"'"<<endl;
-		Cout<<"------------------------------------------"<<endl;
-		tCOutput<tCNode> Output( &SimCtrl, &BasinMesh, InputFile, 
+	Cout<<"\n\nPart 5: Creating Output Files from "<<"'"<<argv[1]<<"'"<<endl;
+	Cout<<"------------------------------------------"<<endl;
+	tCOutput<tCNode> Output( &SimCtrl, &BasinMesh, InputFile, 
                              &RsmplMaster, &Timer );     
 
-		// Creating WaterBalance class
-		tWaterBalance Balance( &SimCtrl, &BasinMesh, InputFile);
+	// Creating WaterBalance class
+	tWaterBalance Balance( &SimCtrl, &BasinMesh, InputFile);
 
-		cout<<"\n\nPart 6: Creating Hydrologic System"<<endl;
-		Cout<<"--------------------------------------"<<endl;
-		tHydroModel Moisture( &SimCtrl, &BasinMesh, InputFile, 
-                          &RsmplMaster, &Balance, &Timer );
-
-		cout<<"\nCreating Rainfall Setup...\n";
-		tRainfall Rainfall( &SimCtrl, &BasinMesh, InputFile, &RsmplMaster, &Timer );
-
-		cout<<"\nCreating EvapoTranspiration Setup...\n";
-		tEvapoTrans EvapoTrans( &SimCtrl, &BasinMesh, InputFile, &Timer, 
-                            &RsmplMaster, &Moisture, &Rainfall);
-
-		cout<<"\nCreating Interception Setup...\n";
-		tIntercept Intercept( &SimCtrl, &BasinMesh, InputFile, &Timer,
-                          &RsmplMaster, &Moisture );
-
-		cout<<"\nInitializing SnowPack setup... \n";
-		tSnowPack SnowPack( &SimCtrl, &BasinMesh, InputFile, &Timer, &RsmplMaster, 
-                        &Moisture, &Rainfall); // SKY2008Snow from AJR2007
-
-
-		cout<<"\nCreating Restart setup...\n";
-		tRestart<tCNode> Restart( &Timer, &BasinMesh, &Flow, &SnowPack);
-
-		cout<<"\n\nPart 7: Creating and Initializing Simulation"<<endl;
-		Cout<<"------------------------------------------------"<<endl<<endl;
-		Simulator Simulant( &SimCtrl, &Rainfall, &Timer, &Output, &Restart );
-		Simulant.initialize_simulation(&EvapoTrans, &SnowPack, InputFile);
-
-		// Simulation starts new or from restart file
-		int optrestart;
-		optrestart = InputFile.ReadItem( optrestart, "RESTARTMODE");
-		if (optrestart == 2 || optrestart == 3 ) {
-			Simulant.readRestart(InputFile);
-			EvapoTrans.flagRestartStart();
-			SnowPack.flagRestartStart();
-		}
-
-		cout<<"\n\nPart 8: Hydrologic Simulation Loop"<<endl;
-		Cout<<"--------------------------------------"<<endl;
-		Simulant.simulation_loop( &Moisture, &Flow, &EvapoTrans,
-                              &Intercept, &Balance, &SnowPack, // SKY2008Snow from AJR2007
-                              InputFile); // SKY2008Snow
-		Simulant.end_simulation( &Flow );
-	}
-
-	// Otherwise all nodes and edges will be read into tMesh so that mesh
-	// is completely built before simulation runs
-	else {
-
-		tMesh<tCNode> BasinMesh( &SimCtrl, InputFile );
-        
-		Cout<<"\n\nPart 3: Creating Stream Network from Mesh "<<endl;
-		Cout<<"---------------------------------------------"<<endl;
-		tKinemat Flow( &SimCtrl, &BasinMesh, InputFile, &Timer );
-
-		Cout<<"\n\nPart 3b: Creating Stream Reach partitioning "<<endl;
-		Cout<<"-----------------------------------------------"<<endl;
-		tGraph::initialize( &SimCtrl, &BasinMesh, &Flow, InputFile);
-
-		Cout<<"\n\nPart 4: Creating Resampling Object"<<endl;
-		Cout<<"--------------------------------------"<<endl;
-		tResample RsmplMaster( &SimCtrl, &BasinMesh );  
-
-		Cout<<"\n\nPart 4a: Creating Sheltering Object for DEM Input" << endl;
-		Cout<<"----------------------------------------------------"<<endl;
-		tShelter Shelter( &SimCtrl, &BasinMesh, InputFile );// SKY2008Snow from AJR2007
-
-		Cout<<"\n\nPart 5: Creating Output Files from "<<"'"<<argv[1]<<"'"<<endl;
-		Cout<<"------------------------------------------"<<endl;
-		tCOutput<tCNode> Output( &SimCtrl, &BasinMesh, InputFile, 
-                             &RsmplMaster, &Timer );     
-
-		// Creating WaterBalance class
-		tWaterBalance Balance( &SimCtrl, &BasinMesh, InputFile);
-
-		Cout<<"\n\nPart 6: Creating Hydrologic System"<<endl;
-		Cout<<"--------------------------------------"<<endl;
-		tHydroModel Moisture( &SimCtrl, &BasinMesh, InputFile,
+	Cout<<"\n\nPart 6: Creating Hydrologic System"<<endl;
+	Cout<<"--------------------------------------"<<endl;
+	tHydroModel Moisture( &SimCtrl, &BasinMesh, InputFile,
                               &RsmplMaster, &Balance, &Timer );
 
-		Cout<<"\nCreating Rainfall Setup...\n";
-		tRainfall Rainfall( &SimCtrl, &BasinMesh, InputFile, &RsmplMaster, &Timer );
+	Cout<<"\nCreating Rainfall Setup...\n";
+	tRainfall Rainfall( &SimCtrl, &BasinMesh, InputFile, &RsmplMaster, &Timer );
 
-		Cout<<"\nCreating EvapoTranspiration Setup...\n";
-		tEvapoTrans EvapoTrans( &SimCtrl, &BasinMesh, InputFile, &Timer,
+	Cout<<"\nCreating EvapoTranspiration Setup...\n";
+	tEvapoTrans EvapoTrans( &SimCtrl, &BasinMesh, InputFile, &Timer,
                                 &RsmplMaster, &Moisture, &Rainfall);
 
-		Cout<<"\nCreating Interception Setup...\n";
-		tIntercept Intercept( &SimCtrl, &BasinMesh, InputFile, &Timer, 
+	Cout<<"\nCreating Interception Setup...\n";
+	tIntercept Intercept( &SimCtrl, &BasinMesh, InputFile, &Timer, 
                           &RsmplMaster, &Moisture ); 
 
-		Cout<<"\nInitializing SnowPack setup... \n";
-		tSnowPack SnowPack( &SimCtrl, &BasinMesh, InputFile, &Timer, &RsmplMaster, 
+	Cout<<"\nInitializing SnowPack setup... \n";
+	tSnowPack SnowPack( &SimCtrl, &BasinMesh, InputFile, &Timer, &RsmplMaster, 
                         &Moisture, &Rainfall); // SKY2008Snow from AJR2007
 
-		Cout<<"\nCreating Restart setup...\n";
-		tRestart<tCNode> Restart( &Timer, &BasinMesh, &Flow, &SnowPack);
+	Cout<<"\nCreating Restart setup...\n";
+	tRestart<tCNode> Restart( &Timer, &BasinMesh, &Flow, &SnowPack);
 
-		Cout<<"\n\nPart 7: Creating and Initializing Simulation"<<endl;
-		Cout<<"------------------------------------------------"<<endl<<endl;
-		Simulator Simulant( &SimCtrl, &Rainfall, &Timer, &Output, &Restart );
-		Simulant.initialize_simulation(&EvapoTrans, &SnowPack, InputFile); 
+	Cout<<"\n\nPart 7: Creating and Initializing Simulation"<<endl;
+	Cout<<"------------------------------------------------"<<endl<<endl;
+	Simulator Simulant( &SimCtrl, &Rainfall, &Timer, &Output, &Restart );
+	Simulant.initialize_simulation(&EvapoTrans, &SnowPack, InputFile); 
 
-		// Simulation starts new or from restart file
-		int optrestart;
-		optrestart = InputFile.ReadItem( optrestart, "RESTARTMODE");
-		if (optrestart == 2 || optrestart == 3 ) {
-			Simulant.readRestart(InputFile);
-			EvapoTrans.flagRestartStart();
-			SnowPack.flagRestartStart();
-		}
+	// Simulation starts new or from restart file
+	int optrestart;
+	optrestart = InputFile.ReadItem( optrestart, "RESTARTMODE");
+	if (optrestart == 2 || optrestart == 3 ) {
+		Simulant.readRestart(InputFile);
+		EvapoTrans.flagRestartStart();
+		SnowPack.flagRestartStart();
+	}
 
-		Cout<<"\n\nPart 8: Hydrologic Simulation Loop"<<endl;
-		Cout<<"--------------------------------------"<<endl;
-		Simulant.simulation_loop( &Moisture, &Flow, &EvapoTrans,
+	Cout<<"\n\nPart 8: Hydrologic Simulation Loop"<<endl;
+	Cout<<"--------------------------------------"<<endl;
+	Simulant.simulation_loop( &Moisture, &Flow, &EvapoTrans,
                               &Intercept, &Balance, &SnowPack, // SKY2008Snow from AJR2007
                               InputFile); // SKY2008Snow
-		Simulant.end_simulation( &Flow );
-	}
+	Simulant.end_simulation( &Flow );
 
 	Cout<<"\n\nPart 9: Deleting Objects and Exiting Program"<<endl;
 	Cout<<"------------------------------------------------"<<endl<<endl;
