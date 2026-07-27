@@ -21,6 +21,8 @@
 
 #ifdef PARALLEL_TRIBS
 #include "src/tParallel/tParallel.h"
+#include <fcntl.h>       // open()  -- muting METIS stdout on non-master ranks
+#include <unistd.h>      // dup(), dup2(), STDOUT_FILENO
 #endif
 
 #include <algorithm>
@@ -381,21 +383,52 @@ void tGraph::partition(int np, tInputFile& InputFile) {
     std::vector<int> reachesPerPart(np, 0);
     for (int i = 0; i < numGlobalReach; i++)
       reachesPerPart[ reach2partition[i] ]++;
-    for (int p = 0; p < np; p++) {
-      if (reachesPerPart[p] == 0) {
-        Cout << "\ntGraph: Partition " << p << " of " << np
-             << " contains no stream reaches." << endl;
-        Cout << "Every processor must own at least one reach. This partition "
-             << "of " << numGlobalReach << "\nreaches leaves at least one "
-             << "processor with no work." << endl;
-        if (strlen(pfile) > 0 && partMethod < 0)
-          Cout << "The partition came from GRAPHFILE '" << pfile
-               << "'; it was probably\ngenerated for a different processor "
-               << "count. Delete it and rerun to regenerate it." << endl;
-        else
-          Cout << "Rerun with fewer processors." << endl;
-        exit(1);
+    int emptyParts = 0;
+    for (int p = 0; p < np; p++)
+      if (reachesPerPart[p] == 0) emptyParts++;
+
+    if (emptyParts > 0) {
+      // The largest reach is indivisible, so total/largest is the most
+      // partitions that can still each be given a fair share of the work.
+      std::vector<int> counts(numGlobalReach, 0);
+      tMeshList<tCNode>* nlist = mesh->getNodeList();
+      tMeshListIter<tCNode> niter(nlist);
+      for (tCNode* cn = niter.FirstP(); niter.IsActive() && cn != 0;
+           cn = niter.NextP()) {
+        int r = cn->getReach();
+        if (r >= 0 && r < numGlobalReach) counts[r]++;
       }
+      long totalNodes = 0;
+      int largest = 0;
+      for (int i = 0; i < numGlobalReach; i++) {
+        totalNodes += counts[i];
+        if (counts[i] > largest) largest = counts[i];
+      }
+      int suggested = (largest > 0) ? (int)(totalNodes / largest) : np - 1;
+      if (suggested >= np) suggested = np - 1;
+      if (suggested < 1)   suggested = 1;
+
+      char msg[512];
+      snprintf(msg, sizeof(msg),
+        "\ntGraph: %d of %d partitions contain no stream reaches.",
+        emptyParts, np);
+      Cout << msg << endl;
+      Cout << "Every processor must own at least one reach, so this run "
+           << "cannot proceed." << endl;
+      snprintf(msg, sizeof(msg),
+        "\nThis basin has %d reaches totaling %ld nodes, and its largest "
+        "single reach holds\n%d nodes. Because a reach cannot be split across "
+        "processors, roughly %d\nprocessors is the most that can still be "
+        "given a fair share of the work.",
+        numGlobalReach, totalNodes, largest, suggested);
+      Cout << msg << endl;
+      snprintf(msg, sizeof(msg), "Rerun with about %d processors.", suggested);
+      Cout << msg << endl;
+      if (strlen(pfile) > 0 && partMethod < 0)
+        Cout << "\nNote: this partition came from GRAPHFILE '" << pfile
+             << "',\nwhich may have been generated for a different processor "
+             << "count. Delete it\nand rerun to regenerate it." << endl;
+      exit(1);
     }
 
     // Collect local reaches together
@@ -581,9 +614,34 @@ void tGraph::generatePartition(int np, int method, const char* outPath) {
   // 5. Partition and copy the result into reach2partition. Every rank runs
   //    METIS, so the result is reported through Cout (master only) rather
   //    than from inside ComputePartition.
+  // METIS reports problems with printf() from inside the vendored C library,
+  // so those lines bypass Cout's master-only gating and every rank emits its
+  // own copy. Mute stdout on non-master ranks for the duration of the call. 
+  int savedStdout = -1;
+#ifdef PARALLEL_TRIBS
+  if (!tParallel::isMaster()) {
+    fflush(stdout);
+    savedStdout = dup(STDOUT_FILENO);
+    int devNull = open("/dev/null", O_WRONLY);
+    if (devNull >= 0) {
+      dup2(devNull, STDOUT_FILENO);
+      close(devNull);
+    }
+  }
+#endif
+
   int edgeCut = 0;
   std::vector<int> part = tPartition::ComputePartition(
       reaches, np, static_cast<tPartition::PartMethod>(method), &edgeCut);
+
+#ifdef PARALLEL_TRIBS
+  if (savedStdout >= 0) {           // restore stdout on the muted ranks
+    fflush(stdout);
+    dup2(savedStdout, STDOUT_FILENO);
+    close(savedStdout);
+  }
+#endif
+
   for (int i = 0; i < numGlobalReach; i++)
     reach2partition[i] = part[i];
 
