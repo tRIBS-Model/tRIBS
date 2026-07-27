@@ -295,7 +295,19 @@ void tGraph::partition(int np, tInputFile& InputFile) {
     Cout << "np = " << np << endl;
   }
 
-  for (int i = 0; i < numGlobalReach; i++) 
+  // A stream reach is the smallest unit of work, so there cannot be more
+  // partitions than reaches.
+  if (np > numGlobalReach) {
+    Cout << "\ntGraph: Cannot split " << numGlobalReach << " stream reaches "
+         << "across " << np << " processors." << endl;
+    Cout << "A stream reach is the smallest unit of work that can be assigned "
+         << "to a processor,\nso the basin's reach count is the ceiling on "
+         << "parallelism. Rerun with at most\n" << numGlobalReach
+         << " processors." << endl;
+    exit(1);
+  }
+
+  for (int i = 0; i < numGlobalReach; i++)
       reach2partition.push_back(0);
 
   // Special case: only 1 partition
@@ -361,6 +373,29 @@ void tGraph::partition(int np, tInputFile& InputFile) {
            << endl;
       partMethod = method;   // stays -1 when the partition is read from a file
       generatePartition(np, method, pfile);
+    }
+
+    // Every partition must own at least one reach. A rank with no reaches has
+    // no work and no data to exchange, which either wastes the processor or
+    // deadlocks at the first exchange. 
+    std::vector<int> reachesPerPart(np, 0);
+    for (int i = 0; i < numGlobalReach; i++)
+      reachesPerPart[ reach2partition[i] ]++;
+    for (int p = 0; p < np; p++) {
+      if (reachesPerPart[p] == 0) {
+        Cout << "\ntGraph: Partition " << p << " of " << np
+             << " contains no stream reaches." << endl;
+        Cout << "Every processor must own at least one reach. This partition "
+             << "of " << numGlobalReach << "\nreaches leaves at least one "
+             << "processor with no work." << endl;
+        if (strlen(pfile) > 0 && partMethod < 0)
+          Cout << "The partition came from GRAPHFILE '" << pfile
+               << "'; it was probably\ngenerated for a different processor "
+               << "count. Delete it and rerun to regenerate it." << endl;
+        else
+          Cout << "Rerun with fewer processors." << endl;
+        exit(1);
+      }
     }
 
     // Collect local reaches together
