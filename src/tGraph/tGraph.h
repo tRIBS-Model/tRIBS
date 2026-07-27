@@ -63,9 +63,12 @@ public:
   /// Destructor
   ~tGraph();
 
-  /// Initialize
+  /// Initialize. When partitionOnly is true (PARALLELMODE 2), stop after
+  /// partitioning and print partition statistics: skip update(), which
+  /// deactivates non-local nodes/edges, so the full mesh stays available
+  /// for the statistics passes. The caller exits without simulating.
   static void initialize(SimulationControl* s, tMesh<tCNode>* m, tKinemat* f,
-    tInputFile& InputFile);
+    tInputFile& InputFile, bool partitionOnly = false);
 
   /// Finalize
   static void finalize();
@@ -79,14 +82,18 @@ public:
   static void partition(tInputFile& InputFile);
   /// Partition graph into n pieces
   static void partition(int n, tInputFile& InputFile);
-  /// Read reach-based partitions from file
-  static void readReachPartitionFromFile(char* pfile);
-  /// Create default partitions
-  static void createDefaultPartition(int np);
+  /// Read reach-based partitions from file, validating the file against the
+  /// current mesh (reach count) and processor count (np).
+  static void readReachPartitionFromFile(char* pfile, int np);
   /// Generate partitions in-process via METIS from the in-memory reach graph.
-  /// method: 1=SF (flow only), 2=SSF (flow+flux), 3=SSF-H (flow+flux+headwaters).
+  /// method is a tPartition::PartMethod value (= GRAPHOPTION):
+  /// 0=SF (flow only), 1=SSF (flow+flux), 2=SSF-H (flow+flux+headwaters).
   /// If outPath is non-empty, the master writes the resulting .reach file there.
   static void generatePartition(int np, int method, const char* outPath);
+  /// Print statistics for the current reach partition (reach/node counts and
+  /// balance per partition, flow and flux edge cuts, headwater distribution).
+  /// Must run before update() while the full mesh is still active.
+  static void reportPartitionStats();
 
   /// List ids of all active nodes
   static void listActiveNodes();
@@ -202,6 +209,10 @@ private:
   static int                     numGlobalReach;  //!< # of stream reaches
   static int                     numGlobalPart;   //!< # of partitions
   static int                     localPart;       //!< Local partition
+  static int                     partMethod;      //!< tPartition::PartMethod
+                                                  //!< used to generate the
+                                                  //!< partition, or -1 when it
+                                                  //!< was read from a GRAPHFILE
 
   static std::vector<tGraphNode> conn;            //!< Connectivity of reaches
 

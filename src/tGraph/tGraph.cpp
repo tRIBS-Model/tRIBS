@@ -23,8 +23,11 @@
 #include "src/tParallel/tParallel.h"
 #endif
 
+#include <algorithm>
 #include <cassert>
+#include <cstdio>
 #include <map>
+#include <utility>
 
 SimulationControl* tGraph::sim = 0;
 tMesh<tCNode>* tGraph::mesh = 0;
@@ -33,6 +36,7 @@ tKinemat* tGraph::flow = 0;
 int tGraph::numGlobalReach = 0;
 int tGraph::numGlobalPart = 1;
 int tGraph::localPart = 0;
+int tGraph::partMethod = -1;
 
 std::vector<tGraphNode> tGraph::conn;
 
@@ -111,7 +115,7 @@ void tGraph::finalize(){
 *************************************************************************/
 
 void tGraph::initialize(SimulationControl* s, tMesh<tCNode>* m, tKinemat* f,
-  tInputFile& InputFile) {
+  tInputFile& InputFile, bool partitionOnly) {
 
   sim = s;
   mesh = m;
@@ -124,6 +128,15 @@ void tGraph::initialize(SimulationControl* s, tMesh<tCNode>* m, tKinemat* f,
   // Partition stream reach graph
   Cout << "\nPartitioning stream reach graph..." << endl;
   partition(InputFile);
+
+  // Partition-only run (PARALLELMODE 2): the graphfile and its statistics
+  // are the product. Stop before update() deactivates non-local nodes and
+  // edges so the statistics passes see the full mesh; the caller exits
+  // without running the simulation.
+  if (partitionOnly) {
+    reportPartitionStats();
+    return;
+  }
 
   // Update stream reach and node list information
   Cout << "\nUpdating stream reach and node list..." << endl;
@@ -295,30 +308,58 @@ void tGraph::partition(int np, tInputFile& InputFile) {
   
   // More than 1 partition
   else {
-    // GRAPHOPTION selects the partitioning method used when generating:
-    //   1 = SF    (surface flow: flow edges only)
-    //   2 = SSF   (surface-subsurface: flow + subsurface flux edges)
-    //   3 = SSF-H (SSF plus a headwater balancing constraint)
-    int method = 1;
-    method = InputFile.ReadItem( method, "GRAPHOPTION" );
+    // GRAPHOPTION selects the partitioning method (v6.0.0+):
+    //   0 = SF   (surface flow: flow edges only)
+    //   1 = SSF  (surface-subsurface: flow + subsurface flux edges)
+    //   2 = SSFH (SSF plus a headwater balancing constraint)
+    int optgraph = 0;
+    optgraph = InputFile.ReadItem( optgraph, "GRAPHOPTION" );
+    if (optgraph < 0 || optgraph > 2) {
+      cout << "\ntGraph: Invalid GRAPHOPTION = " << optgraph << endl;
+      cout << "As of v6.0.0, GRAPHOPTION selects the partitioning method:" << endl;
+      cout << "   0 = SF   (surface flow edges only)" << endl;
+      cout << "   1 = SSF  (surface + subsurface flux edges)" << endl;
+      cout << "   2 = SSFH (SSF + headwater balancing constraint)" << endl;
+      exit(1);
+    }
+    tPartition::PartMethod method =
+        static_cast<tPartition::PartMethod>(optgraph);
 
-    char pfile[256];
+    // Partition graphfile: if GRAPHFILE is provided it must exist and is
+    // read; if it is blank or absent, the partition is always generated
+    // in-process and written to <OUTFILENAME>_<method>_<np>nodes.reach for
+    // inspection or later reuse via GRAPHFILE. The output path is never
+    // searched for an existing file.
+    char pfile[kMaxNameSize+32];
     strcpy(pfile,"");
-    InputFile.ReadItem( pfile, "GRAPHFILE" );
+    if (InputFile.IsItemIn( "GRAPHFILE" ))
+      InputFile.ReadItem( pfile, "GRAPHFILE" );
+    if (strcmp(pfile, "-999") == 0)   // ReadItem's missing-value sentinel
+      strcpy(pfile,"");
 
-    // If the graph file already exists, read the precomputed reach->partition
-    // mapping. Otherwise generate it in-process with METIS and write it there
-    // so subsequent runs can reuse it (replaces the MeshBuilder workflow).
-    ifstream graphTest(pfile);
-    bool haveGraphFile = (strlen(pfile) > 0 && graphTest.good());
-    graphTest.close();
-
-    if (haveGraphFile) {
-      readReachPartitionFromFile(pfile);
+    if (strlen(pfile) > 0) {
+      ifstream graphTest(pfile);
+      if (!graphTest.good()) {
+        cout << "\ntGraph: GRAPHFILE '" << pfile << "' not found." << endl;
+        cout << "Provide a valid partition graph file, or leave GRAPHFILE "
+             << "blank to have tRIBS generate one." << endl;
+        exit(1);
+      }
+      graphTest.close();
+      readReachPartitionFromFile(pfile, np);
     }
     else {
-      Cout << "\nGraph file not found -- generating partition in-process "
-           << "(method " << method << ", " << np << " partitions)..." << endl;
+      char outbase[kMaxNameSize];
+      InputFile.ReadItem( outbase, "OUTFILENAME" );
+      snprintf(pfile, sizeof(pfile), "%s_%s_%dnodes.reach",
+               outbase, tPartition::MethodToken(method), np);
+      Cout << "\nNo parallel partitioning graph file (GRAPHFILE) provided."
+           << "\nGenerating the partition in-process ("
+           << tPartition::MethodToken(method) << ", " << np
+           << " partitions) and writing it to '" << pfile << "'."
+           << "\nSet GRAPHFILE to this path to reuse it in future runs."
+           << endl;
+      partMethod = method;   // stays -1 when the partition is read from a file
       generatePartition(np, method, pfile);
     }
 
@@ -364,55 +405,64 @@ void tGraph::partition(int np, tInputFile& InputFile) {
 **
 *************************************************************************/
 
-void tGraph::readReachPartitionFromFile(char* pfile) {
+void tGraph::readReachPartitionFromFile(char* pfile, int np) {
 
     ifstream partFile;
     partFile.open(pfile);
+    if (!partFile.good()) {
+        cout << "\ntGraph: Cannot open graph file '" << pfile << "'" << endl;
+        exit(1);
+    }
+
+    // Validate as we read: every reach assigned exactly once and every
+    // partition id within the current process count. A mismatch usually means
+    // the file was generated for a different mesh or processor count,
+    // delete it (or fix GRAPHFILE) and tRIBS will regenerate it.
+    std::vector<int> assigned(numGlobalReach, 0);
     int whichPart, preach;
     int nr = 0;
-    while (nr < numGlobalReach && !partFile.eof()) {
-        partFile >> whichPart >> preach;
+    while (partFile >> whichPart >> preach) {
         if (sim->debug == 'Y') {
             Cout << "Partition = " << whichPart
                  << " reach = " << preach
                  << endl;
         }
-        nr++;
-        assert(preach >= 0 && preach < numGlobalReach);
+        if (preach < 0 || preach >= numGlobalReach) {
+            cout << "\ntGraph: Bad reach id " << preach << " in '" << pfile
+                 << "' (mesh has " << numGlobalReach << " reaches)." << endl;
+            cout << "The graph file does not match this mesh. Delete it and "
+                 << "rerun to regenerate it." << endl;
+            exit(1);
+        }
+        if (whichPart < 0 || whichPart >= np) {
+            cout << "\ntGraph: Partition id " << whichPart << " in '" << pfile
+                 << "' is outside this run's range 0.." << np-1 << "." << endl;
+            cout << "The graph file was likely generated for a different "
+                 << "number of processors. Delete it and rerun to "
+                 << "regenerate it." << endl;
+            exit(1);
+        }
+        if (assigned[preach]) {
+            cout << "\ntGraph: Reach " << preach << " is assigned twice in '"
+                 << pfile << "'. Delete the file and rerun to regenerate it."
+                 << endl;
+            exit(1);
+        }
+        assigned[preach] = 1;
         reach2partition[preach] = whichPart;
+        nr++;
+    }
+    if (nr != numGlobalReach) {
+        cout << "\ntGraph: Graph file '" << pfile << "' assigns " << nr
+             << " reaches but the mesh has " << numGlobalReach << "." << endl;
+        cout << "The file is truncated or from a different mesh. Delete it "
+             << "and rerun to regenerate it." << endl;
+        exit(1);
     }
     partFile.close();
     Cout << "\nPartitioning read from reach file " << pfile << endl;
 }
 
-
-/*************************************************************************
-**
-** Create default partitions.
-**
-*************************************************************************/
-
-void tGraph::createDefaultPartition(int np) {
-
-    // Split reaches as evenly as possible between partitions
-    // Last partition may have less than others
-    assert(numGlobalReach >= np);
-    int rstart = 0;
-    int rend = -1;
-    int rp = np;
-    int nreach = numGlobalReach;
-    for (int i = 0; i < np; i++) {
-      rstart = rend + 1;
-      rend = (i == (np - 1)) ? numGlobalReach - 1 :
-                              rstart + (nreach + rp - 1) / rp - 1;
-      nreach = nreach - (rend - rstart + 1);
-      rp--;
-      // Assign partition to reaches
-      for (int j = rstart; j <= rend; j++)
-        reach2partition[j] = i;
-    }
-
-}
 
 /*************************************************************************
 **
@@ -427,9 +477,10 @@ void tGraph::createDefaultPartition(int np) {
 ** with read-only passes and do NOT touch the shared conn/pointsPerReach that
 ** update() manages later.
 **
-**   method: 1=SF (flow edges only)
-**           2=SSF (flow + subsurface flux edges)
-**           3=SSF-H (flow + flux, plus a headwater balancing constraint)
+**   method is a tPartition::PartMethod value (= GRAPHOPTION):
+**           0=SF (flow edges only)
+**           1=SSF (flow + subsurface flux edges)
+**           2=SSF-H (flow + flux, plus a headwater balancing constraint)
 **
 *************************************************************************/
 
@@ -480,19 +531,205 @@ void tGraph::generatePartition(int np, int method, const char* outPath) {
       reaches[i].flux.assign(fluxAdj[i].begin(), fluxAdj[i].end());
   }
 
-  // 4. Partition and copy the result into reach2partition.
+  // 4. Size of the graph METIS is about to work on, so the report can name
+  //    what its edge-cut counts. Flow edges are a subset of flux pairs (two
+  //    reaches joined end-to-end share a junction node, so they are mesh
+  //    neighbors too), which means the SSF/SSF-H graph is exactly the flux
+  //    pair set and the SF graph is the flow edges alone.
+  long flowTotal = 0, fluxTotal = 0;
+  for (int i = 0; i < numGlobalReach; i++) {
+    flowTotal += (long)reaches[i].downstream.size();
+    fluxTotal += (long)reaches[i].flux.size();
+  }
+  fluxTotal /= 2;                  // each pair is stored from both ends
+
+  // 5. Partition and copy the result into reach2partition. Every rank runs
+  //    METIS, so the result is reported through Cout (master only) rather
+  //    than from inside ComputePartition.
+  int edgeCut = 0;
   std::vector<int> part = tPartition::ComputePartition(
-      reaches, np, static_cast<tPartition::PartMethod>(method));
+      reaches, np, static_cast<tPartition::PartMethod>(method), &edgeCut);
   for (int i = 0; i < numGlobalReach; i++)
     reach2partition[i] = part[i];
 
-  // 5. Persist the generated partition so it can be reused / inspected.
+  Cout << "Partitioned " << numGlobalReach << " reaches into " << np
+       << " partitions ("
+       << tPartition::MethodToken(static_cast<tPartition::PartMethod>(method))
+       << "); " << edgeCut << " of " << (useFlux ? fluxTotal : flowTotal)
+       << (useFlux ? " subsurface neighbor pairs" : " channel connections")
+       << " cross processor boundaries" << endl;
+
+  // 6. Persist the generated partition so it can be reused / inspected.
   bool isMaster = true;
 #ifdef PARALLEL_TRIBS
   isMaster = tParallel::isMaster();
 #endif
   if (outPath != 0 && strlen(outPath) > 0 && isMaster)
     tPartition::WriteReachFile(reaches, part, np, outPath);
+}
+
+/*************************************************************************
+**
+** Print statistics for the current reach partition (reach2partition),
+** whether it was generated in-process or read from a GRAPHFILE:
+**
+**   - per partition: reach count, headwater reaches, node count and share
+**   - balance: max/mean node-count ratio across partitions
+**   - flow edge cut:  downstream reach links crossing partitions (these
+**     become upstream/downstream MPI exchanges during routing)
+**   - flux edge cut:  reach pairs sharing a mesh edge that lie in
+**     different partitions (these become overlap-node MPI exchanges)
+**
+** Must run before update(): the node and edge passes assume the full
+** mesh is still active. Output is master-only (Cout).
+**
+*************************************************************************/
+
+void tGraph::reportPartitionStats() {
+
+  if (numGlobalReach <= 0) {
+    Cout << "\nNo stream reaches found; nothing to report." << endl;
+    return;
+  }
+
+  // Per-reach node counts (same pass as generatePartition step 1)
+  std::vector<int> counts(numGlobalReach, 0);
+  tMeshList<tCNode>* nlist = mesh->getNodeList();
+  tMeshListIter<tCNode> niter(nlist);
+  for (tCNode* cn = niter.FirstP(); niter.IsActive() && cn != 0;
+       cn = niter.NextP()) {
+    int r = cn->getReach();
+    if (r >= 0 && r < numGlobalReach) counts[r]++;
+  }
+
+  // Per-partition aggregates
+  std::vector<int> pReaches(numGlobalPart, 0);
+  std::vector<int> pNodes(numGlobalPart, 0);
+  std::vector<int> pHeads(numGlobalPart, 0);
+  long totalNodes = 0;
+  for (int i = 0; i < numGlobalReach; i++) {
+    int p = reach2partition[i];
+    pReaches[p]++;
+    pNodes[p] += counts[i];
+    totalNodes += counts[i];
+    if (conn[i].getUpstreamCount() == 0) pHeads[p]++;
+  }
+
+  // Flow edge cut: downstream links whose endpoints are in different
+  // partitions (each link counted once, from its upstream reach)
+  int flowEdges = 0, flowCut = 0;
+  for (int i = 0; i < numGlobalReach; i++) {
+    std::vector<int> dreach = conn[i].getDownstream();
+    for (size_t j = 0; j < dreach.size(); j++) {
+      flowEdges++;
+      if (reach2partition[i] != reach2partition[dreach[j]]) flowCut++;
+    }
+  }
+
+  // Flux edge cut: unique reach pairs coupled by at least one mesh edge
+  // (the SSF graph edge rule; reported for every method since it measures
+  // the subsurface overlap communication the partition implies)
+  std::set< std::pair<int,int> > fluxPairs;
+  tMeshList<tEdge>* elist = mesh->getEdgeList();
+  tMeshListIter<tEdge> eiter(elist);
+  for (tEdge* ce = eiter.FirstP(); eiter.IsActive() && ce != 0;
+       ce = eiter.NextP()) {
+    int a = ((tCNode*)ce->getOriginPtrNC())->getReach();
+    int b = ((tCNode*)ce->getDestinationPtrNC())->getReach();
+    if (a != b && a >= 0 && a < numGlobalReach &&
+                  b >= 0 && b < numGlobalReach)
+      fluxPairs.insert(std::make_pair(std::min(a,b), std::max(a,b)));
+  }
+  int fluxEdges = (int)fluxPairs.size(), fluxCut = 0;
+  for (std::set< std::pair<int,int> >::iterator it = fluxPairs.begin();
+       it != fluxPairs.end(); ++it)
+    if (reach2partition[it->first] != reach2partition[it->second]) fluxCut++;
+
+  // Balance: worst partition node count relative to a perfect split
+  double meanNodes = (double)totalNodes / numGlobalPart;
+  int maxNodes = 0;
+  for (int p = 0; p < numGlobalPart; p++)
+    if (pNodes[p] > maxNodes) maxNodes = pNodes[p];
+
+  char line[256];
+  Cout << "\nPartition statistics" << endl;
+  Cout << "--------------------" << endl;
+  snprintf(line, sizeof(line),
+           "Reaches: %d   Nodes: %ld   Partitions: %d",
+           numGlobalReach, totalNodes, numGlobalPart);
+  Cout << line << endl << endl;
+  // Mark the quantity METIS actually minimized. SF is given the channel
+  // connections alone; SSF/SSFH are given the flux pairs (which already
+  // contain every channel connection), so only one of the two is a target.
+  char flowMark[48], fluxMark[48];
+  flowMark[0] = '\0';
+  fluxMark[0] = '\0';
+  if (partMethod == tPartition::SF)
+    snprintf(flowMark, sizeof(flowMark), "   <- minimized by SF");
+  else if (partMethod == tPartition::SSF || partMethod == tPartition::SSF_H)
+    snprintf(fluxMark, sizeof(fluxMark), "   <- minimized by %s",
+             tPartition::MethodToken(
+                 static_cast<tPartition::PartMethod>(partMethod)));
+
+  snprintf(line, sizeof(line),
+           "Channel connections (reach to downstream reach): %d, "
+           "of which %d cross processors%s", flowEdges, flowCut, flowMark);
+  Cout << line << endl;
+  snprintf(line, sizeof(line),
+           "Subsurface neighbors (reach pairs exchanging lateral flux): %d, "
+           "of which %d cross processors%s", fluxEdges, fluxCut, fluxMark);
+  Cout << line << endl;
+  if (partMethod < 0)
+    Cout << "Partition was read from a GRAPHFILE, so neither quantity was "
+         << "minimized in this run." << endl;
+  snprintf(line, sizeof(line),
+           "Reaches joined end-to-end are mesh neighbors too, so the %d "
+           "channel crossings are\ncounted among the %d subsurface ones, not "
+           "additional to them.", flowCut, fluxCut);
+  Cout << line << endl;
+  Cout << "Every processor crossing becomes an MPI exchange each timestep; "
+       << "fewer is better." << endl << endl;
+  snprintf(line, sizeof(line), "%10s %10s %12s %10s %8s",
+           "Partition", "Reaches", "Headwaters", "Nodes", "Node%");
+  Cout << line << endl;
+  for (int p = 0; p < numGlobalPart; p++) {
+    snprintf(line, sizeof(line), "%10d %10d %12d %10d %7.1f%%",
+             p, pReaches[p], pHeads[p], pNodes[p],
+             100.0 * pNodes[p] / totalNodes);
+    Cout << line << endl;
+  }
+  // Reach size spread. A reach is indivisible, so the largest one sets a
+  // hard floor on the balance any partitioning could reach: whichever
+  // partition holds it is at least that big.
+  std::vector<int> sorted(counts);
+  std::sort(sorted.begin(), sorted.end());
+  int smallest = sorted.front();
+  int largest  = sorted.back();
+  int median   = sorted[sorted.size()/2];
+  double floorBalance = largest / meanNodes;
+
+  snprintf(line, sizeof(line),
+           "\nLoad balance (largest partition / even split): %.3f "
+           "(1.0 = every partition equal)", maxNodes / meanNodes);
+  Cout << line << endl;
+  snprintf(line, sizeof(line),
+           "Reach sizes (nodes): smallest %d, median %d, largest %d",
+           smallest, median, largest);
+  Cout << line << endl;
+  if (floorBalance > 1.0) {
+    snprintf(line, sizeof(line),
+             "A reach cannot be split, so the largest one puts a floor of "
+             "%.3f on the balance\nachievable with %d partitions. Use fewer "
+             "partitions for a more even split.",
+             floorBalance, numGlobalPart);
+  }
+  else {
+    snprintf(line, sizeof(line),
+             "No single reach exceeds an even share, so any remaining "
+             "imbalance comes from how\nwhole reaches combine and from "
+             "keeping cross processor communication low.");
+  }
+  Cout << line << endl;
 }
 
 /*************************************************************************

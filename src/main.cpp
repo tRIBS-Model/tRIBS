@@ -72,11 +72,22 @@ int serialSimulation( int argc, char **argv )
 	
 	// Preprocessing meteorological data
 	tPreProcess PreProcessor( InputFile );
-	
-	// Timer, checks environmental variables 
+
+	// Partition-only mode needs the MPI process count and tGraph, neither of
+	// which exist in the serial binary
+	int optpar;
+	optpar = InputFile.ReadItem( optpar, "PARALLELMODE" );
+	if (optpar == 2) {
+		Cerr<<"\nPARALLELMODE = 2 (partition-only) requires the parallel binary:"
+			<<"\n   mpirun -np <N> tRIBSpar <input file>"
+			<<"\nExiting."<<endl;
+		exit(1);
+	}
+
+	// Timer, checks environmental variables
 	tRunTimer Timer( InputFile );
-	
-	// Creating Mesh 
+
+	// Creating Mesh
 	// Option 9 meshbuilder files can be handled like others in serial
 	// so no special order has to be imposed as it is with the parallel simulation
 	tMesh<tCNode> BasinMesh( &SimCtrl, InputFile );
@@ -176,9 +187,19 @@ int parallelSimulation(int argc, char **argv)
 	tRunTimer Timer( InputFile );
 
 	// Build the full mesh, then the stream network, then partition the reach
-	// graph. tGraph generates the partition in-process via METIS when no
-	// GRAPHFILE is supplied (or reads it when one exists).
+	// graph. tGraph reads the partition from GRAPHFILE when one is provided;
+	// otherwise it generates the partition in-process via METIS and writes
+	// it next to the model outputs (OUTFILENAME).
 	int numberOfProcessors = tParallel::getNumProcs();
+
+	// PARALLELMODE 2 = partition-only: build the mesh and stream network,
+	// generate and write the .reach graphfile, print partition statistics,
+	// and exit without running the hydrologic simulation
+	int optpar;
+	optpar = InputFile.ReadItem( optpar, "PARALLELMODE" );
+	bool partitionOnly = (optpar == 2);
+
+	{
 
 	tMesh<tCNode> BasinMesh( &SimCtrl, InputFile );
 
@@ -188,7 +209,18 @@ int parallelSimulation(int argc, char **argv)
 
 	Cout<<"\n\nPart 3b: Creating Stream Reach partitioning "<<endl;
 	Cout<<"-----------------------------------------------"<<endl;
-	tGraph::initialize( &SimCtrl, &BasinMesh, &Flow, InputFile);
+	tGraph::initialize( &SimCtrl, &BasinMesh, &Flow, InputFile, partitionOnly);
+
+	if (partitionOnly) {
+		if (numberOfProcessors == 1)
+			Cout<<"\nNote: run with 1 MPI process, so all reaches are in "
+				<<"partition 0 and no graphfile is written."
+				<<"\nRun 'mpirun -np <N> tRIBSpar <input file>' to build a "
+				<<"graphfile for N partitions."<<endl;
+		Cout<<"\nPartition-only run (PARALLELMODE = 2): "
+			<<"skipping the hydrologic simulation."<<endl;
+	}
+	else {
 
 	Cout<<"\n\nPart 4: Creating Resampling Object"<<endl;
 	Cout<<"--------------------------------------"<<endl;
@@ -249,6 +281,10 @@ int parallelSimulation(int argc, char **argv)
                               &Intercept, &Balance, &SnowPack, // SKY2008Snow from AJR2007
                               InputFile); // SKY2008Snow
 	Simulant.end_simulation( &Flow );
+
+	}
+
+	}
 
 	Cout<<"\n\nPart 9: Deleting Objects and Exiting Program"<<endl;
 	Cout<<"------------------------------------------------"<<endl<<endl;

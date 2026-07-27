@@ -14,15 +14,15 @@
 **  This is a C++ reimplementation of the historical workflow:
 **
 **    connectivity2metis.pl  -> build a weighted graph of reaches
-**    gpmetis                 -> METIS_PartGraphKway partitioning
-**    metis2tribs.pl          -> emit the tRIBS .reach graphfile
+**    gpmetis                -> METIS_PartGraphKway partitioning
+**    metis2tribs.pl         -> write the tRIBS .reach graphfile
 **
 **  The method -> (edges, weights) mapping is kept compatible
 **  with the flags run_metis.zsh passed to connectivity2metis.pl:
 **
-**    SF    (1):  connectivity2metis ... 1 0 0 0 0  -> flow edges,  1 weight
-**    SSF   (2):  connectivity2metis ... 1 0 0 0 2  -> flow+flux,   1 weight
-**    SSF_H (3):  connectivity2metis ... 1 1 0 0 2  -> flow+flux,   2 weights
+**    SF    (0):  connectivity2metis ... 1 0 0 0 0  -> flow edges,  1 weight
+**    SSF   (1):  connectivity2metis ... 1 0 0 0 2  -> flow+flux,   1 weight
+**    SSF_H (2):  connectivity2metis ... 1 1 0 0 2  -> flow+flux,   2 weights
 **                                       ^ ^         (pointCount, insideFlag)
 **                                       | extra "inside" weight (SSF_H only)
 **                                       node-count weight (always on)
@@ -37,7 +37,6 @@
 #include <fstream>
 #include <iostream>
 #include <set>
-#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -48,22 +47,22 @@ namespace tPartition {
 **
 **  tPartition::MethodToken
 **
-**  Returns the filename token for a partitioning method, matching the
-**  naming used by the historical run_metis.zsh workflow.
+**  Returns the filename token for a partitioning method, used to build the
+**  generated graphfile name <basename>_<token>_<nParts>nodes.reach.
 **
 **  Input:  method -- SF, SSF, or SSF_H
-**  Output: "flow" (SF), "nconn" (SSF), or "upnconn" (SSF_H)
+**  Output: "SF", "SSF", or "SSFH"
 **
 *************************************************************************/
 
 const char* MethodToken(PartMethod method)
 {
   switch (method) {
-    case SF:    return "flow";
-    case SSF:   return "nconn";
-    case SSF_H: return "upnconn";
+    case SF:    return "SF";
+    case SSF:   return "SSF";
+    case SSF_H: return "SSFH";
   }
-  return "flow";
+  return "SF";
 }
 
 /*************************************************************************
@@ -85,74 +84,6 @@ static bool UsesFluxEdges(PartMethod method)
 
 /*************************************************************************
 **
-**  tPartition::ReadConnectivity
-**
-**  Reads a connectivity.meshb file into a vector of reaches. Used by the
-**  standalone RunPartition path; tRIBS itself builds the reach list from
-**  its in-memory graph (tGraph::generatePartition) and does not need this.
-**
-**  Format (as written by MeshBuilder's bGraph::OutputConnectivity):
-**    line 1: "#ReachID PointCount HeadNodeID OutletNodeID ..."  (header)
-**    line 2: <numberOfReaches>
-**    per reach: <id> <pointCount> <headID> <outletID>
-**               <nDown> <d1..dNDown> <nFlux> <f1..fNFlux>
-**
-**  Input:  path -- path to a connectivity.meshb file
-**  Output: reaches indexed by id (0..N-1)
-**  Assumes: reach ids are contiguous 0..N-1
-**
-*************************************************************************/
-
-std::vector<Reach> ReadConnectivity(const std::string& path)
-{
-  std::ifstream in(path);
-  if (!in) {
-    throw std::runtime_error("tPartition: cannot open connectivity file '" +
-                             path + "'");
-  }
-
-  std::string header;
-  if (!std::getline(in, header)) {
-    throw std::runtime_error("tPartition: '" + path + "' is empty");
-  }
-
-  int nReaches = 0;
-  if (!(in >> nReaches) || nReaches < 0) {
-    throw std::runtime_error("tPartition: bad reach count in '" + path + "'");
-  }
-
-  std::vector<Reach> reaches(nReaches);
-  for (int i = 0; i < nReaches; ++i) {
-    Reach r;
-    int nDown = 0;
-    if (!(in >> r.id >> r.pointCount >> r.headID >> r.outletID >> nDown)) {
-      throw std::runtime_error("tPartition: truncated reach record in '" +
-                               path + "' at line " + std::to_string(i));
-    }
-    if (r.id < 0 || r.id >= nReaches) {
-      throw std::runtime_error("tPartition: reach id " + std::to_string(r.id) +
-                               " out of range [0," + std::to_string(nReaches) +
-                               ") -- reach ids must be contiguous");
-    }
-    r.downstream.resize(nDown);
-    for (int j = 0; j < nDown; ++j) in >> r.downstream[j];
-
-    int nFlux = 0;
-    in >> nFlux;
-    r.flux.resize(nFlux);
-    for (int j = 0; j < nFlux; ++j) in >> r.flux[j];
-
-    if (!in) {
-      throw std::runtime_error("tPartition: parse error reading reach " +
-                               std::to_string(r.id) + " in '" + path + "'");
-    }
-    reaches[r.id] = std::move(r);   // index by id, matching the perl scripts
-  }
-  return reaches;
-}
-
-/*************************************************************************
-**
 **  tPartition::WriteReachFile
 **
 **  Writes a tRIBS .reach graphfile from a partition array. Same layout as
@@ -163,7 +94,7 @@ std::vector<Reach> ReadConnectivity(const std::string& path)
 **          part    -- partition id per reach (as ComputePartition returns)
 **          nParts  -- number of partitions
 **          outPath -- path to write the .reach file
-**  Output: writes outPath; prints per-partition node weights
+**  Output: writes outPath; prints per-partition node counts
 **
 *************************************************************************/
 
@@ -186,7 +117,7 @@ void WriteReachFile(const std::vector<Reach>& reaches,
         totalWeight += reaches[r].pointCount;
       }
     }
-    std::cout << "Partition " << p << " weight = " << totalWeight << "\n";
+    std::cout << "Partition " << p << ": " << totalWeight << " nodes\n";
   }
 }
 
@@ -204,14 +135,19 @@ void WriteReachFile(const std::vector<Reach>& reaches,
 **  Input:  reaches -- reach list with pointCount, downstream, flux
 **          nParts  -- number of partitions (>= 1)
 **          method  -- SF, SSF, or SSF_H
+**          edgeCut -- if non-null, receives the METIS edge-cut
 **  Output: partition id per reach (index == reach id)
 **  Assumes: reach ids are contiguous 0..N-1
+**
+**  Prints nothing: every MPI rank calls this, so reporting here would
+**  duplicate the message once per rank. The caller reports via Cout.
 **
 *************************************************************************/
 
 std::vector<int> ComputePartition(const std::vector<Reach>& reaches,
                                   int nParts,
-                                  PartMethod method)
+                                  PartMethod method,
+                                  int* edgeCut)
 {
   const idx_t nvtxs = static_cast<idx_t>(reaches.size());
   if (nvtxs == 0) {
@@ -294,68 +230,10 @@ std::vector<int> ComputePartition(const std::vector<Reach>& reaches,
     }
   }
 
-  std::cout << "tPartition: partitioned " << nvtxs << " reaches into "
-            << nParts << " (edge-cut " << objval << ")\n";
+  if (edgeCut != 0) *edgeCut = static_cast<int>(objval);
 
   // Convert METIS idx_t -> int for the caller (tRIBS uses int partitions).
   return std::vector<int>(part.begin(), part.end());
-}
-
-/*************************************************************************
-**
-**  tPartition::PartitionReaches
-**
-**  Convenience wrapper: ComputePartition followed by WriteReachFile.
-**
-**  Input:  reaches -- reach list
-**          nParts  -- number of partitions
-**          method  -- SF, SSF, or SSF_H
-**          reachOutPath -- path to write the .reach file
-**  Output: writes the .reach file; returns 0
-**
-*************************************************************************/
-
-int PartitionReaches(const std::vector<Reach>& reaches,
-                     int nParts,
-                     PartMethod method,
-                     const std::string& reachOutPath)
-{
-  std::vector<int> part = ComputePartition(reaches, nParts, method);
-  WriteReachFile(reaches, part, nParts, reachOutPath);
-  std::cout << "tPartition: wrote " << reachOutPath << "\n";
-  return 0;
-}
-
-/*************************************************************************
-**
-**  tPartition::RunPartition
-**
-**  Standalone driver: read a connectivity.meshb file, partition it, and
-**  write the .reach file using the run_metis.zsh output-naming scheme
-**  (<basename>_<token>_<nParts>nodes.reach).
-**
-**  Input:  connectivityPath -- path to connectivity.meshb
-**          nParts   -- number of partitions
-**          method   -- SF, SSF, or SSF_H
-**          basename -- base name for the output file
-**  Output: outPath -- (returned) path of the written .reach file
-**  Returns: 0 on success (throws std::runtime_error on failure)
-**
-*************************************************************************/
-
-int RunPartition(const std::string& connectivityPath,
-                 int nParts,
-                 PartMethod method,
-                 const std::string& basename,
-                 std::string& outPath)
-{
-  std::vector<Reach> reaches = ReadConnectivity(connectivityPath);
-
-  std::ostringstream name;
-  name << basename << "_" << MethodToken(method) << "_" << nParts << "nodes.reach";
-  outPath = name.str();
-
-  return PartitionReaches(reaches, nParts, method, outPath);
 }
 
 } // namespace tPartition
