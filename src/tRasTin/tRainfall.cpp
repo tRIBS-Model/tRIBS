@@ -503,7 +503,7 @@ void tRainfall::readGaugeData(int num)
 	char fileName[kMaxNameSize];
 	snprintf(fileName, sizeof(fileName), "%s", rainGauges[num].getFileName());
 
-	cout<<"\nReading RainGauge Data File '"<<fileName<<"'..."<<endl<<flush;
+	Cout<<"\nReading RainGauge Data File '"<<fileName<<"'..."<<endl<<flush;
 
 	ifstream readDataFile(fileName);
 	if (!readDataFile) {

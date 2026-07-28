@@ -1628,8 +1628,9 @@ void tCOutput<tSubNode>::WriteDynamicVars( double time )
 	hour   = (int)floor(time);
 	minute = (int)floor((time-hour)*60);
 
-	// Write Header
-	cout<<"\n\tHOUR = "<<hour<<"\tMINUTE = "<<minute<<"\n";
+	// Write Header. Cout, not cout: every rank reaches this line at the same
+	// timestep, so raw cout printed one identical copy per processor.
+	Cout<<"\n\tHOUR = "<<hour<<"\tMINUTE = "<<minute<<"\n";
 
     snprintf(extension,sizeof(extension),".%04d_%02dd", hour, minute);
 

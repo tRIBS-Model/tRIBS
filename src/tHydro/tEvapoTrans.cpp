@@ -382,7 +382,7 @@ void tEvapoTrans::CreateHydroMetAndLU(tInputFile &infile)
 			}	
 		}
         else if (luOption == 2) {
-            cout << "\nUsing Static (Spatially-Variable) Land-Use Data Grids (OPTLANDUSE: 2)" << endl;
+            Cout << "\nUsing Static (Spatially-Variable) Land-Use Data Grids (OPTLANDUSE: 2)" << endl;
             infile.ReadItem(luFile, "LUGRID");
             readLUGrid(luFile);
             // We will call a new function to handle this simple case
@@ -3752,7 +3752,7 @@ void tEvapoTrans::createStaticVariantLU()
         // Construct the full, non-timestamped filename
         snprintf(staticFileName, sizeof(staticFileName), "%s.%s", LUgridBaseNames[ct], LUgridExtNames[ct]);
 
-        cout << "\tReading static grid for " << LUgridParamNames[ct] << " from " << staticFileName << endl;
+        Cout << "\tReading static grid for " << LUgridParamNames[ct] << " from " << staticFileName << endl;
 
         // Use a switch statement for cleaner code
         const std::string paramName = LUgridParamNames[ct];
