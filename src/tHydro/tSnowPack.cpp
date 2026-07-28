@@ -181,19 +181,24 @@ void tSnowPack::SetSnowVariables(tInputFile &infile) {
 
     // Read Input Parameters from snow parameter file
     // Read the path to the snow parameter file from the main input file
-    char snowParamFile[kName]; 
+    char snowParamFile[kName];
+
+    int optSnow = 0;
+    optSnow = infile.ReadItem(optSnow, "OPTSNOW");
+
+    snowParamFile[0] = '\0';
+    if (infile.IsItemIn("SNOWFILENAME"))
+        infile.ReadItem(snowParamFile, "SNOWFILENAME");
 
     // If user defined snow parameter file in input then use that
-    if (infile.IsItemIn("SNOWFILENAME")) {
-
-        infile.ReadItem(snowParamFile, "SNOWFILENAME");
+    if (snowParamFile[0] != '\0') {
 
         ifstream testFile(snowParamFile);
         if (!testFile) {
-            cout << "\n-----------------------------------------------------------------" << endl;
-            cout << " WARNING: Snow parameter file '" << snowParamFile << "' not found." << endl;
-            cout << " tRIBS will use the default hardcoded snow parameters." << endl;
-            cout << "-----------------------------------------------------------------\n" << endl;
+            if (optSnow > 0) {
+                Cout << "\nSnow parameter file '" << snowParamFile << "' not found." << endl;
+                Cout << "\tWarning: tRIBS will use the default hardcoded snow parameters." << endl;
+            }
         } else {
             testFile.close();
 
@@ -254,10 +259,10 @@ void tSnowPack::SetSnowVariables(tInputFile &infile) {
             }
         } // end file exists
     } else {
-        cout << "\n-----------------------------------------------------------------" << endl;
-        cout << " WARNING: 'SNOWFILENAME' not specified in the input file." << endl;
-        cout << " tRIBS will use the default hardcoded snow parameters." << endl;
-        cout << "-----------------------------------------------------------------\n" << endl;
+        if (optSnow > 0) {
+            Cout << "\n'SNOWFILENAME' not specified in the input file." << endl;
+            Cout << "\tWarning: tRIBS will use the default hardcoded snow parameters." << endl;
+        }
     }
 
     // Initialize the density state variable to the parameter value
