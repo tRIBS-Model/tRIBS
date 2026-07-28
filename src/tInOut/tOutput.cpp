@@ -729,23 +729,29 @@ void tOutput<tSubNode>::WriteOutput( double time )
 	int nActiveNodes = g->getNodeList()->getActiveSize();
 	int nActiveEdges = g->getEdgeList()->getActiveSize();
 
-	cout<<"Proc " << tParallel::getMyProc()
+	int myProc = tParallel::getMyProc();
+
+	cout<<"Proc " << myProc
 	    <<": tOutput Characteristics:"<<endl;
-  
-	cout<<"Proc " << tParallel::getMyProc()
-	    <<": Number of nodes: \t\t"<<nnodes<<endl;
-	cout<<"Proc " << tParallel::getMyProc()
-	    <<": Number of edges: \t\t"<<nedges<<endl;
-  
-	cout<<"Proc " << tParallel::getMyProc()
+
+	if (tParallel::isMaster()) {
+	  cout<<"Proc " << myProc
+	      <<": Number of nodes: \t\t"<<nnodes<<endl;
+	  cout<<"Proc " << myProc
+	      <<": Number of edges: \t\t"<<nedges<<endl;
+	}
+
+	cout<<"Proc " << myProc
 	    <<": Number of active nodes: \t"<<nActiveNodes<<endl<<flush;
-	cout<<"Proc " << tParallel::getMyProc()
+	cout<<"Proc " << myProc
 	    <<": Number of active edges: \t"<<nActiveEdges<<endl<<flush;
-  
-	cout<<"Proc " << tParallel::getMyProc()
-	    <<": Number of global active nodes: \t"<<nGlobalActiveNodes<<endl<<flush;
-	cout<<"Proc " << tParallel::getMyProc()
-	    <<": Number of global active edges: \t"<<nGlobalActiveEdges<<endl<<flush;
+
+	if (tParallel::isMaster()) {
+	  cout<<"Proc " << myProc
+	      <<": Number of global active nodes: \t"<<nGlobalActiveNodes<<endl<<flush;
+	  cout<<"Proc " << myProc
+	      <<": Number of global active edges: \t"<<nGlobalActiveEdges<<endl<<flush;
+	}
 
 #else
 
