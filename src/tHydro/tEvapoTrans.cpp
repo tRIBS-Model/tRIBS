@@ -1190,7 +1190,12 @@ void tEvapoTrans::ComputeETComponents(tIntercept *Intercept, tCNode *cNode,
 			}
 			double soilDemand = snowActive ? evapDryCanopy : (evapSoil + evapDryCanopy);
 			if (soilDemand > 0.0) {
-				double maxSoilET = hydrPtr->MaxSoilETRate(cNode, timer->getTimeStep());
+				// The committed rate is extracted every unsaturated step until
+				// the next ET call, so the supply window is the ET interval,
+				// not one unsaturated timestep, dividing the extractable
+				// stock by TIMESTEP would let the cap pass ETISTEP/TIMESTEP
+				// times the deliverable water. CJC2026
+				double maxSoilET = hydrPtr->MaxSoilETRate(cNode, timer->getEtIStep());
 				if (soilDemand > maxSoilET) {
 					double scale = maxSoilET/soilDemand;
 					evapDryCanopy *= scale;
