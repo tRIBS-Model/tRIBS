@@ -57,7 +57,7 @@ tShelter::tShelter(SimulationControl *simCtrPtr, tMesh<tCNode> * gridPtr,
   //derive HA maps
   if ( (radSheltOpt > 0) && (radSheltOpt < 4) ) {//CHANGED IN 2008
   
-  cout << "read DEM" << endl;
+  // Cout << "read DEM" << endl;
   readInputGrid(GridInPath);
 
 

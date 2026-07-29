@@ -132,8 +132,8 @@ void tIntercept::DeleteIntercept()
 ***************************************************************************/
 void tIntercept::readLUGrid(char *gridFile)
 {
-	cout<<"\nReading Land-Use Data Grid File in tIntercept: ";
-	cout<< gridFile<<"..."<<endl<<flush;
+	Cout<<"\nReading Land-Use Data Grid File in tIntercept: ";
+	Cout<< gridFile<<"..."<<endl<<flush;
 
 	ifstream readFile(gridFile);
 	if (!readFile) {

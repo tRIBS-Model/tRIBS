@@ -267,12 +267,17 @@ void tPreProcess::CheckInputFile(tInputFile &infile)
    }
 
    // Parallel and graph file options
+   // PARALLELMODE: 0 = serial, 1 = parallel, 2 = partition-only (build and
+   // write the .reach graphfile, print statistics, and exit; tRIBSpar only)
    optpar = IterReadItem(infile, optpar, "PARALLELMODE");
    if (optpar > 0) {
      optgraph = IterReadItem(infile, optgraph, "GRAPHOPTION");
-     if (optgraph > 0) {
-       IterReadItem(infile, tempString, "GRAPHFILE");
+     if (optgraph < 0 || optgraph > 2) {
+       cerr<<"\nGRAPHOPTION must be 0 (SF), 1 (SSF), or 2 (SSFH). Exiting."<<endl;
+       exit(1);
      }
+     // GRAPHFILE is optional: when absent or blank, the partition graphfile
+     // path is derived from OUTFILENAME as <basename>_<method>_<np>nodes.reach
    }
 
 	Cout<<"\nInput File Keywords Checked..."<<endl<<flush;

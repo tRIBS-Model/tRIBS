@@ -250,6 +250,42 @@ else()
 endif()
 
 ################################################################################
+# METIS + in-process reach partitioning (tPartition)
+# Applies to both Serial and Parallel builds (target: ${exe}).
+#
+# Vendored GKlib + libmetis are compiled into a static library and linked into
+# tRIBS, so stream-reach graph partitioning is an in-process
+# METIS_PartGraphKway() call. 
+#
+# IDXTYPEWIDTH/REALTYPEWIDTH are commented out in metis.h and MUST be supplied.
+################################################################################
+set(METIS_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/metis_builds/METIS)
+set(GKLIB_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/metis_builds/GKlib)
+
+file(GLOB GKLIB_SOURCES ${GKLIB_DIR}/*.c)
+file(GLOB METIS_SOURCES ${METIS_DIR}/libmetis/*.c)
+
+add_library(metis STATIC ${GKLIB_SOURCES} ${METIS_SOURCES})
+target_include_directories(metis
+        PUBLIC  ${METIS_DIR}/include
+        PRIVATE ${GKLIB_DIR} ${METIS_DIR}/libmetis)
+target_compile_definitions(metis PUBLIC  IDXTYPEWIDTH=32 REALTYPEWIDTH=32)
+target_compile_definitions(metis PRIVATE USE_GKREGEX)
+if(UNIX AND NOT APPLE)
+    target_compile_definitions(metis PRIVATE LINUX _FILE_OFFSET_BITS=64)
+endif()
+if(UNIX)
+    target_link_libraries(metis PRIVATE m)
+endif()
+target_compile_options(metis PRIVATE -w)   # vendored C is not warning-clean
+set_target_properties(metis PROPERTIES C_STANDARD 99)
+
+target_sources(${exe} PRIVATE
+        src/tPartition/tPartition.cpp
+        src/tPartition/tPartition.h)
+target_link_libraries(${exe} PRIVATE metis)
+
+################################################################################
 # GDAL CONFIGURATION
 # This applies to both Serial and Parallel builds (target: ${exe})
 ################################################################################
