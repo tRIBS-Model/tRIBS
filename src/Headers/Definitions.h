@@ -20,7 +20,6 @@
 
 // Definitions
 
-#define VERSION "tRIBS 2.0"
 #define TRUE 1
 #define FALSE 0
 #define kMaxNameLength 200

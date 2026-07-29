@@ -21,6 +21,27 @@ set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O2 -fno-math-errno")
 option(WITH_GDAL "Build with GDAL support for GeoTIFF/NetCDF/etc." OFF)
 option(WITH_PROFILER "Build with gperftools CPU profiler" OFF)
 
+################################################################################
+# VERSION AND BUILD PROVENANCE
+#
+# Single source of truth for the version: both project() calls below consume
+# TRIBS_VERSION, and packaging/utilities/tribsVersion.h.in is configured into the
+# build tree so the C++ code reads these same values rather than hardcoding them.
+# Bump the version here and nowhere else.
+#
+# Must precede project(), which cannot be given a variable it does not yet know.
+################################################################################
+set(TRIBS_VERSION 6.0.0)
+set(TRIBS_RELEASE "Summer 2026")
+
+set(TRIBS_VERSION_STAMP_ARGS
+        "-DSRC_DIR=${CMAKE_CURRENT_SOURCE_DIR}"
+        "-DTEMPLATE_FILE=${CMAKE_CURRENT_SOURCE_DIR}/packaging/utilities/tribsVersion.h.in"
+        "-DOUTPUT_FILE=${CMAKE_CURRENT_BINARY_DIR}/generated/tribsVersion.h"
+        "-DTRIBS_VERSION=${TRIBS_VERSION}"
+        "-DTRIBS_RELEASE=${TRIBS_RELEASE}")
+message(STATUS "tRIBS version ${TRIBS_VERSION} (${TRIBS_RELEASE})")
+
 #set compiler if necessary, this has to be done before project()
 #set (CMAKE_CXX_COMPILER <specify compiler here>)
 #if(CMAKE_CXX_COMPILER_LOADED)
@@ -33,7 +54,7 @@ if(parallel)
     set(exe "tRIBSpar")
     project(${exe}
             DESCRIPTION "Parallel Distribution of the TIN-based Real-time Integrated Basin Simulator Distributed Hydrological Model"
-            VERSION 6.0.0
+            VERSION ${TRIBS_VERSION}
     )
     add_executable(${exe} src/main.cpp)
 
@@ -154,7 +175,7 @@ else()
     set(exe "tRIBS")
     project(${exe}
             DESCRIPTION "Serial Distribution of the TIN-based Real-time Integrated Basin Simulator Distributed Hydrological Model"
-            VERSION 6.0.0)
+            VERSION ${TRIBS_VERSION})
     add_executable(${exe} src/main.cpp)
     message(WARNING "Compiling serial version of tRIBS")
 
@@ -248,6 +269,39 @@ else()
     )
 
 endif()
+
+################################################################################
+# GENERATED VERSION HEADER
+# Applies to both Serial and Parallel builds (target: ${exe}).
+#
+# tribsVersion.h is written into the build tree, never the source tree, so it never
+# appears as a modified file. This section sits after the serial/parallel branch
+# because both target_include_directories() and add_dependencies() need ${exe}
+# to already exist.
+#
+# The stamp runs twice, for two different reasons:
+#   1. once here at configure time, so the header exists for IDEs and clangd
+#      immediately after configuring;
+#   2. on every build via the version_stamp target, so the git hash and dirty
+#      flag track the tree as it is when the binary is actually produced.
+#
+# Only tControl.cpp includes tribsVersion.h; keep it out of Inclusions.h so that a
+# version bump does not rebuild every translation unit.
+################################################################################
+file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/generated)
+
+execute_process(
+        COMMAND ${CMAKE_COMMAND} ${TRIBS_VERSION_STAMP_ARGS}
+                -P ${CMAKE_CURRENT_SOURCE_DIR}/packaging/utilities/GitVersion.cmake)
+
+add_custom_target(version_stamp ALL
+        COMMAND ${CMAKE_COMMAND} ${TRIBS_VERSION_STAMP_ARGS}
+                -P ${CMAKE_CURRENT_SOURCE_DIR}/packaging/utilities/GitVersion.cmake
+        COMMENT "Stamping git provenance into tribsVersion.h"
+        VERBATIM)
+add_dependencies(${exe} version_stamp)
+
+target_include_directories(${exe} PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/generated)
 
 ################################################################################
 # METIS + in-process reach partitioning (tPartition)
