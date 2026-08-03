@@ -5,9 +5,6 @@
 - [ ] Update flow for reading in dynamic LU grids--this is a bottleneck in terms of speed
 - [ ] Consider flexible approach for specifying outputs, I.E. could we make it so that you could pass in attribute related to a node and have them returned in the dynamic and integrated files. Could also be nice for input parameters, i.e. make list of hard coded parameters and expose as inputs.
 - [ ] Resolve remaing problems in channel transmission losses routine for option 2 & 3, (transient & green-ampt methods) ([#112](https://github.com/tRIBS-Model/tRIBS/pull/112)).
-- [ ] Remove default parallelization option
-- [ ] Port MeshBuilder parallelization workflow into tRIBS
-- [ ] Package METIS from parallelization work with tRIBS
 - [ ] Update input timeseries and raster forcing files to use ISO 8601 timestamp format. No chnage to outputs for now, will still be elasped simulation hours. Example from `_MMddYYYYhh.asc` to `_20240615T1200.asc`
 
 ### Finished
@@ -32,6 +29,9 @@
 - [x] Generalize restart functionality
 - [x] Integrate stomatal resistance changes from Becerra branch
 - [x] Rerun tRIBS through a profiler for improving runtimes
+- [x] Remove default parallelization option
+- [x] Port MeshBuilder parallelization workflow into tRIBS
+- [x] Package METIS from parallelization work with tRIBS
 
 
 
