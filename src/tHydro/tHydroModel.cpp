@@ -272,9 +272,10 @@ void tHydroModel::InitSet(tResample *resamp)
 
 
 	//Assign Water Table to tCNode
+	// CJC2026: GWATERFILE depths are vertical; convert to slope-normal
 	int id2 = 0;
 	for( cn=nodIter.FirstP(); nodIter.IsActive(); cn=nodIter.NextP() ){
-		NwtNew = tmp[id2];              //Initial GW in mm
+		NwtNew = tmp[id2]*cn->getCosSlope();   //Initial GW in mm
 
 		cn->setNwtOld(NwtNew);
 		cn->setNwtNew(NwtNew);
@@ -293,6 +294,9 @@ void tHydroModel::InitSet(tResample *resamp)
 		BasArea += cn->getVArea();
 
 	// Loop through nodes to get Initial GW conditions
+	// CJC2026: cache the raw uniform bedrock input; the DtoBedrock member
+	// is overwritten with each node's slope-converted value inside the loop
+	double DtoBedrockRaw = DtoBedrock;
 	id = 0;
 	for (cn=nodIter.FirstP(); nodIter.IsActive(); cn=nodIter.NextP())
 	{
@@ -331,7 +335,11 @@ void tHydroModel::InitSet(tResample *resamp)
 		if (BRoption == 1)
 			bedRock = bedrock[id]*1000.;     //Convert meters into mm
 		else if (!BRoption)
-			bedRock = DtoBedrock;
+			bedRock = DtoBedrockRaw;
+
+		// CJC2026: Bedrock input depths are vertical; convert to the
+		// internal slope-normal coordinate
+		bedRock *= cn->getCosSlope();
 
 		//Temporary Lines added by Ricardo Mantilla
 		//cout<<"bedRockBefore: id: "<<id<<" depth: "<<bedRock<<endl;

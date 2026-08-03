@@ -308,6 +308,7 @@ public:
   double getAvET();
 
   tEdge * getFlowEdg();
+  double getCosSlope();
 
   int getFloodStatus();
   int getSoilID();                     //Invariant Members
