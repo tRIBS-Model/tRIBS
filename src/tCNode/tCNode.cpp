@@ -534,6 +534,20 @@ int    tCNode::getLandUse()      { return LandUse; }
 tEdge * tCNode::getFlowEdg()     { return flowedge; }
 tCNode * tCNode::getStreamNode() { return StreamPtr; }
 
+// CJC2026: Cosine of the flow-edge slope angle. This is the factor between
+// the slope-normal depths held in state (Nwt, Mu, Mi, Nf, Nt, bedrock) and
+// the vertical depths used by depth inputs and outputs: vertical = normal /
+// cos, normal = vertical * cos. Equal to cos(atan(S)), computed as
+// 1/sqrt(1+S^2) to avoid trig calls.
+double tCNode::getCosSlope()
+{
+	if (!flowedge)
+		return 1.0;
+	double s  = flowedge->getSlope();
+	double cs = 1.0/sqrt(1.0 + s*s);
+	return (cs < 1E-9) ? 1E-9 : cs;
+}
+
 tList< int >    * tCNode::getTimeIndList() { return TimeInd.get(); }
 tList< double > * tCNode::getQeffList()    { return Qeff.get(); }
 

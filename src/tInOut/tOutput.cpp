@@ -1930,6 +1930,9 @@ void tCOutput<tSubNode>::WriteIntegrVars( double time )
 	cn = ni.FirstP();
 	while (ni.IsActive()) {
 
+		// CJC2025: bedrock is stored slope-normal; report vertical depth
+		double cos_slope = cn->getCosSlope();
+
 		*pout<<cn->getID()<<','                              //1
 		     <<cn->getBoundaryFlag()<<','                    //2
 		     <<prank<<','                                    //3
@@ -2037,7 +2040,7 @@ void tCOutput<tSubNode>::WriteIntegrVars( double time )
 		     << setprecision(7)<<cn->getAvLeafAI()<<','      //58
 		     << setprecision(7)<<cn->getAvEvapThresh()<<','  //59
 		     << setprecision(7)<<cn->getAvTransThresh()<<',' //60
-		     << setprecision(7)<<cn->getBedrockDepth()<<','  //61
+		     << setprecision(7)<<cn->getBedrockDepth()/cos_slope<<','  //61
 		     << setprecision(7)<<cn->getKs()<<','            //62
 		     << setprecision(7)<<cn->getThetaS()<<','        //63
 		     << setprecision(7)<<cn->getThetaR()<<','        //64
