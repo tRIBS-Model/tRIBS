@@ -491,56 +491,55 @@ void tOutput<tSubNode>::CreateAndOpenPixel()
 				<<"LngRadIn_W_m2,"
 				<<"LngRadOut_W_m2A,"
 				<<"PotEvp_mm_h,"
-				<<"ActEvp_mm_h,"
-				<<"EvpTtrs_mm_h,"      //35
+				<<"EvpTtrs_mm_h,"      //34
 				<<"EvpWetCan_mm_h,"
 				<<"EvpDryCan_mm_h,"
 				<<"EvpSoil_mm_h,"
 				<<"Gflux_W_m2,"
-				<<"HFlux_W_m2,"        //40
+				<<"HFlux_W_m2,"        //39
 				<<"Lflux_W_m2,"
 				<<"NetPrecip_mm_hr,"
 				<<"LiqWE_cm,"
 				<<"IceWE_cm,"
-				<<"SnWE_cm,"           //45
+				<<"SnWE_cm,"           //44
 				<<"SnSub_cm,"
 				<<"SnEvap_cm,"
 				<<"U_kJ_m2,"
 				<<"RouteWE_cm,"
-				<<"SnTemp_C,"          //50
+				<<"SnTemp_C,"          //49
 				<<"SurfAge_h,"
 				<<"SnDepth_cm,"
 				<<"SnDensity_kg_m3,"
 				<<"DU_kJ_m2,"
-				<<"snLHF_kJ_m2,"       //55
+				<<"snLHF_kJ_m2,"       //54
 				<<"snSHF_kJ_m2,"
 				<<"snGHF_kJ_m2,"
 				<<"snPHF_kJ_m2,"
 				<<"snRLout_kJ_m2,"
-				<<"snRLin_kJ_m2,"      //60
+				<<"snRLin_kJ_m2,"      //59
 				<<"snRSin_kJ_m2,"
 				<<"Uerror_kJ_m2,"
 				<<"IntSWEq_cm,"
 				<<"IntSub_cm,"
-				<<"IntSnUnload_cm,"     //65
+				<<"IntSnUnload_cm,"     //64
 				<<"CanStorage_mm,"
 				<<"CumIntercept_mm,"
 				<<"Interception_mm,"
 				<<"Recharge_mm/hr,"
-				<<"RunOn_mm,"          //70
+				<<"RunOn_mm,"          //69
 				<<"Qstrm_m3_s,"
 				<<"Hlevel_m,"
 				<<"ThroughFall_[],"
 				<<"CanFieldCap_mm,"
-				<<"DrainCoeff_mm_hr,"  //75
+				<<"DrainCoeff_mm_hr,"  //74
 				<<"DrainExpPar_1_mm,"
 				<<"LandUseAlb_[],"
 				<<"VegHeight_m,"
 				<<"OptTransmCoeff_[],"
-				<<"StomRes_s_m,"       //80
+				<<"StomRes_s_m,"       //79
 				<<"VegFraction[],"
 				<<"LeafAI_[],"
-				<<"RootZoneDepth_m"    //83
+				<<"RootZoneDepth_m"    //82
 				<<"\n";
 				
 				pixinfo[i].setf( ios::right, ios::adjustfield );
@@ -1403,50 +1402,49 @@ void tCOutput<tSubNode>::WritePixelInfo( double time )
 				<< this->uzel[i]->getLongRadIn() << ","
 				<< this->uzel[i]->getLongRadOut() << ","
 				<< this->uzel[i]->getPotEvap() << ","
-				<< this->uzel[i]->getActEvap() << ","
-				/* 35 */  << this->uzel[i]->getEvapoTrans() << ","
+				/* 34 */  << this->uzel[i]->getEvapoTrans() << ","
 
 				<< this->uzel[i]->getEvapWetCanopy() << ","
 				<< this->uzel[i]->getEvapDryCanopy() << ","
 				<< this->uzel[i]->getEvapSoil() << ","
 				<< this->uzel[i]->getGFlux() << ","
-				/* 40 */  << this->uzel[i]->getHFlux() << ","
+				/* 39 */  << this->uzel[i]->getHFlux() << ","
 
 				<< this->uzel[i]->getLFlux() << ","
 				<< this->uzel[i]->getNetPrecipitation() << ","
 				// SKY2008Snow from AJR2007
 				<< this->uzel[i]->getLiqWE() << ","        //added by AJR 2007 @ NMT
 				<< this->uzel[i]->getIceWE() << ","        //added by AJR 2007 @ NMT
-				/* 45 */  << (this->uzel[i]->getLiqWE()+this->uzel[i]->getIceWE()) << "," //added by AJR 2007 @ NMT
+				/* 44 */  << (this->uzel[i]->getLiqWE()+this->uzel[i]->getIceWE()) << "," //added by AJR 2007 @ NMT
 
 				<< this->uzel[i]->getSnSub() << ","        // added by CJC2020
 				<< this->uzel[i]->getSnEvap() << ","       // added by CJC2020
 				<< this->uzel[i]->getUnode() << ","        //added by AJR 2007 @ NMT
 				<< this->uzel[i]->getLiqRouted() << ","    //added by AJR 2007 @ NMT
-				/* 50 */  << this->uzel[i]->getSnTempC() << ","    //added by AJR 2007 @ NMT
+				/* 49 */  << this->uzel[i]->getSnTempC() << ","    //added by AJR 2007 @ NMT
 
 				<< this->uzel[i]->getCrustAge() << ","     //added by AJR 2007 @ NMT
 				<< this->uzel[i]->getSnDepth() << ","      // added by CJC2025
 				<< this->uzel[i]->getRhoSn() << ","        // added by CJC2025
 				<< this->uzel[i]->getDU() << ","           //added by AJR 2007 @ NMT
-				/* 55 */  << this->uzel[i]->getSnLHF() << ","      //added by AJR 2007 @ NMT
+				/* 54 */  << this->uzel[i]->getSnLHF() << ","      //added by AJR 2007 @ NMT
 
 				<< this->uzel[i]->getSnSHF() << ","        //added by AJR 2007 @ NMT
 				<< this->uzel[i]->getSnGHF() << ","        //added by AJR 2007 @ NMT
 				<< this->uzel[i]->getSnPHF() << ","        //added by AJR 2007 @ NMT
 				<< this->uzel[i]->getSnRLout() << ","      //added by AJR 2007 @ NMT
-				/* 60 */  << this->uzel[i]->getSnRLin() << ","     //added by AJR 2007 @ NMT
+				/* 59 */  << this->uzel[i]->getSnRLin() << ","     //added by AJR 2007 @ NMT
 
 				<< this->uzel[i]->getSnRSin() << ","       //added by AJR 2007 @ NMT
 				<< this->uzel[i]->getUerror() << ","       //added by AJR 2007 @ NMT
 				<< this->uzel[i]->getIntSWE() << ","       //added by AJR 2007 @ NMT
 				<< this->uzel[i]->getIntSub() << ","       //added by AJR 2007 @ NMT
-				/* 65 */  << this->uzel[i]->getIntSnUnload() << "," //added by AJR 2007 @ NMT
+				/* 64 */  << this->uzel[i]->getIntSnUnload() << "," //added by AJR 2007 @ NMT
 
 				<< this->uzel[i]->getCanStorage() << ","
 				<< this->uzel[i]->getCumIntercept() << ","
 				<< this->uzel[i]->getInterceptLoss() << ","
-				/* 69 */  << this->uzel[i]->getRecharge() << ","
+				/* 68 */  << this->uzel[i]->getRecharge() << ","
 				<< this->uzel[i]->getRunOn() << ",";
 
 				if (this->uzel[i]->getBoundaryFlag() == kStream)
@@ -1459,15 +1457,15 @@ void tCOutput<tSubNode>::WritePixelInfo( double time )
 				this->pixinfo[i]<<setprecision(4)
 				<< this->uzel[i]->getThroughFall() << ","
 				<< this->uzel[i]->getCanFieldCap() << ","
-				/* 75 */ << this->uzel[i]->getDrainCoeff() << ","
+				/* 74 */ << this->uzel[i]->getDrainCoeff() << ","
 				<< this->uzel[i]->getDrainExpPar() << ","
 				<< this->uzel[i]->getLandUseAlb() << ","
 				<< this->uzel[i]->getVegHeight() << ","
 				<< this->uzel[i]->getOptTransmCoeff() << ","
-				/* 80 */ << this->uzel[i]->getStomRes() << ","
+				/* 79 */ << this->uzel[i]->getStomRes() << ","
 				<< this->uzel[i]->getVegFraction() << ","
 				<< this->uzel[i]->getLeafAI() << ","
-				/* 83 */ << this->uzel[i]->getRootZoneDepth() <<
+				/* 82 */ << this->uzel[i]->getRootZoneDepth() <<
 				"\n" << flush; 
 
 			}
@@ -1569,7 +1567,6 @@ void tCOutput<tSubNode>::BuildDynVarTable(const std::set<std::string> &selection
 		{"SoilMoist",    3, [](tSubNode *cn) { return cn->getSoilMoistureSC(); }},
 		{"RootMoist",    3, [](tSubNode *cn) { return cn->getRootMoistureSC(); }},
 		{"CanStorage",   3, [](tSubNode *cn) { return cn->getCanStorage(); }},
-		{"ActEvp",       3, [](tSubNode *cn) { return cn->getActEvap(); }},
 		{"EvpSoil",      5, [](tSubNode *cn) { return cn->getEvapSoil(); }},
 		{"ET",           5, [](tSubNode *cn) { return cn->getEvapoTrans(); }},
 		{"GFlux",        3, [](tSubNode *cn) { return cn->getGFlux(); }},
