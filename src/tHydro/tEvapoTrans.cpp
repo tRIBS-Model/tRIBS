@@ -1072,10 +1072,10 @@ void tEvapoTrans::ComputeETComponents(tIntercept *Intercept, tCNode *cNode,
 {
 	double potEvaporation, evapoTranspiration;
 	double evapWetCanopy, evapDryCanopy, evapSoil, CanStorage;
-	double cc, ra, rs, psy, transFactor, actEvaporation;
+	double cc, ra, rs, psy, transFactor;
 	evapWetCanopy = evapDryCanopy = evapSoil = CanStorage = 0.0;
-        potEvaporation = evapoTranspiration = 0.0; 
-        cc = ra = rs = psy = transFactor = actEvaporation = 0.0;
+        potEvaporation = evapoTranspiration = 0.0;
+        cc = ra = rs = psy = transFactor = 0.0;
 
 	if ( evapotransOption ) {
 		
@@ -1102,20 +1102,12 @@ void tEvapoTrans::ComputeETComponents(tIntercept *Intercept, tCNode *cNode,
 			newHydroMetGridData(cNode);
 		}
 
-		// The computed Latent Heat LE -
-		// - "pseudo-resistance" evaporation: transFactor*Ep
+		// The upper limit of potential evaporation (no stomatal resistance) from the energy balance
 		potEvaporation = cNode->getPotEvap();
-		
-		// The soil-moisture controlled evaporation: beta*transFactor*Ep
-		actEvaporation = cNode->getActEvap();
-		
+
 		if (potEvaporation < 0) {
 			potEvaporation = 0.0;
 			cNode->setPotEvap(0.0);
-		}
-		if (actEvaporation < 0.0) {
-			actEvaporation = 0.0;
-			cNode->setActEvap(0.0);
 		}
 		
 		// Transpiration
@@ -1152,13 +1144,6 @@ void tEvapoTrans::ComputeETComponents(tIntercept *Intercept, tCNode *cNode,
         evapWetCanopy *= coeffV;
         evapDryCanopy *= coeffV;
 
-        // Remaining potential evaporation is what's available for the bare soil
-        double potEvaporationRemaining = potEvaporation - evapWetCanopy - evapDryCanopy;
-		// Sanity check
-		if (potEvaporationRemaining < 0.0) {
-			potEvaporationRemaining = 0.0;
-		}
-        
         // Evaporation from Bare Soil
 
         if(cNode->getBedrockDepth() <= 0) //
@@ -1171,8 +1156,7 @@ void tEvapoTrans::ComputeETComponents(tIntercept *Intercept, tCNode *cNode,
             //evapSoil = (1-coeffV)*(actEvaporation);
 
             // Method listed in Ivanov et al. (2004) for bare soil evaporation
-            // Modified to use the remaining potential evaporation
-            evapSoil = potEvaporationRemaining*betaS;
+            evapSoil = (1.0 - coeffV)*potEvaporation*betaS;
         }
 
 		// Supply-limit soil-sourced ET by the water the column can actually
