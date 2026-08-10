@@ -995,7 +995,9 @@ void tEvapoTrans::setCoeffs(tCNode* cNode)
 **
 ** Evaporation From Dry Canopy (Transpiration):
 **
-**    Edc(t) = (Ep(t)-Ewc(t))*{CC(t)+Psy(t)}/{CC(t) + Psy(t)*(1-rs(t)/ra(t))}
+**    Edc(t) = (Ep(t)-Ewc(t))*{CC(t)+Psy(t)}/{CC(t) + Psy(t)*(1+rs(t)/ra(t))}
+**
+**    CC(t) and Psy(t) must both be in Pa/K here; see ComputeETComponents().
 **
 ** Evaporation From Soil:
 **
@@ -1118,9 +1120,11 @@ void tEvapoTrans::ComputeETComponents(tIntercept *Intercept, tCNode *cNode,
 		
 		// Transpiration
 		cc = clausClap();
-		psy = psychoMetric();
+		psy = 100.0*psychoMetric();
 		ra = aeroResist();
 		rs = stomResist();
+		// Identical to energyBalance()'s denom/denomrs, since dividing
+		// through by psy gives (cc/psy + 1)/(cc/psy + 1 + rs/ra).
 		transFactor = (cc + psy)/(cc + psy*(1+rs/ra));
 		
 		// Check if the interception scheme is turned on
