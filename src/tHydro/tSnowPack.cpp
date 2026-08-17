@@ -1189,8 +1189,8 @@ void tSnowPack::setToNodeSnP(tCNode *node) {
     node->setSnTempC(snTempC);
     node->setCrustAge(crustAge);
     node->setEvapoTransAge(ETAge);
-    node->setSnSub(snSub); // scaled by non-vegetated area
-    node->setSnEvap(snEvap); // scaled by non-vegetated area
+    node->setSnSub(snSub);
+    node->setSnEvap(snEvap);
 
     //mass flux
     node->setLiqRouted(liqRoute);
@@ -1722,9 +1722,11 @@ double tSnowPack::resFactCalc() {
     // https://doi.org/10.1029/2008WR007042
 
     // Bulk Richardson Number (Eq. 17)
-    // Use windSpeedS (attenuated wind at snow surface) in RiB calc.
-    // Though Ta is from 2m AGL, we prioritize the snow–air interface.
-    // This matches the aerodynamic resistance formulation and maintains internal consistency.
+    // Evaluated with windSpeedC, the reference-level wind, so that the wind and
+    // the air temperature Ta both refer to the same 2 m reference height.
+    // An earlier version used windSpeedS (the canopy-attenuated wind at the snow
+    // surface); note ra itself still blends ras(windSpeedS) and rav(windSpeedC),
+    // so RiB matches the rav term rather than the blend. CJC2026
     double RiB = (g * zm_eff * (Ta - Ts)) / (T_avg * windSpeedC* windSpeedC);
 
     // Compute upper limit Ri_u (Eq. 24)
@@ -1746,8 +1748,11 @@ double tSnowPack::resFactCalc() {
     }
 
 	// Clamp the stability correction factor to a reasonable range
-	// As RiB approaches Ri_cr, C_stab approaches infinity, so we limit it
-	if (C_stab > 15.0) { C_stab = 15.0; } // kaero can at most be 15 times the original value
+	// As RiB approaches Ri_cr, C_stab approaches infinity, so we limit it.
+	// The cap only binds in stable conditions (C_stab > 1, i.e. ra inflated);
+	// since ra *= C_stab and kaero = 1/ra, it keeps kaero from falling below
+	// 1/15 of its uncorrected value. CJC2026
+	if (C_stab > 15.0) { C_stab = 15.0; }
 
     // Apply correction to aerodynamic resistance
     ra *= C_stab;
