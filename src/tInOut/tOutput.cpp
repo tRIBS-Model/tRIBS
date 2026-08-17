@@ -493,7 +493,7 @@ void tOutput<tSubNode>::CreateAndOpenPixel()
 				<<"PotEvp_mm_h,"
 				<<"EvpTtrs_mm_h,"      //34
 				<<"EvpWetCan_mm_h,"
-				<<"EvpDryCan_mm_h,"
+				<<"TransDryCan_mm_h,"
 				<<"EvpSoil_mm_h,"
 				<<"Gflux_W_m2,"
 				<<"HFlux_W_m2,"        //39
@@ -1567,6 +1567,7 @@ void tCOutput<tSubNode>::BuildDynVarTable(const std::set<std::string> &selection
 		{"SoilMoist",    3, [](tSubNode *cn) { return cn->getSoilMoistureSC(); }},
 		{"RootMoist",    3, [](tSubNode *cn) { return cn->getRootMoistureSC(); }},
 		{"CanStorage",   3, [](tSubNode *cn) { return cn->getCanStorage(); }},
+		{"TransDryCan",  5, [](tSubNode *cn) { return cn->getEvapDryCanopy(); }},
 		{"EvpSoil",      5, [](tSubNode *cn) { return cn->getEvapSoil(); }},
 		{"ET",           5, [](tSubNode *cn) { return cn->getEvapoTrans(); }},
 		{"GFlux",        3, [](tSubNode *cn) { return cn->getGFlux(); }},
