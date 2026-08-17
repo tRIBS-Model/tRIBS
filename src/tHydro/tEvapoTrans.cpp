@@ -1176,7 +1176,14 @@ void tEvapoTrans::ComputeETComponents(tIntercept *Intercept, tCNode *cNode,
 				if ((snWE > 1e-3) || (cNode->getLiqRouted() > 0.0))
 					snowActive = 1;
 			}
-			double soilDemand = snowActive ? evapDryCanopy : (evapSoil + evapDryCanopy);
+
+			// With snow on the ground there is no bare-soil evaporation:
+			// UnSaturatedZone never extracts it (see Ractual above) and
+			// callSnowPack zeroes the node's EvapSoil after this function. CJC2026
+			if (snowActive)
+				evapSoil = 0.0;
+
+			double soilDemand = evapSoil + evapDryCanopy;
 			if (soilDemand > 0.0) {
 				// The committed rate is extracted every unsaturated step until
 				// the next ET call, so the supply window is the ET interval,
@@ -1187,8 +1194,7 @@ void tEvapoTrans::ComputeETComponents(tIntercept *Intercept, tCNode *cNode,
 				if (soilDemand > maxSoilET) {
 					double scale = maxSoilET/soilDemand;
 					evapDryCanopy *= scale;
-					if (!snowActive)
-						evapSoil *= scale;
+					evapSoil *= scale;
 				}
 			}
 		}
@@ -1200,8 +1206,12 @@ void tEvapoTrans::ComputeETComponents(tIntercept *Intercept, tCNode *cNode,
 		cNode->setEvapDryCanopy(evapDryCanopy);
 		cNode->setEvapSoil(evapSoil);
 		cNode->setEvapoTrans(evapoTranspiration);
-		cNode->addTotEvap(evapoTranspiration); // add to cumulative totals CJC2020
-		cNode->addBarEvap(evapSoil); // add to cumulative totals CJC2020
+		// Cumulative depths (mm) for the integrated output's cET and cEsoil.
+		// evapoTranspiration and evapSoil are rates in mm/hr held constant
+		// until the next ET call, so the depth added over this interval is
+		// rate*ETISTEP. CJC2026
+		cNode->addTotEvap(evapoTranspiration * (timer->getEtIStep())); // cumulative totals CJC2020
+		cNode->addBarEvap(evapSoil * (timer->getEtIStep())); // cumulative totals CJC2020
 		
 		// Update average ET rate from an element
 		auto te = (double)timer->getElapsedETISteps(timer->getCurrentTime());
@@ -2937,7 +2947,9 @@ void tEvapoTrans::setToNode(tCNode* cNode)
 	cNode->setAirPressure(atmPressC);
 	cNode->setSkyCover(skyCoverC);
 	cNode->setWindSpeed(windSpeedC);
-	cNode->addCumHrsSun(SunHour);
+	// SunHour is a 0/1 flag per ET step, so accumulating it raw counted steps
+	// rather than hours. CJC2026
+	cNode->addCumHrsSun(SunHour * timer->getEtIStep());
 
 	// Elapsed MET steps from the beginning
 	auto te = (double)timer->getElapsedMETSteps(timer->getCurrentTime());
@@ -2953,7 +2965,12 @@ void tEvapoTrans::setToNode(tCNode* cNode)
 
 	cNode->setSheltFact(shelterFactorGlobal);
 	cNode->setLandFact(landRefGlobal);	
-	cNode->addRSin(inShortR*3600.0); }
+	// Incoming shortwave energy over this ET step in kJ/m2: inShortR is W/m2,
+	// x seconds gives J/m2, /1000 gives kJ/m2. This must match the units of
+	// tSnowPack::setToNodeSnP's addRSin(RSin*timeSteps), whose RSin is already
+	// in kW/m2 (naughttokilo): with OPTSNOW=1 both paths feed the same
+	// cumulative (this one on snow-free steps). CJC2026
+	cNode->addRSin(inShortR * timer->getEtIStep() * 3600.0 / 1000.0); }
 
 //=========================================================================
 //
@@ -3235,7 +3252,11 @@ void tEvapoTrans::readHydroMetData(int num)
 			SurfTemperature[count] = (fabs(tempo - 9999.99) > 1.0E-3 && (tempo < -60 || tempo > 70)) ? 9999.99 : tempo;
 
 
-			if (count > 0) {
+			// Timestamp continuity check. Skipped for sub-hourly METSTEP: the
+			// data format only carries integer hours, and the supported
+			// convention for sub-hourly forcing is duplicated hourly rows.
+			//  Mirrors the rainDt >= 1.0 guard in tRainfall::readRainData. CJC2026
+			if (count > 0 && timer->getMetStep() >= 1.0) {
 				int expected_yr = yr[count-1];
 				int expected_mo = mo[count-1];
 				int expected_dy = dy[count-1];

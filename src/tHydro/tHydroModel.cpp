@@ -906,7 +906,11 @@ void tHydroModel::UnSaturatedZone(double dt)
 			routeWE = cn->getLiqRouted();
 			if ((snWE > 1e-3) || (routeWE > 0.)) {
                 //WR 12182023 removed EvapVeg from route water following above approach and because transpiration can still occur w/snow
-				Ractual = 10.0*routeWE-EvapVeg; //have to convert to mm // Changed from R to Ractual CJC2020
+				// routeWE is the melt DEPTH released over this snow/ET step [cm],
+				// so 10*routeWE is the melt in mm delivered over ETISTEP hours.
+				// Ractual is a rate [mm hr^-1], multiplied by dt, so the depth 
+				// has to be divided by the step length. CJC2026
+				Ractual = 10.0*routeWE/timer->getEtIStep() - EvapVeg; // Changed from R to Ractual CJC2020
 			}
 		}
 

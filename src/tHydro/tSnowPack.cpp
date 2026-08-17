@@ -547,8 +547,11 @@ void tSnowPack::callSnowPack(tIntercept *Intercept, int flag) {
                 cNode->setNetPrecipitation(rain);
             }
 
-            precip = cNode->getNetPrecipitation(); //units in mm
-            precip += snUnload * ctom; // units in mm
+            precip = cNode->getNetPrecipitation(); //units in mm/hr
+            // snUnload is the canopy snow unloaded over this step [cm], a depth,
+            // while precip is a rate [mm/hr] that the mass updates below turn
+            // back into a depth via *timeSteps/3600. CJC2026
+            precip += snUnload * ctom / timeSteph; // cm/step -> mm/hr
 
             //change mass (volume) quantities to correct units (kJ, m, C, s)
             iceWE = iceWE * cmtonaught; // mm to m
@@ -564,9 +567,10 @@ void tSnowPack::callSnowPack(tIntercept *Intercept, int flag) {
             // in order to calculate the new snow depth.
 
             // Calculate Incoming Mass (temporary variables)
-            // precip is in mm. Convert to meters (0.001).
-            double newSnowM = (precip * snowFracCalc()) * 0.001; 
-            double newRainM = (precip * (1.0 - snowFracCalc())) * 0.001;
+            // precip is a rate in mm/hr, so scale by the timestep (hr) to get
+            // the depth arriving this step, then convert mm to m (0.001). CJC2026
+            double newSnowM = (precip * snowFracCalc()) * timeSteph * 0.001;
+            double newRainM = (precip * (1.0 - snowFracCalc())) * timeSteph * 0.001;
 
             // Calculate projected Mass States
             // Approximation of what the pack will look like after this timestep.
@@ -693,7 +697,10 @@ void tSnowPack::callSnowPack(tIntercept *Intercept, int flag) {
                 phfOnOff = 1.0;
 
                 //reset crust age if snowing out
-                if (precip * snowFracCalc() > albResetThresh) {
+                // albResetThresh is a depth (mm) but precip is a rate (mm/hr),
+                // so scale by the timestep (hr) to compare fresh-snow depth this
+                // step against the threshold. CJC2026
+                if (precip * snowFracCalc() * timeSteph > albResetThresh) {
                     crustAge = 0.0;
                 }
 
@@ -978,11 +985,17 @@ void tSnowPack::callSnowIntercept(tCNode *node, tIntercept *interceptModel, int 
         Imax = 4.4 * LAI;
 
         //compute new intercepted snow (kg/m^2)
-        Isnow = 0.7 * (Imax - Iold) * (1 - exp(-precip / Imax));
+        // precip is a rate (mm/hr == kg/m^2/hr) while the canopy load I is a
+        // mass (kg/m^2), so the interception update must use the precip depth
+        // arriving this timestep, and the intercepted mass must be converted
+        // back to a rate when debited from throughfall (netPrecipitation is
+        // consumed as mm/hr downstream). CJC2026
+        double precipStep = precip * timeSteph; // precip depth this step (kg/m^2)
+        Isnow = 0.7 * (Imax - Iold) * (1 - exp(-(precip * timeSteph) / Imax));
         I = Iold + Isnow;
 
-        //precip minus intercepted snow (i.e. throughfall)
-        throughfall = precip - Isnow;
+        //precip minus intercepted snow (i.e. throughfall), kept as a rate (mm/hr)
+        throughfall = precip - Isnow / timeSteph;
 
         //if there was old snow, sublimate and unload
         if (Iold > 0.0 && flag) {
@@ -1244,7 +1257,9 @@ void tSnowPack::setToNodeSnP(tCNode *node) {
     node->addRLout(RLout * timeSteps);
     node->addRSin(RSin * timeSteps);
     node->addCumUerror(Uerr * timeSteps);
-    node->addCumHrsSnow(snOnOff);
+    // snOnOff is a 0/1 flag per ET step, so accumulating it raw counted steps
+    // rather than hours. Originally: addCumHrsSnow(snOnOff). CJC2026
+    node->addCumHrsSnow(snOnOff * timer->getEtIStep());
 
     //reset fluxes to zero
     L = H = Prec = G = RLin = RLout = RSin = dUint = 0.0;
@@ -1573,8 +1588,12 @@ double tSnowPack::precipitationHFCalc() {
     double frac;
 
     //  frac = snowFracCalc();
-    snPrec = (snowFracCalc() * (rain + ctom * snUnload)) * mtoc; //convert from mm to cm
-    liqPrec = ((1 - snowFracCalc()) * (rain + ctom * snUnload)) * mtoc; //convert from mm to cm
+    // snUnload is the canopy snow unloaded over this step [cm], a depth, while
+    // rain is a rate [mm/hr] and the /3600 below treats the sum as a per-hour
+    // depth, so the unloaded snow has to be expressed as a rate as well. CJC2026
+    double unloadRate = ctom * snUnload / timeSteph; // cm/step to mm/hr
+    snPrec = (snowFracCalc() * (rain + unloadRate)) * mtoc; //convert from mm to cm
+    liqPrec = ((1 - snowFracCalc()) * (rain + unloadRate)) * mtoc; //convert from mm to cm
 
     if (airTemp > 0) {
         // snPrec term is zero (ice assumed to be at 0C on arrival)
