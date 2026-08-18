@@ -990,7 +990,6 @@ void tSnowPack::callSnowIntercept(tCNode *node, tIntercept *interceptModel, int 
         // arriving this timestep, and the intercepted mass must be converted
         // back to a rate when debited from throughfall (netPrecipitation is
         // consumed as mm/hr downstream). CJC2026
-        double precipStep = precip * timeSteph; // precip depth this step (kg/m^2)
         Isnow = 0.7 * (Imax - Iold) * (1 - exp(-(precip * timeSteph) / Imax));
         I = Iold + Isnow;
 
