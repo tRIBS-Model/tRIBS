@@ -1173,7 +1173,7 @@ void tEvapoTrans::ComputeETComponents(tIntercept *Intercept, tCNode *cNode,
 			int snowActive = 0;
 			if (snowOption) {
 				double snWE = cNode->getLiqWE() + cNode->getIceWE();
-				if ((snWE > 1e-3) || (cNode->getLiqRouted() > 0.0))
+				if ((snWE > 1e-4) || (cNode->getLiqRouted() > 0.0))
 					snowActive = 1;
 			}
 
