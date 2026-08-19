@@ -90,6 +90,7 @@ void gkfooo() { return; }
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>   /* strcasecmp; not pulled in by <string.h> since glibc 2.38 */
 
 #if defined(__MINGW32_VERSION) || defined(_MSC_VER)
 #define strcasecmp stricmp
