@@ -51,7 +51,15 @@ void tWaterBalance::SetWaterBalance(tInputFile &infile)
 	metStep = infile.ReadItem(metStep, "METSTEP");
 	unsStep = infile.ReadItem(unsStep, "TIMESTEP");
 	satStep = infile.ReadItem(satStep, "GWSTEP");
-	
+
+	// Snow/ET step in hours, mirroring tRunTimer's etistep = min(METSTEP,
+	// RAININTRVL). Read here rather than taken from the timer because this
+	// class already sources its other steps straight from the input file.
+	// Used to convert the per-step melt depth carried on the node into a rate. CJC2026
+	double dtRain = 0.0;
+	dtRain = infile.ReadItem(dtRain, "RAININTRVL"); // hours
+	etiStep = (dtRain >= metStep/60.0) ? metStep/60.0 : dtRain;
+
 	return;
 }
 
@@ -181,7 +189,9 @@ void tWaterBalance::UnSaturatedBalance()
 		Run = cNode->getSrf()/unsStep;
 		A = cNode->getVArea();
 		Inf = cNode->getNetPrecipitation();
-        Melt = cNode->getLiqRouted()*10.0;//WR 12192023: to mm, but implicitly mm/hr as thats total amount melted in 1 hr
+        // getLiqRouted() is the melt DEPTH released over the snow/ET step [cm];
+        // dividing by the step length gives the rate. CJC2026
+        Melt = cNode->getLiqRouted()*10.0/etiStep;
 
         if(cNode->getLiqWE() + cNode->getIceWE() > 1e-4){
             Inf = Melt; //WR 12192023: snow on the ground Inf set to Melt

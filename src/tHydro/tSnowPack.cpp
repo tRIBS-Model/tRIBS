@@ -547,8 +547,11 @@ void tSnowPack::callSnowPack(tIntercept *Intercept, int flag) {
                 cNode->setNetPrecipitation(rain);
             }
 
-            precip = cNode->getNetPrecipitation(); //units in mm
-            precip += snUnload * ctom; // units in mm
+            precip = cNode->getNetPrecipitation(); //units in mm/hr
+            // snUnload is the canopy snow unloaded over this step [cm], a depth,
+            // while precip is a rate [mm/hr] that the mass updates below turn
+            // back into a depth via *timeSteps/3600. CJC2026
+            precip += snUnload * ctom / timeSteph; // cm/step -> mm/hr
 
             //change mass (volume) quantities to correct units (kJ, m, C, s)
             iceWE = iceWE * cmtonaught; // mm to m
@@ -564,9 +567,10 @@ void tSnowPack::callSnowPack(tIntercept *Intercept, int flag) {
             // in order to calculate the new snow depth.
 
             // Calculate Incoming Mass (temporary variables)
-            // precip is in mm. Convert to meters (0.001).
-            double newSnowM = (precip * snowFracCalc()) * 0.001; 
-            double newRainM = (precip * (1.0 - snowFracCalc())) * 0.001;
+            // precip is a rate in mm/hr, so scale by the timestep (hr) to get
+            // the depth arriving this step, then convert mm to m (0.001). CJC2026
+            double newSnowM = (precip * snowFracCalc()) * timeSteph * 0.001;
+            double newRainM = (precip * (1.0 - snowFracCalc())) * timeSteph * 0.001;
 
             // Calculate projected Mass States
             // Approximation of what the pack will look like after this timestep.
@@ -693,7 +697,10 @@ void tSnowPack::callSnowPack(tIntercept *Intercept, int flag) {
                 phfOnOff = 1.0;
 
                 //reset crust age if snowing out
-                if (precip * snowFracCalc() > albResetThresh) {
+                // albResetThresh is a depth (mm) but precip is a rate (mm/hr),
+                // so scale by the timestep (hr) to compare fresh-snow depth this
+                // step against the threshold. CJC2026
+                if (precip * snowFracCalc() * timeSteph > albResetThresh) {
                     crustAge = 0.0;
                 }
 
@@ -978,11 +985,16 @@ void tSnowPack::callSnowIntercept(tCNode *node, tIntercept *interceptModel, int 
         Imax = 4.4 * LAI;
 
         //compute new intercepted snow (kg/m^2)
-        Isnow = 0.7 * (Imax - Iold) * (1 - exp(-precip / Imax));
+        // precip is a rate (mm/hr == kg/m^2/hr) while the canopy load I is a
+        // mass (kg/m^2), so the interception update must use the precip depth
+        // arriving this timestep, and the intercepted mass must be converted
+        // back to a rate when debited from throughfall (netPrecipitation is
+        // consumed as mm/hr downstream). CJC2026
+        Isnow = 0.7 * (Imax - Iold) * (1 - exp(-(precip * timeSteph) / Imax));
         I = Iold + Isnow;
 
-        //precip minus intercepted snow (i.e. throughfall)
-        throughfall = precip - Isnow;
+        //precip minus intercepted snow (i.e. throughfall), kept as a rate (mm/hr)
+        throughfall = precip - Isnow / timeSteph;
 
         //if there was old snow, sublimate and unload
         if (Iold > 0.0 && flag) {
@@ -1176,8 +1188,8 @@ void tSnowPack::setToNodeSnP(tCNode *node) {
     node->setSnTempC(snTempC);
     node->setCrustAge(crustAge);
     node->setEvapoTransAge(ETAge);
-    node->setSnSub(snSub); // scaled by non-vegetated area
-    node->setSnEvap(snEvap); // scaled by non-vegetated area
+    node->setSnSub(snSub);
+    node->setSnEvap(snEvap);
 
     //mass flux
     node->setLiqRouted(liqRoute);
@@ -1244,7 +1256,9 @@ void tSnowPack::setToNodeSnP(tCNode *node) {
     node->addRLout(RLout * timeSteps);
     node->addRSin(RSin * timeSteps);
     node->addCumUerror(Uerr * timeSteps);
-    node->addCumHrsSnow(snOnOff);
+    // snOnOff is a 0/1 flag per ET step, so accumulating it raw counted steps
+    // rather than hours. Originally: addCumHrsSnow(snOnOff). CJC2026
+    node->addCumHrsSnow(snOnOff * timer->getEtIStep());
 
     //reset fluxes to zero
     L = H = Prec = G = RLin = RLout = RSin = dUint = 0.0;
@@ -1573,8 +1587,12 @@ double tSnowPack::precipitationHFCalc() {
     double frac;
 
     //  frac = snowFracCalc();
-    snPrec = (snowFracCalc() * (rain + ctom * snUnload)) * mtoc; //convert from mm to cm
-    liqPrec = ((1 - snowFracCalc()) * (rain + ctom * snUnload)) * mtoc; //convert from mm to cm
+    // snUnload is the canopy snow unloaded over this step [cm], a depth, while
+    // rain is a rate [mm/hr] and the /3600 below treats the sum as a per-hour
+    // depth, so the unloaded snow has to be expressed as a rate as well. CJC2026
+    double unloadRate = ctom * snUnload / timeSteph; // cm/step to mm/hr
+    snPrec = (snowFracCalc() * (rain + unloadRate)) * mtoc; //convert from mm to cm
+    liqPrec = ((1 - snowFracCalc()) * (rain + unloadRate)) * mtoc; //convert from mm to cm
 
     if (airTemp > 0) {
         // snPrec term is zero (ice assumed to be at 0C on arrival)
@@ -1703,9 +1721,11 @@ double tSnowPack::resFactCalc() {
     // https://doi.org/10.1029/2008WR007042
 
     // Bulk Richardson Number (Eq. 17)
-    // Use windSpeedS (attenuated wind at snow surface) in RiB calc.
-    // Though Ta is from 2m AGL, we prioritize the snow–air interface.
-    // This matches the aerodynamic resistance formulation and maintains internal consistency.
+    // Evaluated with windSpeedC, the reference-level wind, so that the wind and
+    // the air temperature Ta both refer to the same 2 m reference height.
+    // An earlier version used windSpeedS (the canopy-attenuated wind at the snow
+    // surface); note ra itself still blends ras(windSpeedS) and rav(windSpeedC),
+    // so RiB matches the rav term rather than the blend. CJC2026
     double RiB = (g * zm_eff * (Ta - Ts)) / (T_avg * windSpeedC* windSpeedC);
 
     // Compute upper limit Ri_u (Eq. 24)
@@ -1727,8 +1747,11 @@ double tSnowPack::resFactCalc() {
     }
 
 	// Clamp the stability correction factor to a reasonable range
-	// As RiB approaches Ri_cr, C_stab approaches infinity, so we limit it
-	if (C_stab > 15.0) { C_stab = 15.0; } // kaero can at most be 15 times the original value
+	// As RiB approaches Ri_cr, C_stab approaches infinity, so we limit it.
+	// The cap only binds in stable conditions (C_stab > 1, i.e. ra inflated);
+	// since ra *= C_stab and kaero = 1/ra, it keeps kaero from falling below
+	// 1/15 of its uncorrected value. CJC2026
+	if (C_stab > 15.0) { C_stab = 15.0; }
 
     // Apply correction to aerodynamic resistance
     ra *= C_stab;

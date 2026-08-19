@@ -59,6 +59,7 @@ protected:
 
   int finalTime;
   double metStep, unsStep, satStep; //WR 12192023: rounding errors converting from double in .in to int here
+  double etiStep;                   // Snow/ET step [hr]; see SetWaterBalance
   double *BasinStorages;
 };
 

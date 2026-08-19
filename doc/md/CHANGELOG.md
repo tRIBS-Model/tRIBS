@@ -38,6 +38,7 @@ The v6.0.0 changes listed below are abbreviated. For specific details refer to t
 * **Unsaturated Zone Water Balance:** Fixed several mass-balance errors in `tHydroModel::UnSaturatedZone` that created or destroyed small amounts of water. Evapotranspiration is now supply-limited before it is committed so reported ET cannot exceed the water deliverable above the water table pinned at bedrock (`tHydroModel::MaxSoilETRate`); the `WTStaysAtSurf` and `WTGetsToSurf` surface-runoff partitions now conserve net influx when net rainfall is negative under lateral inflow; and the `Perched_Evol` wedge collapse conserves column moisture instead of resetting it to a fixed value. ([#125](https://github.com/tRIBS-Model/tRIBS/pull/125))
 * **Snow Pack Mass Balance:** Corrected a sign error in `tSnowPack` where, when evaporation or sublimation demand exceeded the remaining liquid or ice store, the loss was recorded with the wrong sign, producing a mass-balance error as the pack disappeared. ([#125](https://github.com/tRIBS-Model/tRIBS/pull/125))
 * **Channel Transmission Loss Reporting:** Fixed a unit mismatch that truncated the transient channel-conductivity period to zero under sub-hourly timesteps, and corrected the MRF `ChannelPerc` output, which booked the full Darcy loss rate off negligible flow depths and accumulated it with a hardcoded timestep. Reported losses are now capped at the water available to each stream node and integrated over the routing timestep; the routing solver itself is unchanged. ([#125](https://github.com/tRIBS-Model/tRIBS/pull/125))
+* **Sub-hourly Forcing:** The original formulation of the snow module was not written to allow any input other than an hourly timestep with hourly forcing data. This has been fixed. Additionally, there were multiple problems with the output accumulators when using sub-hourly forcing that were corrected.
 
 ### Changed & Refactored
 * **Input Simplification:** Streamlined the `.in` file by removing legacy or unused options including:
@@ -102,7 +103,7 @@ The v6.0.0 changes listed below are abbreviated. For specific details refer to t
 ### Changed & Refactored
 * **Output Standard:** Modified writing of soil water state variables in pixel, dynamic, and MRF files to convert from sloped state variables to vertical depths.
 * **Solar Radiation:** Centralized slope, albedo, and vegetation corrections into `inShortWave()`, reducing redundancy and improving consistency across the energy balance module. ([#84](https://github.com/tRIBS-Model/tRIBS/pull/84))
-* **ET Partitioning:** Updated `tEvapoTrans` to prioritize potential evaporation partitioning: first to wet canopy, then transpiration, and lastly soil evaporation.
+* **ET Partitioning:** Updated `tEvapoTrans` to prioritize potential evaporation partitioning: first to wet canopy, and then transpiration. Soil evaporation is separate and uses the full potential ET rate in its calculation.
 * **Snow Physics Refactor:** ([#84](https://github.com/tRIBS-Model/tRIBS/pull/84))
     * Updated albedo decay function with a minimum albedo threshold.
     * Refactored latent and sensible heat flux for ground snowpack to prevent temperatures from dropping below zero when liquid water is present.
