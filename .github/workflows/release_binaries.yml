@@ -95,7 +95,7 @@ jobs:
 
       # CPACK_PACKAGE_FILE_NAME is the full project title with spaces and carries no
       # platform, which is why past releases were renamed by hand before upload.
-      - name: Rename asset and generate checksum
+      - name: Rename asset
         id: asset
         run: |
           version="${{ steps.release.outputs.version }}"
@@ -103,12 +103,6 @@ jobs:
           name="tRIBS-${version}-${{ matrix.asset_suffix }}.sh"
           mkdir -p dist
           mv "$src" "dist/${name}"
-          cd dist
-          if command -v sha256sum >/dev/null 2>&1; then
-            sha256sum "$name" > "${name}.sha256"
-          else
-            shasum -a 256 "$name" > "${name}.sha256"
-          fi
           echo "name=${name}" >> "$GITHUB_OUTPUT"
 
       # Extract the installer and run the binary the way a user would, to catch a
@@ -137,6 +131,5 @@ jobs:
         run: >
           gh release upload "${{ steps.release.outputs.tag }}"
           "dist/${{ steps.asset.outputs.name }}"
-          "dist/${{ steps.asset.outputs.name }}.sha256"
           --repo "${{ github.repository }}"
           --clobber
