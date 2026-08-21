@@ -14,3 +14,6 @@ __pycache__
 /testing/black_box/happy_jack_pytest/happy_jack/
 .vscode
 CMakePresets.json
+# CPack output from -Dpackaging=ON
+packaging/Linux/
+packaging/macOS/

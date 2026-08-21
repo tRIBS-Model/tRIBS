@@ -1,0 +1,135 @@
+name: release_binaries
+run-name: Attaching tRIBS binaries to ${{ github.event.release.tag_name || inputs.tag }}
+
+# Builds the serial tRIBS executable on each supported platform, packages it with
+# CPack, smoke-tests the resulting installer, and attaches it to the GitHub release.
+#
+# Only the serial executable is published. tRIBSpar links dynamically against the
+# runner's Open MPI (Homebrew on macOS, apt on Linux) and will not load on a machine
+# without that exact runtime at that exact prefix, so shipping it is misleading.
+# Anyone running MPI is compiling from source anyway.
+
+on:
+  release:
+    types: [published]
+  # Manual entry point, for re-running a failed upload or backfilling an older tag.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing release tag to build and attach binaries to (e.g. v6.0.0)"
+        required: true
+        type: string
+
+# Required for `gh release upload`. The default token is read-only on newer repos.
+permissions:
+  contents: write
+
+jobs:
+  package:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # ubuntu-22.04 rather than ubuntu-latest: the binary carries a glibc floor
+          # from whatever built it, and 22.04 (glibc 2.35) covers far more of the HPC
+          # systems tRIBS users run on than 24.04 (glibc 2.39) does.
+          - runner: ubuntu-22.04
+            os_label: Linux
+            package_dir: packaging/Linux
+            asset_suffix: Linux
+            extra_cmake_args: ""
+          - runner: macos-14
+            os_label: macOS/Silicon
+            package_dir: packaging/macOS/Silicon
+            asset_suffix: macOS-Silicon
+            extra_cmake_args: "-DCMAKE_OSX_DEPLOYMENT_TARGET=11.0"
+          - runner: macos-15-intel
+            os_label: macOS/Intel
+            package_dir: packaging/macOS/Intel
+            asset_suffix: macOS-Intel
+            # 10.15 is safe: the code base uses no std::filesystem, which is the only
+            # C++17 feature that would raise the floor.
+            extra_cmake_args: "-DCMAKE_OSX_DEPLOYMENT_TARGET=10.15"
+
+    runs-on: ${{ matrix.runner }}
+
+    steps:
+      - name: Resolve release tag
+        id: release
+        run: |
+          tag="${{ github.event.release.tag_name || inputs.tag }}"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout repository at the release tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.release.outputs.tag }}
+
+      # The version is hardcoded in CMakeLists.txt, so it can drift from the tag.
+      # Fail here rather than publishing an asset whose name lies about its contents.
+      - name: Verify tag matches TRIBS_VERSION
+        run: |
+          cmake_version=$(sed -n 's/^set(TRIBS_VERSION \([0-9.]*\))/\1/p' CMakeLists.txt)
+          if [ "${{ steps.release.outputs.version }}" != "$cmake_version" ]; then
+            echo "::error::Release tag ${{ steps.release.outputs.version }} does not match TRIBS_VERSION $cmake_version in CMakeLists.txt"
+            exit 1
+          fi
+
+      - name: Configure serial build
+        run: >
+          cmake -S . -B cmake-build-serial
+          -DCMAKE_BUILD_TYPE=Release
+          -Dparallel=OFF
+          -Dpackaging=ON
+          -Dos='${{ matrix.os_label }}'
+          ${{ matrix.extra_cmake_args }}
+
+      - name: Build
+        run: cmake --build cmake-build-serial --target all
+
+      # Serial-only, so the multi-config file in packaging/utilities is bypassed in
+      # favour of the config CMake generated for this build directory.
+      - name: Package with CPack
+        run: cpack --config cmake-build-serial/CPackConfig.cmake
+
+      # CPACK_PACKAGE_FILE_NAME is the full project title with spaces and carries no
+      # platform, which is why past releases were renamed by hand before upload.
+      - name: Rename asset
+        id: asset
+        run: |
+          version="${{ steps.release.outputs.version }}"
+          src="${{ matrix.package_dir }}/TIN-based Real-time Integrated Basin Simulator-${version}.sh"
+          name="tRIBS-${version}-${{ matrix.asset_suffix }}.sh"
+          mkdir -p dist
+          mv "$src" "dist/${name}"
+          echo "name=${name}" >> "$GITHUB_OUTPUT"
+
+      # Extract the installer and run the binary the way a user would, to catch a
+      # package that builds but cannot load its shared libraries.
+      - name: Smoke-test the packaged installer
+        run: |
+          # --exclude-subdir skips the header's own mkdir, so create the prefix first.
+          mkdir -p smoketest
+          ./dist/${{ steps.asset.outputs.name }} --skip-license --exclude-subdir --prefix="${PWD}/smoketest"
+          binary=$(find smoketest -type f -name tRIBS | head -n 1)
+          if [ -z "$binary" ]; then
+            echo "::error::No tRIBS executable found in the extracted package"
+            exit 1
+          fi
+          # No arguments prints usage and exits 1, so a clean load is exit 1 + usage text.
+          output=$("$binary" 2>&1) && status=0 || status=$?
+          echo "$output"
+          if [ "$status" -ne 1 ] || ! printf '%s' "$output" | grep -q "Usage:"; then
+            echo "::error::Packaged tRIBS did not run (exit ${status})"
+            exit 1
+          fi
+
+      - name: Upload to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: >
+          gh release upload "${{ steps.release.outputs.tag }}"
+          "dist/${{ steps.asset.outputs.name }}"
+          --repo "${{ github.repository }}"
+          --clobber
