@@ -28,7 +28,7 @@ We provide four options for accessing the tRIBS model:
 We have prepared multiple example applications for users to apply and learn from:
 
 1) [Benchmarks](https://github.com/tRIBS-Model/tRIBS-benchmarks): Two fully setup models that users can run themselves or explore various model inputs. Requires users to supply their own installation of the model.
-2) [Codespaces](https://github.com/tRIBS-Model/tRIBS-Workshop-Sandbox): An example application of generating and input file and running the model in a cloud computing environment, free of charge. Requires nothing from the user other than a Github account and a web-browser.
+2) [Codespaces](https://github.com/tRIBS-Model/tRIBS-Workshop-Sandbox): An example application of generating an input file and running the model in a cloud computing environment, free of charge. Requires nothing from the user other than a Github account and a web-browser.
 3) [pytRIBS Examples](https://github.com/tRIBS-Model/pytRIBS-examples): Example applications of full model generation in a Jupyter notebook using the pytRIBS python package. Requires the users to have pytRIBS installed in a python environment and Docker installed.
 
 ## Release/Version Notes
