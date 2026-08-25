@@ -39,6 +39,7 @@ The v6.0.0 changes listed below are abbreviated. For specific details refer to t
 * **Snow Pack Mass Balance:** Corrected a sign error in `tSnowPack` where, when evaporation or sublimation demand exceeded the remaining liquid or ice store, the loss was recorded with the wrong sign, producing a mass-balance error as the pack disappeared. ([#125](https://github.com/tRIBS-Model/tRIBS/pull/125))
 * **Channel Transmission Loss Reporting:** Fixed a unit mismatch that truncated the transient channel-conductivity period to zero under sub-hourly timesteps, and corrected the MRF `ChannelPerc` output, which booked the full Darcy loss rate off negligible flow depths and accumulated it with a hardcoded timestep. Reported losses are now capped at the water available to each stream node and integrated over the routing timestep; the routing solver itself is unchanged. ([#125](https://github.com/tRIBS-Model/tRIBS/pull/125))
 * **Sub-hourly Forcing:** The original formulation of the snow module was not written to allow any input other than an hourly timestep with hourly forcing data. This has been fixed. Additionally, there were multiple problems with the output accumulators when using sub-hourly forcing that were corrected.
+* **Transpiration Factor Units:** Fixed a unit mismatch in `tEvapoTrans::ComputeETComponents` where the psychrometric constant was used in kPa/K while the Clausius-Clapeyron slope was in Pa/K, causing the transpiration factor to be evaluated with a psychrometric term two orders of magnitude too small. Transpiration rates change in all simulations. ([#129](https://github.com/tRIBS-Model/tRIBS/pull/129))
 
 ### Changed & Refactored
 * **Input Simplification:** Streamlined the `.in` file by removing legacy or unused options including:
@@ -71,6 +72,7 @@ The v6.0.0 changes listed below are abbreviated. For specific details refer to t
 * Removed optional `Kpan` parameter for `OPTEVPOTRANS = 2`. Any input ET forcing is now used directly as Potential ET. ([#116](https://github.com/tRIBS-Model/tRIBS/pull/116))
 * Removed `OUTHYDROFILENAME` input file keyword. All outputs are now written based on the keyword `OUTFILENAME`. ([#118](https://github.com/tRIBS-Model/tRIBS/pull/118))
 * Removed `*.ctrl` output. This file was never used and is a legacy output from a debugging workflow. ([#118](https://github.com/tRIBS-Model/tRIBS/pull/118))
+* Removed `ActEvp_mm_h` from pixel output files. Subsequent columns shift by one position. ([#129](https://github.com/tRIBS-Model/tRIBS/pull/129))
 
 ---
 
