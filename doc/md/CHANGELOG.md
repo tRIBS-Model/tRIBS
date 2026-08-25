@@ -2,7 +2,7 @@
 # Changelog 
 All notable changes to this project are documented in this file.
 
-## [6.0.0] - Unreleased
+## [6.0.0] - 08/25/2026
 v6.0.0 is a major release focused on simplifying the user experience and streamlining the codebase, thus is not backwards compatabile with previous versions. This version introduces a major rework of the main input file, standardized input/output file formats, complete rework of the restart module, improvements to snow physics, adds modern raster support via GDAL, and implements optimizations to improve simulation performance. **To view examples of the updated v6.0.0 input structure and the new snow parameter files (.spf), please visit our [Model Benchmark Repository](https://github.com/tRIBS-Model/tRIBS-benchmarks).**
 
 The v6.0.0 changes listed below are abbreviated. For specific details refer to the tRIBS Wiki or the pull request links associated with the changes below.
