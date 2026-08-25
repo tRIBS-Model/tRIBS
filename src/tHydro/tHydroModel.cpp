@@ -2,7 +2,7 @@
  * TIN-based Real-time Integrated Basin Simulator (tRIBS)
  * Distributed Hydrologic Model
  *
- * Copyright (c) 2025. tRIBS Developers
+ * Copyright (c) tRIBS Developers
  *
  * See LICENSE file in the project root for full license information.
  ******************************************************************************/
@@ -118,12 +118,6 @@ void tHydroModel::SetHydroMVariables(tInputFile &infile,
 	} else {
 		surfaceSoilDepth = 100.0; // Default to 100mm
 	}
-	if (infile.IsItemIn( "ROOTZONEDEPTH" )) {
-		rootZoneDepth = infile.ReadItem(rootZoneDepth, "ROOTZONEDEPTH");
-	} else {
-		rootZoneDepth = 1000.0; // Default to 1000mm
-	}
-
 	// If a decision made to keep the state vars don't change anything,
 	// keep vars from previous run. Otherwise, re-initialize everything
 	if ( !keep )
@@ -278,9 +272,10 @@ void tHydroModel::InitSet(tResample *resamp)
 
 
 	//Assign Water Table to tCNode
+	// CJC2026: GWATERFILE depths are vertical; convert to slope-normal
 	int id2 = 0;
 	for( cn=nodIter.FirstP(); nodIter.IsActive(); cn=nodIter.NextP() ){
-		NwtNew = tmp[id2];              //Initial GW in mm
+		NwtNew = tmp[id2]*cn->getCosSlope();   //Initial GW in mm
 
 		cn->setNwtOld(NwtNew);
 		cn->setNwtNew(NwtNew);
@@ -299,6 +294,9 @@ void tHydroModel::InitSet(tResample *resamp)
 		BasArea += cn->getVArea();
 
 	// Loop through nodes to get Initial GW conditions
+	// CJC2026: cache the raw uniform bedrock input; the DtoBedrock member
+	// is overwritten with each node's slope-converted value inside the loop
+	double DtoBedrockRaw = DtoBedrock;
 	id = 0;
 	for (cn=nodIter.FirstP(); nodIter.IsActive(); cn=nodIter.NextP())
 	{
@@ -337,7 +335,11 @@ void tHydroModel::InitSet(tResample *resamp)
 		if (BRoption == 1)
 			bedRock = bedrock[id]*1000.;     //Convert meters into mm
 		else if (!BRoption)
-			bedRock = DtoBedrock;
+			bedRock = DtoBedrockRaw;
+
+		// CJC2026: Bedrock input depths are vertical; convert to the
+		// internal slope-normal coordinate
+		bedRock *= cn->getCosSlope();
 
 		//Temporary Lines added by Ricardo Mantilla
 		//cout<<"bedRockBefore: id: "<<id<<" depth: "<<bedRock<<endl;
@@ -428,21 +430,29 @@ void tHydroModel::InitSet(tResample *resamp)
 
 		// SKYnGM2008LU: Land Use Members (for both static and dynamic)
 		landPtr->setLandPtr( cn->getLandUse() );
-		a_LU    = landPtr->getLandProp(1);
-		b1_LU   = landPtr->getLandProp(2);
-		P_LU    = landPtr->getLandProp(3);
-		S_LU    = landPtr->getLandProp(4);
-		K_LU    = landPtr->getLandProp(5);
-		b2_LU   = landPtr->getLandProp(6);
-		Al_LU   = landPtr->getLandProp(7);
-		h_LU    = landPtr->getLandProp(8);
-		Kt_LU   = landPtr->getLandProp(9);
-		Rs_LU   = landPtr->getLandProp(10);
-		V_LU    = landPtr->getLandProp(11);
-		LAI_LU  = landPtr->getLandProp(12);
+		P_LU    = landPtr->getLandProp(1);
+		S_LU    = landPtr->getLandProp(2);
+		K_LU    = landPtr->getLandProp(3);
+		b2_LU   = landPtr->getLandProp(4);
+		Al_LU   = landPtr->getLandProp(5);
+		h_LU    = landPtr->getLandProp(6);
+		Kt_LU   = landPtr->getLandProp(7);
+		Rs_LU   = landPtr->getLandProp(8);
+		V_LU    = landPtr->getLandProp(9);
+		LAI_LU  = landPtr->getLandProp(10);
 		// CJC2025 Stress Thresholds
-		SE_LU   = landPtr->getLandProp(13);
-		ST_LU   = landPtr->getLandProp(14);
+		SE_LU   = landPtr->getLandProp(11);
+		ST_LU   = landPtr->getLandProp(12);
+		RZ_LU   = landPtr->getLandProp(13);
+
+		// Handle Rootzone Depth Input
+		if (RZ_LU >= 9999.99) { RZ_LU = 1000.0; } else { RZ_LU *= 1000.0; } // If user's rootzone depth is no data (9999.99) set to 1m default
+		RZ_LU   = std::max(RZ_LU, 100.0);
+		RZ_LU   = std::min(RZ_LU, bedRock);
+
+		cn->setRootZoneDepth(RZ_LU);
+		cn->setRootZoneDepthInPrevGrid(RZ_LU);
+		cn->setRootZoneDepthInUntilGrid(RZ_LU);
 		cn->setLandUseAlb(Al_LU);
 		cn->setLandUseAlbInPrevGrid(Al_LU);
 		cn->setLandUseAlbInUntilGrid(Al_LU);
@@ -458,12 +468,6 @@ void tHydroModel::InitSet(tResample *resamp)
 		cn->setVegFraction(V_LU);
 		cn->setVegFractionInPrevGrid(V_LU);
 		cn->setVegFractionInUntilGrid(V_LU);
-		cn->setCanStorParam(a_LU);
-		cn->setCanStorParamInPrevGrid(a_LU);
-		cn->setCanStorParamInUntilGrid(a_LU);
-		cn->setIntercepCoeff(b1_LU);
-		cn->setIntercepCoeffInPrevGrid(b1_LU);
-		cn->setIntercepCoeffInUntilGrid(b1_LU);
 		cn->setCanFieldCap(S_LU);
 		cn->setCanFieldCapInPrevGrid(S_LU);
 		cn->setCanFieldCapInUntilGrid(S_LU);
@@ -499,13 +503,13 @@ void tHydroModel::InitSet(tResample *resamp)
 		cn->setFlowVelocity(0.0);
 
 		cn->setSoilMoisture(ComputeSurfSoilMoist(surfaceSoilDepth));
-		cn->setRootMoisture(ComputeSurfSoilMoist(rootZoneDepth));
+		cn->setRootMoisture(ComputeSurfSoilMoist(RZ_LU));
 		cn->setSoilMoistureSC(cn->getSoilMoisture()/Ths);
 		cn->setRootMoistureSC(cn->getRootMoisture()/Ths);
 
-        // beta debug, set soil and root cutoff// TODO replace 100.0 and 1000.0 w/ variables for root zone and bedrock
         cn->setSoilCutoff(get_Upper_Moist(surfaceSoilDepth,bedRock)/surfaceSoilDepth); // volumetric soil moisture content of soil zone if water table reaches bedrock
-        cn->setRootCutoff(get_Upper_Moist(rootZoneDepth,bedRock)/rootZoneDepth);// volumetric soil moisture content of root zone if water table reaches bedrock
+        cn->setRootCutoff(get_Upper_Moist(RZ_LU,bedRock)/RZ_LU); // volumetric soil moisture content of root zone if water table reaches bedrock
+        cn->setRootCutoffDepth(RZ_LU); // cache the rootzone depth the cutoff was computed for
 
 
 
@@ -570,23 +574,27 @@ void tHydroModel::InitIntegralVars()
 
 		// SKYnGM2008LU: Land Use Members (for both static and dynamic)
 		landPtr->setLandPtr( cn->getLandUse() );
-		a_LU    = landPtr->getLandProp(1);
-		b1_LU   = landPtr->getLandProp(2);
-		P_LU    = landPtr->getLandProp(3);
-		S_LU    = landPtr->getLandProp(4);
-		K_LU    = landPtr->getLandProp(5);
-		b2_LU   = landPtr->getLandProp(6);
-		Al_LU   = landPtr->getLandProp(7);
-		h_LU    = landPtr->getLandProp(8);
-		Kt_LU   = landPtr->getLandProp(9);
-		Rs_LU   = landPtr->getLandProp(10);
-		V_LU    = landPtr->getLandProp(11);
-		LAI_LU  = landPtr->getLandProp(12);
+		P_LU    = landPtr->getLandProp(1);
+		S_LU    = landPtr->getLandProp(2);
+		K_LU    = landPtr->getLandProp(3);
+		b2_LU   = landPtr->getLandProp(4);
+		Al_LU   = landPtr->getLandProp(5);
+		h_LU    = landPtr->getLandProp(6);
+		Kt_LU   = landPtr->getLandProp(7);
+		Rs_LU   = landPtr->getLandProp(8);
+		V_LU    = landPtr->getLandProp(9);
+		LAI_LU  = landPtr->getLandProp(10);
 		// CJC2025 Stress Thresholds
-		SE_LU  = landPtr->getLandProp(13);
-		ST_LU  = landPtr->getLandProp(14);
-		cn->setAvCanStorParam(a_LU);
-		cn->setAvIntercepCoeff(b1_LU);
+		SE_LU  = landPtr->getLandProp(11);
+		ST_LU  = landPtr->getLandProp(12);
+		RZ_LU  = landPtr->getLandProp(13);
+
+		// Handle Rootzone Depth Input
+		if (RZ_LU >= 9999.99) { RZ_LU = 1000.0; } else { RZ_LU *= 1000.0; } // If user's rootzone depth is no data (9999.99) set to 1m default
+		RZ_LU  = std::max(RZ_LU, 100.0);
+		RZ_LU  = std::min(RZ_LU, cn->getBedrockDepth());
+
+		cn->setAvRootZoneDepth(RZ_LU);
 		cn->setAvThroughFall(P_LU);
 		cn->setAvCanFieldCap(S_LU);
 		cn->setAvDrainCoeff(K_LU);
@@ -602,7 +610,7 @@ void tHydroModel::InitIntegralVars()
 
 		CheckMoistureContent( cn );
 	}
-	}
+}
 
 /*************************************************************************
 **
@@ -717,6 +725,48 @@ void tHydroModel::SetupNodeUSZ(tCNode *cn)
 		cn->setSrf_Hr(0.0);
 }
 
+/*************************************************************************
+**
+**  tHydroModel::MaxSoilETRate(tCNode *, double)
+**
+**  Maximum soil-sourced ET rate [mm hr^-1, horizontal plane] the column
+**  can deliver this step. tEvapoTrans calls this before committing ET so
+**  that soil evaporation and transpiration are supply-limited at
+**  formation: the column cannot dry below the hydrostatic profile with
+**  the water table pinned at bedrock (Newton() clamps Nwt at DtoBedrock),
+**  so any demand beyond this rate would be silently refused by the
+**  unsaturated update while remaining reported as ET, creating phantom
+**  water.
+**
+*************************************************************************/
+double tHydroModel::MaxSoilETRate(tCNode *cn, double dt)
+{
+	double DtoB = cn->getBedrockDepth();
+
+	// Brooks-Corey retention parameters (as SetupNodeUSZ sets them)
+	Ths     = cn->getThetaS();
+	Thr     = cn->getThetaR();
+	PoreInd = cn->getPoreSize();
+	Psib    = cn->getAirEBubPres();
+
+	double NwtOldL = cn->getNwtOld();
+	double MuOldL  = cn->getMuOld();
+
+	// Extractable water above the water-table-at-bedrock floor [mm],
+	// slope-normal
+	double extractable = MuOldL + Ths*(DtoB - NwtOldL) - get_Total_Moist(DtoB);
+	if (extractable < 0.0)
+		extractable = 0.0;
+
+	// Slope factor, matching UnSaturatedZone()'s Cos. R1 carries ET as
+	// Ractual*Cos, so the horizontal ET rate the column can supply is
+	// extractable / (dt*Cos).
+	double edgeSlope = cn->getFlowEdg()->getSlope();
+	double Cos = (edgeSlope > 0.0) ? 1.0/sqrt(1.0 + edgeSlope*edgeSlope) : 1.0;
+
+	return extractable/(dt*Cos);
+}
+
 //=========================================================================
 //
 //
@@ -754,6 +804,7 @@ void tHydroModel::UnSaturatedZone(double dt)
 	double ThSurf;
 	double EvapSoi, EvapVeg;
 	double airTemp, Ta_hi, Ta_lo, alphat;
+	double totSurf;
 
    Ractual = xxsrf = 0.0;        //SMM - added 08132008
    Mperch = Mdelt = Mdva = AA = BB = 0.0; //SMM - added 08132008
@@ -799,9 +850,19 @@ void tHydroModel::UnSaturatedZone(double dt)
 		// Get geometry properties
 		ce = cn->getFlowEdg();
 
-		alpha = atan(ce->getSlope());
-		(alpha > 0.0 ? Cos = fabs(cos(alpha)) : Cos = 1.0);
-		(alpha > 0.0 ? Sin = fabs(sin(alpha)) : Sin = 0.0);
+		// Slope factors. Originally: alpha = atan(slope); Cos = cos(alpha);
+		// Sin = sin(alpha). Rewritten with the identities
+		// cos(atan(s)) = 1/sqrt(1+s^2) and sin(atan(s)) = s/sqrt(1+s^2)
+		// to avoid three expensive trig calls per node
+		double edgeSlope = ce->getSlope();
+		if (edgeSlope > 0.0) {
+			Cos = 1.0/sqrt(1.0 + edgeSlope*edgeSlope);
+			Sin = edgeSlope*Cos;
+		}
+		else {
+			Cos = 1.0;
+			Sin = 0.0;
+		}
 		
 		// Get Bedrock depth for computing Nwt
 		DtoBedrock = cn->getBedrockDepth(); // Added by CJC2020
@@ -824,11 +885,8 @@ void tHydroModel::UnSaturatedZone(double dt)
 			Ractual = cn->getRain() - EvapSoi - EvapVeg;
 
 		else if (Ioption != 0 && EToption == 0) {
-			if (Ioption != 1) {
-				cout<<"\nError: Cannot Have Rutter Model (on) and ET (off)"<<endl;
-				Ractual = cn->getRain();}
-			else
-				Ractual = cn->getNetPrecipitation();
+			cout<<"\nError: Cannot Have Rutter Model (on) and ET (off)"<<endl;
+			Ractual = cn->getRain();
 		}
 		else if (Ioption != 0 && EToption != 0) {
             Ractual = cn->getNetPrecipitation() - EvapSoi - EvapVeg;
@@ -848,7 +906,11 @@ void tHydroModel::UnSaturatedZone(double dt)
 			routeWE = cn->getLiqRouted();
 			if ((snWE > 1e-3) || (routeWE > 0.)) {
                 //WR 12182023 removed EvapVeg from route water following above approach and because transpiration can still occur w/snow
-				Ractual = 10.0*routeWE-EvapVeg; //have to convert to mm // Changed from R to Ractual CJC2020
+				// routeWE is the melt DEPTH released over this snow/ET step [cm],
+				// so 10*routeWE is the melt in mm delivered over ETISTEP hours.
+				// Ractual is a rate [mm hr^-1], multiplied by dt, so the depth 
+				// has to be divided by the step length. CJC2026
+				Ractual = 10.0*routeWE/timer->getEtIStep() - EvapVeg; // Changed from R to Ractual CJC2020
 			}
 		}
 
@@ -991,14 +1053,22 @@ void tHydroModel::UnSaturatedZone(double dt)
 			//----------------
 			case WTStaysAtSurf:
 
-				if (R > 0.0)
-					sbsrf = R*Cos;
-
-				// Exfiltration occurs due to lateral inflows
+				// Saturated column: all net influx leaves as runoff, so
+				// psrf + sbsrf must equal R1 (>= 0 by the state entry
+				// condition). R carries ET with its sign, a negative R
+				// (ET on a laterally-supplied saturated node) is debited
+				// against the inflow, not dropped; the pair is clamped
+				// so both components stay non-negative. CJC2026
 				if (QpIn > QpOut)
 					psrf = (QpIn-QpOut)*Cos;
 				else
-					sbsrf -= (QpOut-QpIn)*Cos;
+					psrf = 0.0;
+
+				sbsrf = R1 - psrf;
+				if (sbsrf < 0.0) {
+					psrf += sbsrf;
+					sbsrf = 0.0;
+				}
 
 				MiNew=0.0;
 				MuNew=0.0;
@@ -1026,19 +1096,26 @@ void tHydroModel::UnSaturatedZone(double dt)
 			case WTGetsToSurf:
 
 				// Partitioning into sbsrf & psrf
-				if (QpIn > QpOut) {
+				// Column fills to the surface: runoff is the net influx
+				// beyond the remaining deficit, psrf + sbsrf =
+				// R1 - (NwtOld*Ths - MuOld)/dt (>= 0 by the state entry
+				// condition). Lateral inflow fills the deficit first and
+				// its excess exits as psrf; the rain-side R carries ET
+				// with its sign so a negative R is debited against the
+				// lateral excess, not dropped; the pair is clamped so
+				// both components stay non-negative. CJC2026
+				totSurf = R1 + MuOld/dt - NwtOld*Ths/dt;
+				if (QpIn > QpOut)
 					psrf = (QpIn - QpOut)*Cos + MuOld/dt - NwtOld*Ths/dt;
-					if (psrf < 0.0) {
-						sbsrf = R*Cos + psrf;
-						psrf = 0.0;
-					}
-					else {
-						if (R > 0.0)
-							sbsrf = R*Cos;
-					}
-				}
 				else
-					sbsrf = (R + (QpIn - QpOut))*Cos + MuOld/dt - NwtOld*Ths/dt;
+						psrf = 0.0;
+				if (psrf < 0.0)
+					psrf = 0.0;
+				sbsrf = totSurf - psrf;
+				if (sbsrf < 0.0) {
+					psrf += sbsrf;
+					sbsrf = 0.0;
+				}
 
 				MuNew=0.0;
 				RiNew=0.0;
@@ -1307,6 +1384,8 @@ void tHydroModel::UnSaturatedZone(double dt)
 							// Check possible situations with Nf & Nwt
 							if (fabs(NfNew - (NwtNew+Psib)) <= 1.0E-3) {
 								NwtNew = NtOld-Psib;
+								if (NwtNew > DtoBedrock)
+									NwtNew = DtoBedrock;
 								cdest = (tCNode*)ce->getDestinationPtrNC();
 								NwtNext = cdest->getNwtOld();
 								NfNext  = cdest->getNfOld();
@@ -1318,6 +1397,8 @@ void tHydroModel::UnSaturatedZone(double dt)
 							}
 							else if (NfNew > (NwtNew+Psib)) {
 								NwtNew = NtOld-Psib;
+								if (NwtNew > DtoBedrock)
+									NwtNew = DtoBedrock;
 								cdest = (tCNode*)ce->getDestinationPtrNC();
 								NwtNext = cdest->getNwtOld();
 								NfNext  = cdest->getNfOld();
@@ -1375,9 +1456,21 @@ void tHydroModel::UnSaturatedZone(double dt)
 								else {
 									BB = -dt*(qn - R1)/(Ths-Thr) - Eps/F*exp(-F*NtOld/Eps);
 									AA = -exp(F*(BB-NtOld)/Eps);
-									NtNew = NtOld + (Eps/F*LambertW(AA) - BB);
-									if (AA < (-1/exp(1.0)))
-										cout<<"\nWarning: Value for LAMBERT f-n is too small\n\n";
+									// AA below the Lambert W branch point (-1/e) has no
+									// real W0 value; clamp to the branch-point limit
+									// W0(-1/e) = -1 instead of driving the Halley
+									// iteration into a non-convergent region.
+									// Original: NtNew = NtOld + (Eps/F*LambertW(AA) - BB);
+									if (AA < (-1/exp(1.0))) {
+										NtNew = NtOld + (Eps/F*(-1.0) - BB);
+										static int warnLambert1 = 0;
+										if (++warnLambert1 <= 10)
+											cout<<"\nWarning: Value for LAMBERT f-n is too small\n\n";
+										else if (warnLambert1 == 11)
+											cout<<"\nWarning: Value for LAMBERT f-n is too small (further warnings suppressed)\n\n";
+									}
+									else
+										NtNew = NtOld + (Eps/F*LambertW(AA) - BB);
 									RuNew = Ksat*exp(-F*NtNew);
 								}
 							}
@@ -1527,12 +1620,21 @@ void tHydroModel::UnSaturatedZone(double dt)
 
 						if ((RiNew-RuNew) < 1.0E-2 && (RiNew - RuNew) > 0.0)
 							RuNew = RiNew;
-						else if ((RiNew-RuNew) > 1.0E-2)
-							cout<<"\nWarning: UNSAT: RuNew < RiNew: id = "<<cn->getID()<<"\n";
+						else if ((RiNew-RuNew) > 1.0E-2) {
+							static int warnRuRi = 0;
+							if (++warnRuRi <= 10)
+								cout<<"\nWarning: UNSAT: RuNew < RiNew: id = "<<cn->getID()<<"\n";
+							else if (warnRuRi == 11)
+								cout<<"\nWarning: UNSAT: RuNew < RiNew (further warnings suppressed)\n";
+						}
 
 						if (RuNew > Ksat) {
-							cout<<"\nWarning: UNSAT: RuNew > Ksat: id = "
-							<<cn->getID()<<"\n\tRuNew = "<<RuNew<<"\tKsat = "<<Ksat<<"\n";
+							static int warnRuKsat = 0;
+							if (++warnRuKsat <= 10)
+								cout<<"\nWarning: UNSAT: RuNew > Ksat: id = "
+								<<cn->getID()<<"\n\tRuNew = "<<RuNew<<"\tKsat = "<<Ksat<<"\n";
+							else if (warnRuKsat == 11)
+								cout<<"\nWarning: UNSAT: RuNew > Ksat (further warnings suppressed)\n";
 						}
                     }
 				}
@@ -1558,9 +1660,14 @@ void tHydroModel::UnSaturatedZone(double dt)
                                 hsrf += (R1 - (qn - RiOld*Cos));
                                 R1 -= hsrf;
                             }
-                            else
-                                cout<<"\nWarning: Wrong state def.: R < Keqviv-RiOld*Cos: id = "
-                                <<cn->getID()<<"\n\n";
+                            else {
+                                static int warnStateDef1 = 0;
+                                if (++warnStateDef1 <= 10)
+                                    cout<<"\nWarning: Wrong state def.: R < Keqviv-RiOld*Cos: id = "
+                                    <<cn->getID()<<"\n\n";
+                                else if (warnStateDef1 == 11)
+                                    cout<<"\nWarning: Wrong state def.: R < Keqviv-RiOld*Cos (further warnings suppressed)\n\n";
+                            }
 
                             NtNew = 0.0;
                             MuNew = MuOld + R1*dt;
@@ -1714,10 +1821,14 @@ void tHydroModel::UnSaturatedZone(double dt)
 				// Check for possible situations with Nf and Nwt
 				if (fabs(NfNew - (NwtNew+Psib)) <= 1.0E-3) {
 					NwtNew = NtOld-Psib;
+					if (NwtNew > DtoBedrock)
+						NwtNew = DtoBedrock;
 					NfNew = NwtNew;
 				}
                 else if (NfNew > (NwtNew+Psib)) {
                     NwtNew = NtOld-Psib;
+                    if (NwtNew > DtoBedrock)
+                        NwtNew = DtoBedrock;
                     NfNew = NwtNew;
                     R1 += qn - ((NwtOld+Psib-NfOld)*(Ths-ThRiNf)/dt + RiNew*Cos);
                 }
@@ -1769,9 +1880,21 @@ void tHydroModel::UnSaturatedZone(double dt)
                         else {
                             BB = -dt*(qn - R1)/(Ths-Thr) - Eps/F*exp(-F*NtOld/Eps);
                             AA = -exp(F*(BB-NtOld)/Eps);
-                            if (AA < (-1.0/exp(1.0)))
-                                cout<<"\n\n\t\tWarning: Value for LAMBERT f-n is too small\n\n";
-                            NtNew = NtOld + (Eps/F*LambertW(AA) - BB);
+                            // AA below the Lambert W branch point (-1/e) has no
+                            // real W0 value; clamp to the branch-point limit
+                            // W0(-1/e) = -1 instead of driving the Halley
+                            // iteration into a non-convergent region.
+                            // Original: NtNew = NtOld + (Eps/F*LambertW(AA) - BB);
+                            if (AA < (-1.0/exp(1.0))) {
+                                NtNew = NtOld + (Eps/F*(-1.0) - BB);
+                                static int warnLambert2 = 0;
+                                if (++warnLambert2 <= 10)
+                                    cout<<"\n\n\t\tWarning: Value for LAMBERT f-n is too small\n\n";
+                                else if (warnLambert2 == 11)
+                                    cout<<"\n\n\t\tWarning: Value for LAMBERT f-n is too small (further warnings suppressed)\n\n";
+                            }
+                            else
+                                NtNew = NtOld + (Eps/F*LambertW(AA) - BB);
                             RuNew = Ksat*exp(-F*NtNew);
                         }
 
@@ -1787,20 +1910,36 @@ void tHydroModel::UnSaturatedZone(double dt)
                                 NfNew += (MuNew - (AA+BB))/(Ths - ThRiNf);
 
                                 if (NfNew >= (NwtNew+Psib)) {
-                                    if (NtNew > 0.0) {
-                                        NwtNew = NtNew - Psib;
-                                        NfNew = NtNew = NwtNew;
-                                        MuNew = MiNew = get_Total_Moist(NwtNew);
-                                        RiNew = RuNew = 0.0;
-                                    }
-                                    else if (NtNew == 0.0) {
+                                    // Front reached the capillary fringe:
+                                    // collapse the wedge into the water table
+                                    // conservatively, solve for the WT whose
+                                    // hydrostatic profile holds exactly MuNew,
+                                    // exporting any above-saturation excess.
+                                    // The original code resets here (MuNew =
+                                    // get_Total_Moist(NtNew-Psib) for NtNew>0,
+                                    // MuNew = 0 with full saturation for
+                                    // NtNew==0) discarded the difference and
+                                    // destroyed wedge water. CJC2026
+                                    if (MuNew >= NwtOld*Ths) {
+                                        sbsrf += (MuNew - NwtOld*Ths)/dt;
                                         NwtNew = NfNew = NtNew = 0.0;
                                         MuNew = MiNew = 0.0;
                                         RiNew = RuNew = 0.0;
                                     }
+                                    else {
+                                        Mdelt = Ths*NwtOld - MuNew;
+                                        NwtNew = Newton(Mdelt, NwtOld);
+                                        MiNew = get_Total_Moist(NwtNew);
+                                        MuNew = MiNew;
+                                        NfNew = NtNew = NwtNew;
+                                        RiNew = RuNew = 0.0;
+                                    }
                                 }
                                 else {
-                                    MuNew = AA+BB;
+                                    // The wedge excess was absorbed by
+                                    // advancing NfNew above; MuNew already
+                                    // holds it. The original code, MuNew = AA+BB
+                                    // reset destroyed that excess. CJC2026
                                     if (NtNew == 0.0)
                                         RuNew = Ksat*F*NfNew/expm1(F*NfNew);
 									}
@@ -1860,8 +1999,12 @@ void tHydroModel::UnSaturatedZone(double dt)
 							}
 
 							else {
-						    	    cout<<"\nWarning: WRONG state def.: R < Keqviv-RiOld*Cos: id = "
-								<<cn->getID()<<"\n\n";
+								static int warnStateDef2 = 0;
+								if (++warnStateDef2 <= 10)
+									cout<<"\nWarning: WRONG state def.: R < Keqviv-RiOld*Cos: id = "
+									<<cn->getID()<<"\n\n";
+								else if (warnStateDef2 == 11)
+									cout<<"\nWarning: WRONG state def.: R < Keqviv-RiOld*Cos (further warnings suppressed)\n\n";
                             }
 
 							NtNew = 0.0;
@@ -2066,10 +2209,22 @@ void tHydroModel::UnSaturatedZone(double dt)
 		cn->setAvSoilMoisture(floor((BB*AA + ThSurf/Ths)/(AA+1)*1.0E+4));
 
 		// Estimate average root soil moisture
-		ThSurf = ComputeSurfSoilMoist(rootZoneDepth);
-		cn->setRootMoisture( ThSurf );
-		cn->setRootMoistureSC( ThSurf/Ths );
-		cn->addAvSoilMoisture((Mdelt*AA + ThSurf/Ths)/(AA+1.0)*1.0E-1);
+		{
+			double rzDepth = std::min(cn->getRootZoneDepth(), DtoBedrock);
+			ThSurf = ComputeSurfSoilMoist(rzDepth);
+			cn->setRootMoisture( ThSurf );
+			cn->setRootMoistureSC( ThSurf/Ths );
+			// RootCutoff = get_Upper_Moist(rzDepth, DtoBedrock)/rzDepth depends
+			// only on the rootzone depth, bedrock depth and the static soil
+			// properties, so recompute it only when the rootzone depth changes
+			// (e.g. dynamic land-use grids) instead of every time step: the
+			// pow() calls inside get_Upper_Moist showed up in runtime profiles
+			if (rzDepth != cn->getRootCutoffDepth()) {
+				cn->setRootCutoff( get_Upper_Moist(rzDepth, DtoBedrock) / rzDepth );
+				cn->setRootCutoffDepth(rzDepth);
+			}
+		}
+		cn->addAvSoilMoisture((Mdelt*AA + cn->getRootMoisture()/Ths)/(AA+1.0)*1.0E-1);
 
 		// Set other variables
 		cn->setRecharge((NwtNew-NwtOld)*Ths/(Cos*dt));
@@ -2083,8 +2238,22 @@ void tHydroModel::UnSaturatedZone(double dt)
 			cn->sbsrfOccur=cn->sbsrfOccur+floor(sbsrf*1.0E+3)+1.0E-6;
 		if (psrf>0.0)
 			cn->psrfOccur=cn->psrfOccur+floor(psrf*1.0E+3)+1.0E-6;
-		if (ComputeSurfSoilMoist(1.0)/Ths > 0.999)
-			cn->satOccur = cn->satOccur + 1;
+
+		// Saturation occurrence counter. The original test was simply
+		//     if (ComputeSurfSoilMoist(1.0)/Ths > 0.999) satOccur++;
+		// i.e. the average moisture in the top 1 mm exceeds 99.9% of
+		// saturation. ComputeSurfSoilMoist is expensive (pow/exp/log), so in
+		// the most common state like initial hydrostatic profile (no wetting
+		// front) with a deep enough water table it is skipped: moisture
+		// only increases with depth, so the top 1 mm cannot be near
+		// saturation when NwtNew >= NwtSatThresh (see ComputeNwtSatThreshold
+		// for the derivation). The counter values are unchanged.
+		if (cn->getNwtSatThresh() < 0.0)
+			cn->setNwtSatThresh(ComputeNwtSatThreshold());
+		if (!((NfNew == 0.0 || NfNew == NwtNew) && NwtNew >= cn->getNwtSatThresh())) {
+			if (ComputeSurfSoilMoist(1.0)/Ths > 0.999)
+				cn->satOccur = cn->satOccur + 1;
+		}
 
 		// The term with 'sbsrf' is not exactly right...
 		cn->RechDisch=cn->RechDisch+((NwtOld-NwtNew)+sbsrf*dt*Cos/Ths)*1.0E-3;
@@ -2247,6 +2416,31 @@ void tHydroModel::UnSaturatedZone(double dt)
 
 /*************************************************************************
 **
+**  tHydroModel::PowPsibOverNwt( double )
+**
+**  Returns pow((-Psib/Nwt), PoreInd), the Brooks-Corey term shared by
+**  get_Total_Moist and get_Upper_Moist. Those functions are called
+**  several times per node per time step with the same water table depth
+**  Nwt, so the last result is cached and reused: pow() is expensive and
+**  dominated the runtime profile. The cache keys on all three inputs
+**  (Nwt, Psib, PoreInd), so a stale value can never be returned. The
+**  result is always identical to calling pow() directly.
+**
+*************************************************************************/
+double tHydroModel::PowPsibOverNwt(double Nwt)
+{
+	if (Nwt != cachedPowNwt || Psib != cachedPowPsib ||
+		PoreInd != cachedPowPoreInd) {
+		cachedPowNwt = Nwt;
+		cachedPowPsib = Psib;
+		cachedPowPoreInd = PoreInd;
+		cachedPowVal = pow((-Psib/Nwt), PoreInd);
+	}
+	return cachedPowVal;
+}
+
+/*************************************************************************
+**
 **  tHydroModel::get_Total_Moist( double )
 **
 **  Allows to get the total moisture value in the initial profile
@@ -2260,7 +2454,7 @@ double tHydroModel::get_Total_Moist(double Nwt)
 			dM = Thr*(Nwt+Psib)-fabs(Psib)*(Ths-Thr)*log((-Psib)/Nwt)-Ths*Psib;
 		else
 			dM = Thr*(Nwt+Psib)-Ths*Psib-(Ths-Thr)/(PoreInd-1.0)*
-				(Psib + Nwt*pow((-Psib/Nwt),PoreInd));
+				(Psib + Nwt*PowPsibOverNwt(Nwt)); // = pow((-Psib/Nwt),PoreInd), cached
 	}
 	else if (Nwt == 0.0)
 		dM = 0.0;
@@ -2295,14 +2489,14 @@ double tHydroModel::get_Upper_Moist(double Nf, double Nwt)
 			dM = Thr*Nf + fabs(Psib)*(Ths-Thr)*log(Nwt/(Nwt-Nf));
 		else
 			dM = Thr*Nf - (Ths-Thr)/(PoreInd-1.0)*
-				((Nf-Nwt)*pow((Psib/(Nf-Nwt)),PoreInd) + Nwt*pow((-Psib/Nwt),PoreInd));
+				((Nf-Nwt)*pow((Psib/(Nf-Nwt)),PoreInd) + Nwt*PowPsibOverNwt(Nwt));
 	}
 	else {
 		if (PoreInd >(1.0-1.0E-6) && PoreInd <(1.0+1.0E-6))
 			dM = get_Total_Moist(Nwt) + Ths*Psib + Ths*(Nf-(Nwt+Psib));
 		else
 			dM = Thr*(Nwt+Psib) - (Ths-Thr)/(PoreInd-1.0)*
-				(Psib + Nwt*pow((-Psib/Nwt),PoreInd)) + Ths*(Nf-(Nwt+Psib));
+				(Psib + Nwt*PowPsibOverNwt(Nwt)) + Ths*(Nf-(Nwt+Psib));
 	}
 	return dM;
 }
@@ -2364,19 +2558,32 @@ double tHydroModel::get_EdgeMoist_depthZ(double Nf) const
 **
 **  Note: ThRiNf & ThReNf must be defined before the function run
 **
+**  Computes, with PoreIndF = PoreInd*exp(-F*Nf/2) being the pore-size
+**  distribution index adjusted for the conductivity decay with depth:
+**
+**     Se(theta) = ((theta - Thr)/(Ths - Thr)) ^ (3 + 1/PoreIndF)
+**     G = -Psib*(Se0 - SeIn)/(3*PoreIndF + 1)        [mm]
+**
+**  where SeIn uses theta = ThRiNf, Se0 uses theta = ThReNf, and Se0 = 1
+**  in the saturated phase (ThReNf == Ths). The exp() term and the Se
+**  exponent are evaluated once and reused.
+**
 *************************************************************************/
 void tHydroModel::set_Suction_Term(double Nf)
 {
+	double PoreIndF = PoreInd*exp(-F*Nf/2.);
+	double SeExp    = 3. + 1./PoreIndF;
+
+	SeIn = pow(((ThRiNf-Thr)/(Ths-Thr)), SeExp);
+
 	if (ThReNf == Ths) { // <--- Saturated phase
-		SeIn = pow(((ThRiNf-Thr)/(Ths-Thr)),(3. + 1./(PoreInd*exp(-F*Nf/2.))));
-		G = -Psib*(1. - SeIn)/(3*PoreInd*exp(-F*Nf/2.) + 1.);  // UNITS: mm
+		G = -Psib*(1. - SeIn)/(3.*PoreIndF + 1.);  // UNITS: mm
 	}
 	else {
-		SeIn = pow(((ThRiNf-Thr)/(Ths-Thr)),(3. + 1./(PoreInd*exp(-F*Nf/2.))));
-		Se0  = pow(((ThReNf-Thr)/(Ths-Thr)),(3. + 1./(PoreInd*exp(-F*Nf/2.))));
-		G = -Psib*(Se0 - SeIn)/(3.0*PoreInd*exp(-F*Nf/2.) + 1.);  // UNITS: mm
+		Se0  = pow(((ThReNf-Thr)/(Ths-Thr)), SeExp);
+		G = -Psib*(Se0 - SeIn)/(3.*PoreIndF + 1.);  // UNITS: mm
 	}
-	}
+}
 
 /*************************************************************************
 **
@@ -2538,8 +2745,10 @@ void tHydroModel::ComputeFluxesNodes1D()
 	for ( cn=nodIter.FirstP(); nodIter.IsActive(); cn=nodIter.NextP() ) {
 		WTSlope = -999.0;
 		cnorg = cn;
-		alpha = atan((cnorg->getFlowEdg())->getSlope());
-		Cos1 = cos(alpha);
+		// Originally Cos1 = cos(atan(slope)); identical to 1/sqrt(1+s^2)
+		// but avoids two expensive trig calls per node
+		double slpOrg = (cnorg->getFlowEdg())->getSlope();
+		Cos1 = 1.0/sqrt(1.0 + slpOrg*slpOrg);
 
         // Giuseppe 2016 - Begin changes to allow reading soil properties from grids
 		//soilPtr->setSoilPtr( cnorg->getSoilID() );
@@ -2567,8 +2776,9 @@ void tHydroModel::ComputeFluxesNodes1D()
 				 (cnorg->getBoundaryFlag()  != kClosedBoundary) &&
 				 (cndest->getBoundaryFlag() != kClosedBoundary) ) {
 
-				alpha = atan( (cndest->getFlowEdg())->getSlope() );
-				Cos2 = cos(alpha);
+				// Originally Cos2 = cos(atan(slope)), see Cos1 above
+				double slpDest = (cndest->getFlowEdg())->getSlope();
+				Cos2 = 1.0/sqrt(1.0 + slpDest*slpDest);
 
                 // Giuseppe 2016 - Begin changes to allow reading soil properties from grids
 				//                soilPtr->setSoilPtr( cndest->getSoilID() );
@@ -2698,10 +2908,13 @@ void tHydroModel::ComputeFluxesEdgesND()
 			 &&  (cnorg->getBoundaryFlag() != kClosedBoundary) &&
 			 (cndest->getBoundaryFlag() != kClosedBoundary) ) {
 
-			alpha = atan( (cnorg->getFlowEdg())->getSlope() );    //Slope for subsurface fl.
-			Cos1 = cos(alpha);
-			alpha = atan( (cndest->getFlowEdg())->getSlope() );   //Slope for subsurface fl.
-			Cos2 = cos(alpha);
+			// Slopes for subsurface fl. Originally cos(atan(slope));
+			// identical to 1/sqrt(1+s^2) but avoids four expensive trig
+			// calls per edge
+			double slpOrg  = (cnorg->getFlowEdg())->getSlope();
+			double slpDest = (cndest->getFlowEdg())->getSlope();
+			Cos1 = 1.0/sqrt(1.0 + slpOrg*slpOrg);
+			Cos2 = 1.0/sqrt(1.0 + slpDest*slpDest);
 
             // Giuseppe 2016 - Begin changes to allow reading soil properties from grids
 			//            soilPtr->setSoilPtr( cnorg->getSoilID() );
@@ -3053,9 +3266,10 @@ void tHydroModel::SaturatedZone(double dtGW)
 		// Initialize runoff
 		srf = satsrf = 0.0;
 
-		// Get geometry
-		alpha = atan(cn->getFlowEdg()->getSlope());
-		(alpha > 0.0 ? Cos = fabs(cos(alpha)) : Cos = 1.0);
+		// Get geometry. Originally Cos = cos(atan(slope)); identical to
+		// 1/sqrt(1+s^2) but avoids two expensive trig calls per node
+		double edgeSlope = cn->getFlowEdg()->getSlope();
+		Cos = (edgeSlope > 0.0) ? 1.0/sqrt(1.0 + edgeSlope*edgeSlope) : 1.0;
 
 		Area = cn->getVArea();   // M^2;
 		
@@ -3481,9 +3695,15 @@ void tHydroModel::SaturatedZone(double dtGW)
             cn->satsrfOccur = cn->satsrfOccur + floor(satsrf * 1.0E+3) + 1.0E-6;
         }
 
-		if (ComputeSurfSoilMoist(1.0)/Ths > 0.999) {
-            cn->satOccur = cn->satOccur + 1;
-        }
+		// Saturation occurrence counter: same gated test as in
+		// UnSaturatedZone(), see the comment there. Original test:
+		//     if (ComputeSurfSoilMoist(1.0)/Ths > 0.999) satOccur++;
+		if (cn->getNwtSatThresh() < 0.0)
+			cn->setNwtSatThresh(ComputeNwtSatThreshold());
+		if (!((NfNew == 0.0 || NfNew == NwtNew) && NwtNew >= cn->getNwtSatThresh())) {
+			if (ComputeSurfSoilMoist(1.0)/Ths > 0.999)
+				cn->satOccur = cn->satOccur + 1;
+		}
 
 		cn->RechDisch=cn->RechDisch+((NwtOld-NwtNew)+satsrf*dtGW*Cos/Ths)*1.0E-3;
 
@@ -3510,10 +3730,18 @@ void tHydroModel::SaturatedZone(double dtGW)
 		cn->setAvSoilMoisture(floor((BB*AA + ThSurf/Ths)/(AA+1)*1.0E+4));
 
 		// Estimate average root soil moisture
-		ThSurf = ComputeSurfSoilMoist(rootZoneDepth);
-		cn->setRootMoisture( ThSurf );
-		cn->setRootMoistureSC( ThSurf/Ths );
-		cn->addAvSoilMoisture((Mdelt*AA + ThSurf/Ths)/(AA+1.0)*1.0E-1);
+		{
+			double rzDepth = std::min(cn->getRootZoneDepth(), DtoBedrock);
+			ThSurf = ComputeSurfSoilMoist(rzDepth);
+			cn->setRootMoisture( ThSurf );
+			cn->setRootMoistureSC( ThSurf/Ths );
+			// Recompute RootCutoff only when the rootzone depth changes
+			if (rzDepth != cn->getRootCutoffDepth()) {
+				cn->setRootCutoff( get_Upper_Moist(rzDepth, DtoBedrock) / rzDepth );
+				cn->setRootCutoffDepth(rzDepth);
+			}
+		}
+		cn->addAvSoilMoisture((Mdelt*AA + cn->getRootMoisture()/Ths)/(AA+1.0)*1.0E-1);
 
 		cn->setRecharge((NwtNew-NwtOld)*Ths/(Cos*dtGW));
 		// The following are in [M^3]
@@ -3658,6 +3886,36 @@ double tHydroModel::ComputeSurfSoilMoist(double Z)
 
 /*************************************************************************
 **
+**  tHydroModel::ComputeNwtSatThreshold()
+**
+**  Returns the water table depth (mm) above which the top 1 mm of soil
+**  can possibly be saturated, used to skip the expensive satOccur test
+**  ComputeSurfSoilMoist(1.0)/Ths > 0.999 when it must be false.
+**
+**  Derivation, valid for the initial hydrostatic profile (no wetting
+**  front), where moisture only increases with depth toward the water
+**  table, so the top 1 mm average cannot exceed the moisture at 1 mm:
+**
+**     theta(1mm) = Thr + (Ths-Thr)*(-Psib/(Nwt-1))^PoreInd  >  0.999*Ths
+**
+**  rearranges to Nwt < NwtSatThresh with
+**
+**     NwtSatThresh = 1 + (-Psib)*((Ths-Thr)/(0.999*Ths-Thr))^(1/PoreInd)
+**
+**  Depends only on static soil properties: computed once per node and
+**  cached in tCNode.
+**
+*************************************************************************/
+double tHydroModel::ComputeNwtSatThreshold() const
+{
+	double denom = 0.999*Ths - Thr;
+	if (denom <= 0.0)
+		return 1.0E+9; // degenerate soil parameters: never skip the full test
+	return 1.0 + (-Psib)*pow((Ths-Thr)/denom, 1.0/PoreInd);
+}
+
+/*************************************************************************
+**
 ** tHydroModel::get_Z1Z2_Moist(double Z1, double Z2, double Nwt)
 **
 ** Allows to get a moisture content in the initial profile between depths
@@ -3718,8 +3976,9 @@ double tHydroModel::GetCellRunon( tCNode *cn, double DTUS )
 
 	runon = 0.0;
 
-	alpha = atan(cn->getFlowEdg()->getSlope());
-	(alpha > 0.0 ? Cos = fabs(cos(alpha)) : Cos = 1.0);
+	// Originally Cos = cos(atan(slope)) = 1/sqrt(1+s^2), avoids trig calls
+	double edgeSlope = cn->getFlowEdg()->getSlope();
+	Cos = (edgeSlope > 0.0) ? 1.0/sqrt(1.0 + edgeSlope*edgeSlope) : 1.0;
 
 	firstedg = cn->getFlowEdg();
 	curedg = firstedg->getCCWEdg();
@@ -3793,8 +4052,9 @@ void tHydroModel::SetCellRunon( tCNode *cn, double runoff,
 			// Find upslope element contributing to the current element
 			if (cnn->getFlowEdg()->getDestinationPtrNC() == (tNode*)cn &&
 				cnn->getSrf() > 0.0) {
-				alpha = atan(cnn->getFlowEdg()->getSlope());
-				(alpha > 0.0 ? Cos1 = fabs(cos(alpha)) : Cos1 = 1.0);
+				// Originally Cos1 = cos(atan(slope)) = 1/sqrt(1+s^2)
+				double slpNbr = cnn->getFlowEdg()->getSlope();
+				Cos1 = (slpNbr > 0.0) ? 1.0/sqrt(1.0 + slpNbr*slpNbr) : 1.0;
 
 				// Account for area and slope differences [mm hour^-1]
 				runoff = ((cnn->getSrf())/DTUS);
@@ -3905,7 +4165,7 @@ double tHydroModel::LambertW(double z)
 	n = 0;
 	setComplex(&t, 1000, 1000);
 
-	while ((n < 15) && (fabs(t.r) > xy) || (fabs(t.i) > xx)) {
+	while (n < 15 && (fabs(t.r) > xy || fabs(t.i) > xx)) {
 		xx = exp(Cr(&w));
 		setComplex(&p, (xx*cos(Ci(&w))), (xx*sin(Ci(&w))));
 
@@ -4190,20 +4450,49 @@ double tHydroModel::rtsafe_mod(double c1, double c2, double c3,
 **  the value of its derivative (dv). Used in Newton iterative procedure
 **  to find root of an equation.
 **
+**  Evaluates the polynomial and its derivative:
+**     fv = C1*x^PoreInd + C3*x^(PoreInd-1) + C2
+**     dv = C1*PoreInd*x^(PoreInd-1) + C3*(PoreInd-1)*x^(PoreInd-2)
+**
+**  PERFORMANCE NOTE: pow() is expensive and this function runs inside the
+**  Newton/rtsafe iteration loops (up to ~30 calls per node per time step).
+**  The three powers above differ only by whole numbers, so instead of five
+**  pow() calls we compute x^(PoreInd-2) once and multiply up by x:
+**     x^(PoreInd-1) = x^(PoreInd-2) * x
+**     x^PoreInd     = x^(PoreInd-1) * x
+**  The math is essentially identical to the equations above.
+**
 ***************************************************************************/
 void tHydroModel::polyn(double x, double& fv, double& dv,
                         double C1, double C2, double C3) const
 {
-	fv = C1*pow(x,PoreInd) + C3*pow(x,(PoreInd-1.0)) + C2;
-	dv = C1*PoreInd*pow(x,(PoreInd-1.0)) + C3*(PoreInd-1.0)*pow(x,(PoreInd-2.0));
+	double xPm2 = pow(x,(PoreInd-2.0)); // x^(PoreInd-2)
+	double xPm1 = xPm2*x;               // x^(PoreInd-1)
+	double xP   = xPm1*x;               // x^PoreInd
+	fv = C1*xP + C3*xPm1 + C2;
+	dv = C1*PoreInd*xPm1 + C3*(PoreInd-1.0)*xPm2;
 }
 
+/***************************************************************************
+**
+**  Second form, written in terms of the depth difference (Nwt - x):
+**     fv = C1*x*(Nwt-x)^(PoreInd-1) + C3*(Nwt-x)^(PoreInd-1) - C2
+**     dv = C1*(Nwt-x)^(PoreInd-1) - C1*(PoreInd-1)*x*(Nwt-x)^(PoreInd-2)
+**          - C3*(PoreInd-1)*(Nwt-x)^(PoreInd-2)
+**
+**  Same change as above: (Nwt-x)^(PoreInd-2) is computed with a
+**  single pow() call and (Nwt-x)^(PoreInd-1) is obtained by multiplying
+**  by (Nwt-x), replacing five pow() calls with one.
+**
+***************************************************************************/
 void tHydroModel::polyn(double x, double Nwt, double& fv, double& dv,
 						double C1, double C2, double C3) const
 {
-	fv = C1*x*pow((Nwt-x),(PoreInd-1.0)) + C3*pow((Nwt-x),(PoreInd-1.0)) - C2;
-	dv = C1*pow((Nwt-x),(PoreInd-1.0))-C1*(PoreInd-1.0)*x*pow((Nwt-x),(PoreInd-2.0))-
-		C3*(PoreInd-1.0)*pow((Nwt-x),(PoreInd-2.0));
+	double y    = Nwt - x;
+	double yPm2 = pow(y,(PoreInd-2.0)); // (Nwt-x)^(PoreInd-2)
+	double yPm1 = yPm2*y;               // (Nwt-x)^(PoreInd-1)
+	fv = C1*x*yPm1 + C3*yPm1 - C2;
+	dv = C1*yPm1 - C1*(PoreInd-1.0)*x*yPm2 - C3*(PoreInd-1.0)*yPm2;
 }
 
 
@@ -4383,203 +4672,6 @@ void tHydroModel::PrintNewGWVars(tCNode *cn, int Pixel_State)
 		}
 	}
 	}
-
-/***************************************************************************
-**
-** tEvapoTrans::writeRestart() Function
-**
-** Called from tSimulator during simulation loop
-**
-***************************************************************************/
-
-void tHydroModel::writeRestart(fstream & rStr) const
-{
-  BinaryWrite(rStr, RunOnoption);
-  BinaryWrite(rStr, BasArea);
-  BinaryWrite(rStr, qrunon);
-  BinaryWrite(rStr, ID);
-  BinaryWrite(rStr, EToption);
-  BinaryWrite(rStr, Ioption);
-  BinaryWrite(rStr, gFluxOption);
-  BinaryWrite(rStr, BRoption);
-  BinaryWrite(rStr, RdstrOption);
-  BinaryWrite(rStr, GWoption);
-  BinaryWrite(rStr, NwtOld);
-  BinaryWrite(rStr, NwtNew);
-  BinaryWrite(rStr, MuOld);
-  BinaryWrite(rStr, MuNew);
-  BinaryWrite(rStr, MiOld);
-  BinaryWrite(rStr, MiNew);
-  BinaryWrite(rStr, NfOld);
-  BinaryWrite(rStr, NfNew);
-  BinaryWrite(rStr, NtOld);
-  BinaryWrite(rStr, NtNew);
-  BinaryWrite(rStr, RuOld);
-  BinaryWrite(rStr, RuNew);
-  BinaryWrite(rStr, RiOld);
-  BinaryWrite(rStr, RiNew);
-  BinaryWrite(rStr, QpIn);
-  BinaryWrite(rStr, QpOut);
-  BinaryWrite(rStr, QIn);
-  BinaryWrite(rStr, QOut);
-  BinaryWrite(rStr, R1);
-  BinaryWrite(rStr, Rain);
-  BinaryWrite(rStr, alpha);
-  BinaryWrite(rStr, Cos);
-  BinaryWrite(rStr, Sin);
-  BinaryWrite(rStr, gwchange);
-  BinaryWrite(rStr, srf);
-  BinaryWrite(rStr, hsrf);
-  BinaryWrite(rStr, esrf);
-  BinaryWrite(rStr, psrf);
-  BinaryWrite(rStr, satsrf);
-  BinaryWrite(rStr, sbsrf);
-  BinaryWrite(rStr, G);
-  BinaryWrite(rStr, SeIn);
-  BinaryWrite(rStr, Se0);
-  BinaryWrite(rStr, ThRiNf);
-  BinaryWrite(rStr, ThReNf);
-  BinaryWrite(rStr, Ksat);
-  BinaryWrite(rStr, F);
-  BinaryWrite(rStr, Ths);
-  BinaryWrite(rStr, Thr);
-  BinaryWrite(rStr, Ar);
-  BinaryWrite(rStr, UAr);
-  BinaryWrite(rStr, PoreInd);
-  BinaryWrite(rStr, Eps);
-  BinaryWrite(rStr, Psib);
-  BinaryWrite(rStr, porosity);
-  BinaryWrite(rStr, Stok);
-  BinaryWrite(rStr, TotRain);
-  BinaryWrite(rStr, TotGWchange);
-  BinaryWrite(rStr, TotMoist);
-  BinaryWrite(rStr, DtoBedrock);
-  BinaryWrite(rStr, fSoi100);
-  BinaryWrite(rStr, fTop100);
-  BinaryWrite(rStr, fClm100);
-  BinaryWrite(rStr, fGW100);
-  BinaryWrite(rStr, dM100);
-  BinaryWrite(rStr, dMRt);
-  BinaryWrite(rStr, mTh100);
-  BinaryWrite(rStr, mThRt);
-
-  BinaryWrite(rStr, SnOpt);         // snow
-  BinaryWrite(rStr, snowMeltEx);
-  BinaryWrite(rStr, swe);
-
-  BinaryWrite(rStr, a_LU);          // land use
-  BinaryWrite(rStr, b1_LU);
-  BinaryWrite(rStr, P_LU);
-  BinaryWrite(rStr, S_LU);
-  BinaryWrite(rStr, K_LU);
-  BinaryWrite(rStr, b2_LU);
-  BinaryWrite(rStr, Al_LU);
-  BinaryWrite(rStr, h_LU);
-  BinaryWrite(rStr, Kt_LU);
-  BinaryWrite(rStr, Rs_LU);
-  BinaryWrite(rStr, V_LU);
-  BinaryWrite(rStr, LAI_LU);
-  BinaryWrite(rStr, SE_LU);
-  BinaryWrite(rStr, ST_LU);
-
-}
-
-/***************************************************************************
-**
-** tHydroModel::readRestart() Function
-**
-***************************************************************************/
-
-void tHydroModel::readRestart(fstream & rStr)
-{
-  BinaryRead(rStr, RunOnoption);
-  BinaryRead(rStr, BasArea);
-  BinaryRead(rStr, qrunon);
-  BinaryRead(rStr, ID);
-  BinaryRead(rStr, EToption);
-  BinaryRead(rStr, Ioption);
-  BinaryRead(rStr, gFluxOption);
-  BinaryRead(rStr, BRoption);
-  BinaryRead(rStr, RdstrOption);
-  BinaryRead(rStr, GWoption);
-  BinaryRead(rStr, NwtOld);
-  BinaryRead(rStr, NwtNew);
-  BinaryRead(rStr, MuOld);
-  BinaryRead(rStr, MuNew);
-  BinaryRead(rStr, MiOld);
-  BinaryRead(rStr, MiNew);
-  BinaryRead(rStr, NfOld);
-  BinaryRead(rStr, NfNew);
-  BinaryRead(rStr, NtOld);
-  BinaryRead(rStr, NtNew);
-  BinaryRead(rStr, RuOld);
-  BinaryRead(rStr, RuNew);
-  BinaryRead(rStr, RiOld);
-  BinaryRead(rStr, RiNew);
-  BinaryRead(rStr, QpIn);
-  BinaryRead(rStr, QpOut);
-  BinaryRead(rStr, QIn);
-  BinaryRead(rStr, QOut);
-  BinaryRead(rStr, R1);
-  BinaryRead(rStr, Rain);
-  BinaryRead(rStr, alpha);
-  BinaryRead(rStr, Cos);
-  BinaryRead(rStr, Sin);
-  BinaryRead(rStr, gwchange);
-  BinaryRead(rStr, srf);
-  BinaryRead(rStr, hsrf);
-  BinaryRead(rStr, esrf);
-  BinaryRead(rStr, psrf);
-  BinaryRead(rStr, satsrf);
-  BinaryRead(rStr, sbsrf);
-  BinaryRead(rStr, G);
-  BinaryRead(rStr, SeIn);
-  BinaryRead(rStr, Se0);
-  BinaryRead(rStr, ThRiNf);
-  BinaryRead(rStr, ThReNf);
-  BinaryRead(rStr, Ksat);
-  BinaryRead(rStr, F);
-  BinaryRead(rStr, Ths);
-  BinaryRead(rStr, Thr);
-  BinaryRead(rStr, Ar);
-  BinaryRead(rStr, UAr);
-  BinaryRead(rStr, PoreInd);
-  BinaryRead(rStr, Eps);
-  BinaryRead(rStr, Psib);
-  BinaryRead(rStr, porosity);
-  BinaryRead(rStr, Stok);
-  BinaryRead(rStr, TotRain);
-  BinaryRead(rStr, TotGWchange);
-  BinaryRead(rStr, TotMoist);
-  BinaryRead(rStr, DtoBedrock);
-  BinaryRead(rStr, fSoi100);
-  BinaryRead(rStr, fTop100);
-  BinaryRead(rStr, fClm100);
-  BinaryRead(rStr, fGW100);
-  BinaryRead(rStr, dM100);
-  BinaryRead(rStr, dMRt);
-  BinaryRead(rStr, mTh100);
-  BinaryRead(rStr, mThRt);
-
-  BinaryRead(rStr, SnOpt);         // snow
-  BinaryRead(rStr, snowMeltEx);
-  BinaryRead(rStr, swe);
-
-  BinaryRead(rStr, a_LU);          // land use
-  BinaryRead(rStr, b1_LU);
-  BinaryRead(rStr, P_LU);
-  BinaryRead(rStr, S_LU);
-  BinaryRead(rStr, K_LU);
-  BinaryRead(rStr, b2_LU);
-  BinaryRead(rStr, Al_LU);
-  BinaryRead(rStr, h_LU);
-  BinaryRead(rStr, Kt_LU);
-  BinaryRead(rStr, Rs_LU);
-  BinaryRead(rStr, V_LU);
-  BinaryRead(rStr, LAI_LU);
-  BinaryRead(rStr, SE_LU);
-  BinaryRead(rStr, ST_LU);
-}
 
 //=========================================================================
 //

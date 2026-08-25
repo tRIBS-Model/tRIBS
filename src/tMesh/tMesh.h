@@ -2,7 +2,7 @@
  * TIN-based Real-time Integrated Basin Simulator (tRIBS)
  * Distributed Hydrologic Model
  *
- * Copyright (c) 2025. tRIBS Developers
+ * Copyright (c) tRIBS Developers
  *
  * See LICENSE file in the project root for full license information.
  ******************************************************************************/
@@ -29,23 +29,9 @@
 #include "src/Headers/Inclusions.h"
 #include "src/tMesh/tTriangulator.h"
 
-#ifdef ALPHA_64
-  #include <stdlib.h>
-  #include <strings.h>
-#elif defined LINUX_32
-  #include <stdlib.h>
-  #include <strings.h>
-  #include <iostream>
-#elif defined WIN
-  #ifdef _WIN32
-  #define srand48(x) srand(x)
-  #define drand48() double(rand())/RAND_MAX
-  #define strcasecmp(x,y) _stricmp(x,y)
-  #endif
-#else 
-  #include <stdlib.h>
-  #include <strings.h>
-#endif
+#include <stdlib.h>
+#include <strings.h>
+#include <iostream>
 
 using namespace std;
 
@@ -71,16 +57,8 @@ public:
  
    SimulationControl *simCtrl;    // Pointer to simulation control 
 
-   void MakeMeshFromScratch( tInputFile & );   		// creates a new mesh
    void MakeMeshFromInputData( tInputFile & ); 		// reads in existing mesh
-   void MakeMeshFromPoints( tInputFile & );    		// creates mesh from pts
-   void MakeRandomPointsFromArcGrid( tInputFile & ); 	// mesh from arc (rand)
-   void MakeHexMeshFromArcGrid( tInputFile & );	        // mesh from arc (hex)
-   void MakeLayersFromInputData( tInputFile & );
-   void MakePointFromFileArcInfo( tInputFile & );       //creates pts from .net 
-   void MakePointFromFileArcInfoGen( tInputFile & );    //creates pts from .pnt and .line
    void MakeMeshFromTriangulator( tInputFile & );    	//creates mesh using Tipper triang
-   void MakeMeshFromMeshBuilder( tInputFile & );	// creates from .meshb
    void Print();
 
    void MakeCCWEdges();
@@ -131,8 +109,9 @@ public:
    void CheckLocallyDelaunay();
    void MoveNodes( double time = 0.0 );
    void TellAboutNode(tSubNode *);
-   void writeRestart(fstream &);
-   void readRestart(fstream &);
+   void writeRestart(ostream &);
+   void readRestart(istream &);
+   void readRestartGlobal(istream &, int);
   
 #ifndef NDEBUG
    void DumpEdges();

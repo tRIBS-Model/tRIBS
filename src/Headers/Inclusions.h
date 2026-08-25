@@ -2,7 +2,7 @@
  * TIN-based Real-time Integrated Basin Simulator (tRIBS)
  * Distributed Hydrologic Model
  *
- * Copyright (c) 2025. tRIBS Developers
+ * Copyright (c) tRIBS Developers
  *
  * See LICENSE file in the project root for full license information.
  ******************************************************************************/
@@ -19,70 +19,19 @@
 
 // INCLUDED LIBRARY HEADER FILES
 
-#ifdef ALPHA_64
-#include <stdlib.h>
-#include <stdio.h>
-#include <math.h>
-#include <malloc.h>
-#include <iostream.h>
-#include <iomanip.h>
-#include <fstream.h>
-#include <string.h>
-#include <assert.h>
-#include <memory.h>
-#include <unistd.h>
-
-#elif defined LINUX_32
 #include <cstdlib>
 #include <cstdio>
 #include <cmath>
 #include <iostream>
 #include <iomanip>
 #include <fstream>
+#include <sstream>
 #include <string>
 #include <cassert>
+#include <algorithm>
 #include <memory>
 #include <vector>
 #include <unistd.h>
-
-#elif defined MAC
-#include <cstdlib>
-#include <cstdio>
-#include <cmath>
-#include <iostream>
-#include <iomanip>
-#include <fstream>
-#include <string>
-#include <cassert>
-#include <memory>
-#include <vector>
-#include <unistd.h>
-
-#elif defined WIN
-#include <stdlib.h>
-#include <stdio.h>
-#include <math.h>
-#include <malloc.h>
-#include <iostream.h>
-#include <iomanip.h>
-#include <fstream.h>
-#include <string.h>
-#include <assert.h>
-#include <memory.h>
-
-#else
-#include <stdlib.h>
-#include <stdio.h>
-#include <math.h>
-#include <malloc.h>
-#include <iostream.h>
-#include <iomanip.h>
-#include <fstream.h>
-#include <string.h>
-#include <assert.h>
-#include <memory.h>
-
-#endif
 
 // INCLUDED FILES 
 
@@ -105,7 +54,6 @@
 #include "src/tInOut/tOutput.h"
 #include "src/tInOut/tOstream.h"
 #include "src/tRasTin/tResample.h"
-#include "src/tStorm/tStorm.h"
 #include "src/tRasTin/tRainfall.h"
 #include "src/tRasTin/tRainGauge.h"
 #include "src/tRasTin/tVariant.h"
@@ -115,8 +63,6 @@
 #include "src/tHydro/tIntercept.h"
 #include "src/tHydro/tEvapoTrans.h"
 #include "src/tHydro/tHydroMet.h"
-#include "src/tHydro/tHydroMetStoch.h"
-#include "src/tHydro/tHydroMetConvert.h"
 #include "src/Mathutil/predicates.h"
 #include "src/Mathutil/geometry.h"
 #include "src/tHydro/tWaterBalance.h"

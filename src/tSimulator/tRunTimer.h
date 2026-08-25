@@ -2,7 +2,7 @@
  * TIN-based Real-time Integrated Basin Simulator (tRIBS)
  * Distributed Hydrologic Model
  *
- * Copyright (c) 2025. tRIBS Developers
+ * Copyright (c) tRIBS Developers
  *
  * See LICENSE file in the project root for full license information.
  ******************************************************************************/
@@ -31,44 +31,12 @@
 
 #include "src/tInOut/tInputFile.h"
 
-#ifdef ALPHA_64
-  #include <iostream.h>
-  #include <fstream.h>
-  #include <string.h>
-  #include <stdio.h>
-  #include <math.h>
-  #include <assert.h>
-#elif defined LINUX_32
-  #include <iostream>
-  #include <fstream>
-  #include <string>
-  #include <cstdio>
-  #include <cmath>
-  #include <cassert>
-
-#elif defined MAC
-  #include <iostream>
-  #include <fstream>
-  #include <string>
-  #include <cstdio>
-  #include <cmath>
-  #include <cassert>
-
-#elif defined WIN
-  #include <iostream.h>
-  #include <fstream.h>
-  #include <string.h>
-  #include <stdio.h>
-  #include <math.h>
-  #include <assert.h>
-#else 
-  #include <iostream.h>
-  #include <fstream.h>
-  #include <string.h>
-  #include <stdio.h>
-  #include <math.h>
-  #include <assert.h>
-#endif
+#include <iostream>
+#include <fstream>
+#include <string>
+#include <cstdio>
+#include <cmath>
+#include <cassert>
 
 //=========================================================================
 //
@@ -85,6 +53,10 @@ public:
   tRunTimer( tInputFile &infile );
   tRunTimer();
   double  getCurrentTime() const;
+  int     getYear() const;
+  int     getMonth() const;
+  int     getDay() const;
+  int     getHour() const;
   double  getTimeStep() const;
   double  getMetStep() const;
   double  getEtIStep() const;
@@ -102,9 +74,6 @@ public:
   double  res_hour_begin(int);
   double  res_hour_end(int);
   double  get_abs_hour(double);
-  double  getfTime();
-  double  getfLength();
-  double  getfLead();
   double  getMetTime(int);
   double  getStormTime();
   double  getPrevStormTime();	
@@ -119,7 +88,6 @@ public:
   int     CheckOutputTime();
   int     CheckSpatialOutputTime();
   int     isGaugeTime(double);
-  int     getoptForecast();
 
   void    InitializeTimer( tInputFile &infile );
   void    Start( double, double );
@@ -131,8 +99,6 @@ public:
   void    res_time_mid(int, int *, int *);
   void    res_time_end(int, int *, int *);
   void    UpdateStorm(double);
-  void    writeRestart(fstream &) const;
-  void    readRestart(fstream &);
 
   int days[13];
   int cumdays[13]; 
@@ -154,8 +120,6 @@ private:
   double outputInterval; 	// time step for output 
   double SPOutputInterval; 	// time step for spatial output
   double RainTime;  	        // keeps track of rainfall input time
-  int    optForecast;           // Rainfall forecasting option
-  double fTime, fLength, fLead; // Forecasting parameters
   double etistep;               // time step for ET and I comp.
   double MetTime;               // keeps track of met time
   double EtITime;               // keeps track of eti time
@@ -170,6 +134,10 @@ inline double tRunTimer::getRainDT()      const { return dtRain; }
 inline double tRunTimer::getMetStep()     const { return metstep; }
 inline double tRunTimer::getEtIStep()     const { return etistep; }
 inline double tRunTimer::getCurrentTime() const { return currentTime; }
+inline int    tRunTimer::getYear()        const { return year; }
+inline int    tRunTimer::getMonth()       const { return month; }
+inline int    tRunTimer::getDay()         const { return day; }
+inline int    tRunTimer::getHour()        const { return hour; }
 inline double tRunTimer::RemainingTime()  const { return (endTime - currentTime); }
 inline double tRunTimer::getTimeStep()    const { return tstep; }
 inline double tRunTimer::getGWTimeStep()  const { return gwatstep; }

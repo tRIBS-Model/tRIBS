@@ -2,7 +2,7 @@
  * TIN-based Real-time Integrated Basin Simulator (tRIBS)
  * Distributed Hydrologic Model
  *
- * Copyright (c) 2025. tRIBS Developers
+ * Copyright (c) tRIBS Developers
  *
  * See LICENSE file in the project root for full license information.
  ******************************************************************************/
@@ -14,6 +14,8 @@
 **
 ***************************************************************************/
 
+#include <cstdint>
+#include <unordered_map>
 #include "src/tFlowNet/tKinemat.h"
 #include "src/Headers/globalIO.h"
 
@@ -45,7 +47,6 @@ tKinemat::tKinemat(SimulationControl *sPtr, tMesh<tCNode> *gridRef, tInputFile &
 
     simCtrl = sPtr;
 
-    char fullName1[kMaxNameSize + 20];
     char fullName2[kMaxNameSize + 20];
 
     n = m = m1 = 0;
@@ -63,22 +64,40 @@ tKinemat::tKinemat(SimulationControl *sPtr, tMesh<tCNode> *gridRef, tInputFile &
     kincoef = infile.ReadItem(kincoef, "KINEMVELCOEF");
     Roughness = infile.ReadItem(Roughness, "CHANNELROUGHNESS");
 
-    percolationOption = infile.ReadItem(percolationOption, "OPTPERCOLATION"); // ASM 2/9/2017
-    if(percolationOption==1) { //TODO WR 10062023 should not need if statement but currently CHANPOREINDEX fails assert in read function
-        ChannelConduc = infile.ReadItem(ChannelConduc, "CHANNELCONDUCTIVITY"); // ASM
-        TransientConduc = infile.ReadItem(TransientConduc, "TRANSIENTCONDUCTIVITY"); //ASM
-        TransientTime = infile.ReadItem(TransientTime, "TRANSIENTTIME"); //ASM
-        channelPorosity = infile.ReadItem(channelPorosity, "CHANNELPOROSITY"); // ASM
-        ChanWidth = infile.ReadItem(ChanWidth, "CHANNELWIDTH"); //ASM temporary fix
-        PoreInd = infile.ReadItem(PoreInd, "CHANPOREINDEX");//ASM
-        PsiB = infile.ReadItem(PsiB, "CHANPSIB");//ASM
-        //PsiB = PsiB/1000.; //ASM convert to m
+    percolationOption = infile.ReadItem(percolationOption, "OPTPERCOLATION");
+    if (percolationOption != 0) {
+        // Conductivity values are read in mm/hr and converted to m/s for internal use.
+        ChannelConduc = infile.ReadItem(ChannelConduc, "CHANNELCONDUCTIVITY");
+        ChannelConduc /= (1000.0 * 3600.0);  // mm/hr -> m/s
+        if (percolationOption == 2) {
+            TransientConduc = infile.ReadItem(TransientConduc, "TRANSIENTCONDUCTIVITY");
+            TransientConduc /= (1000.0 * 3600.0);  // mm/hr -> m/s
+            TransientTime = infile.ReadItem(TransientTime, "TRANSIENTTIME");
+        } else if (percolationOption == 3) {
+            PoreInd = infile.ReadItem(PoreInd, "CHANPOREINDEX");
+            PsiB = infile.ReadItem(PsiB, "CHANPSIB");
+            channelPorosity = infile.ReadItem(channelPorosity, "CHANNELPOROSITY");
+        }
     }
     IntStormMax = infile.ReadItem(IntStormMax, "INTSTORMMAX"); //ASM
 
     Cout << "\nChannel Characteristics:" << endl << endl;
     Cout << "Kinematic velocity coefficient: " << kincoef << endl;
     Cout << "Roughness coefficient: \t\t" << Roughness << endl;
+    if (percolationOption != 0) {
+        Cout << "Transmission loss option: \t" << percolationOption << endl;
+        Cout << "Channel conductivity: \t\t" << ChannelConduc * 1000.0 * 3600.0
+             << " mm/hr" << endl;
+        if (percolationOption == 2)
+            Cout << "Transient conductivity: \t" << TransientConduc * 1000.0 * 3600.0
+                 << " mm/hr  (active for " << TransientTime << " hr)" << endl;
+        if (percolationOption == 3) {
+            cout << "\nError: OPTPERCOLATION = 3 (Green-Ampt) is not functional in this "
+                 << "version of tRIBS and has been disabled. Use OPTPERCOLATION = 1 "
+                 << "(constant loss) or OPTPERCOLATION = 2 (transient loss)." << endl;
+            exit(1);
+        }
+    }
 
     Width = infile.ReadItem(Width, "CHANNELWIDTHCOEFF");
     if (Width <= 0.0) {
@@ -97,30 +116,10 @@ tKinemat::tKinemat(SimulationControl *sPtr, tMesh<tCNode> *gridRef, tInputFile &
     for (int i = 0; i < NodesLstO.getSize(); i++)
         OutletHlev[i] = 0.0; // Initialization of outlet levels
 
-    // Open file for model run control
-    infile.ReadItem(fullName1, "OUTHYDROFILENAME");
-    strcat(fullName1, ".cntrl");
-
-#ifdef PARALLEL_TRIBS
-                                                                                                                            // Add processor extension if running in parallel
-   char procex[10];
-   snprintf( procex,sizeof(procex),".%-d", tParallel::getMyProc());//WR--09192023: 'sprintf' is deprecated: This function is provided for compatibility reasons only.
-   strcat(fullName1, procex);
-#endif
-
-    ControlOut.open(fullName1);
-
-    if (!ControlOut.good()) {
-        cout << "\nWarning: Simulation control file not created... "
-             << "\nExiting program..." << endl << flush;
-        exit(2);
-    }
-    ControlOut.setf(ios::fixed, ios::floatfield);
-
     // Open file for model streamflow at the OutletNode
 #ifndef PARALLEL_TRIBS
     // When running sequentially, open this file now
-    infile.ReadItem(fullName2, "OUTHYDROFILENAME");
+    infile.ReadItem(fullName2, "OUTFILENAME");
     strcat(fullName2, "_Outlet.qout");
     theOFStream.open(fullName2);
 
@@ -129,8 +128,7 @@ tKinemat::tKinemat(SimulationControl *sPtr, tMesh<tCNode> *gridRef, tInputFile &
              << "\nExiting Program..." << endl << flush;
         exit(2);
     }
-    if (simCtrl->Header_label=='Y')
-        theOFStream << "1-Time,hr\t " << "2-Qstrm,m3/s\t" << "3-Hlev,m" << "\n";
+    theOFStream << "Time_hr,Qstrm_m3_s,Hlev_m\n";
 #endif
 
     // Allocate memory for stacks in stream nodes
@@ -166,81 +164,6 @@ tKinemat::tKinemat(SimulationControl *sPtr, tMesh<tCNode> *gridRef, tInputFile &
     /******** Edits by JECR 2015 End *******/
 
 }
-//
-// /****************************************************************************
-//**
-//**  tKinemat::tKinemat()
-//**
-//**  Constructor for testing purposes
-//**
-//*****************************************************************************/
-//tKinemat::tKinemat() : ais(NULL), bis(NULL), his(NULL), reis(NULL),
-//siis(NULL), rifis(NULL), sumis(NULL), C(NULL),
-//Y1(NULL), Y2(NULL), Y3(NULL)
-//{
-//	ControlOut.open("h-cntr.stream");
-//
-//	if ( !ControlOut.good() ) {
-//		cout<<"\nWarning: Simulation control file not created... "
-//		<<"\nExiting program..."<<endl<<flush;
-//		exit(2);
-//	}
-//
-//	GeomtFile.open("artif_chann.dat");
-//
-//	if (!GeomtFile) {
-//		cout<<"\nError: File artif_chann.dat not found!\nExiting Program..."<<endl;
-//		exit(2);
-//	}
-//
-//	theOFStream.open("_Outlet.qout");
-//	if ( !theOFStream.good() ) {
-//		cout<<"\nWarning: Output file not created... "
-//		<<"\nExiting program..."<<endl<<flush;
-//		exit(2);
-//	}
-//	if (simCtrl->Header_label == 'Y')
-//		theOFStream<<"1-Time,hr\t "<<"2-Qstrm,m3/s\t"<<"3-Hlev,m"<<"\n";
-//}
-//
-// /****************************************************************************
-//**
-//**  tKinemat::tKinemat()
-//**
-//**  Constructor for testing purposes
-//**
-//*****************************************************************************/
-//tKinemat::tKinemat(char *argv[]) : ais(NULL), bis(NULL), his(NULL),
-//reis(NULL), siis(NULL), rifis(NULL),
-//sumis(NULL), C(NULL), Y1(NULL),
-//Y2(NULL), Y3(NULL)
-//{
-//	GeomtFile.open( argv[1] );
-//	if (!GeomtFile) {
-//		cout<<"\nError: File "<<argv[1]<<" not found!\nExiting Program..."<<endl;
-//		exit(2);
-//	}
-//
-//	theOFStream.open(argv[2]);
-//	if ( !theOFStream.good() ) {
-//		cout<<"\nWarning: Output file not created... "
-//		<<"\nExiting program..."<<endl<<flush;
-//		exit(2);
-//	}
-//	if (simCtrl->Header_label == 'Y')
-//		theOFStream<<"1-Time,hr\t "<<"2-Qstrm,m3/s\t"<<"3-Hlev,m"<<endl<<flush;
-//
-//	ControlOut.open("h_cntr.stream");
-//
-//	if ( !ControlOut.good() ) {
-//		cout<<"\nWarning: Simulation control file not created... "
-//		<<"\nExiting program..."<<endl<<flush;
-//		exit(2);
-//	}
-//
-//	n = m = m1 = 0;
-//}
-
 
 /****************************************************************************
 **
@@ -258,7 +181,6 @@ tKinemat::~tKinemat() {
   if (tGraph::hasLastReach())
 #endif
     theOFStream.close();
-    ControlOut.close();
     GeomtFile.close();
 
     // Deallocate memory for stacks in stream nodes //WR debug
@@ -272,112 +194,6 @@ tKinemat::~tKinemat() {
     OutletNode->deleteDataStack();
 
     Cout << "tKinemat Object has been destroyed..." << endl << flush;
-}
-
-/*****************************************************************************
-**
-**  tKinemat::UpdateForNewRun
-**
-**  Used to update data members of tKinemat and tCNode when a new simulation
-**  run is to be carried out (option -ON of the command line)
-**
-*****************************************************************************/
-void tKinemat::UpdateForNewRun(tInputFile &infile, int keep) {
-    char fullName1[kMaxNameSize + 20];
-    char fullName2[kMaxNameSize + 20];
-
-    tCNode *cn;
-    tList<int> *TimeInd;  // Ptr to Time steps stack
-    tList<double> *Qeff;     // Ptr to Qeff stack
-    tMeshListIter<tCNode> nodIter(gridPtr->getNodeList());
-
-    n = m = m1 = 0;
-    cHead = cOutlet = NULL;
-    TimeSteps = 0;    // Time steps elapsed
-    qit = Qin = H0 = Qout = 0.0;
-    ChannelConduc = TransientConduc = ReachLoss = 0.0; // ASM 2/8/2017
-
-    kincoef = infile.ReadItem(kincoef, "KINEMVELCOEF");
-    Roughness = infile.ReadItem(Roughness, "CHANNELROUGHNESS");
-
-    Cout << "\nChannel Characteristics:" << endl << endl;
-    Cout << "Kinematic velocity coefficient: " << kincoef << endl;
-    Cout << "Roughness coefficient: \t\t" << Roughness << endl;
-
-    // Depending on whether a uniform or variable
-    // channel width is used -- different options
-    Width = infile.ReadItem(Width, "CHANNELWIDTHCOEFF");
-    if (Width <= 0.0) {
-        Width = infile.ReadItem(Width, "CHANNELWIDTH");
-        Cout << "Channel width: \t\t\t" << Width << " m" << endl;
-    } else {
-        Cout << "Channel width: \t\t\t is variable" << endl;
-        Width = -999.;
-        AssignChannelWidths(infile);
-    }
-
-    // Close the file and then re-open it
-    ControlOut.close();
-
-    // Open file for model run control
-    infile.ReadItem(fullName1, "OUTHYDROFILENAME");
-    strcat(fullName1, ".control");
-    ControlOut.open(fullName1);
-
-    if (!ControlOut.good()) {
-        cout << "\nWarning: Simulation control file not created... "
-             << "\nExiting program..." << endl << flush;
-        exit(2);
-    }
-    ControlOut.setf(ios::fixed, ios::floatfield);
-
-    // Close the file and then re-open it
-    theOFStream.close();
-
-    // Open file for model streamflow at the OutletNode
-    infile.ReadItem(fullName2, "OUTHYDROFILENAME");
-    strcat(fullName2, "_Outlet.qout");
-    theOFStream.open(fullName2);
-
-    if (!theOFStream.good()) {
-        cout << "\nWarning: Output file not created... "
-             << "\nExiting program..." << endl << flush;
-        exit(2);
-    }
-    if (simCtrl->Header_label=='Y')
-        theOFStream << "1-Time,hr\t " << "2-Qstrm,m3/s\t" << "3-Hlev,m" << "\n";
-
-
-    // If a decision made to keep the state vars --
-    // dont change anything, keep vars from previous run
-    if (!keep) {
-        for (int i = 0; i < NodesLstO.getSize(); i++)
-            OutletHlev[i] = 0.0; // Initialization of outlet levels
-
-        for (cn = nodIter.FirstP(); nodIter.IsActive(); cn = nodIter.NextP()) {
-
-            // Initialize the stream variables to '0'
-            if (cn->getBoundaryFlag() == kStream) {
-                cn->setHlevel(0.0);
-                cn->setQstrm(0.0);
-                cn->percOccur = 0.0; //ASM set initial percOccur to 0
-
-                // Flush memory for stacks in stream nodes
-                TimeInd = cn->getTimeIndList();
-                Qeff = cn->getQeffList();
-                TimeInd->Flush();
-                Qeff->Flush();
-            }
-        }
-        // Do the same for the basin outlet
-        OutletNode->setHlevel(0.0);
-        OutletNode->setQstrm(0.0);
-        TimeInd = OutletNode->getTimeIndList();
-        Qeff = OutletNode->getQeffList();
-        TimeInd->Flush();
-        Qeff->Flush();
-    }
-    return;
 }
 
 //=========================================================================
@@ -417,31 +233,18 @@ void tKinemat::AssignChannelWidths(tInputFile &infile) {
     tEdge *firstedg, *curedg;
     tMeshListIter<tCNode> nodIter(gridPtr->getNodeList());
 
-    // Option 8 version looped on active nodes only because tGraph update
-    // was called after this code.  With meshbuilder, reach nodes not in
-    // this partition are moved to the back before this, so we have to
-    // loop on all nodes MESHB
-    int option = infile.ReadItem(option, "OPTMESHINPUT");
+    // Loop on active nodes only because tGraph update
+    // is called after this code. 
 
-    if (option == 9) {
-        for (cn = nodIter.FirstP(); !(nodIter.AtEnd()); cn = nodIter.NextP()) {
-            if (cn->getBoundaryFlag() == kStream) {
-                value = cn->getContrArea() * 1.0E-6;  // to give units of km^2
-                value = WCoeff * pow(value, WExpnt);
-                cn->setChannelWidth(value);
-                cn->ActivateSortTracer(); // tracer is assigned to '1'
-            }
-        }
-    } else {
-        for (cn = nodIter.FirstP(); nodIter.IsActive(); cn = nodIter.NextP()) {
-            if (cn->getBoundaryFlag() == kStream) {
-                value = cn->getContrArea() * 1.0E-6;  // to give units of km^2
-                value = WCoeff * pow(value, WExpnt);
-                cn->setChannelWidth(value);
-                cn->ActivateSortTracer(); // tracer is assigned to '1'
-            }
+    for (cn = nodIter.FirstP(); nodIter.IsActive(); cn = nodIter.NextP()) {
+        if (cn->getBoundaryFlag() == kStream) {
+            value = cn->getContrArea() * 1.0E-6;  // to give units of km^2
+            value = WCoeff * pow(value, WExpnt);
+            cn->setChannelWidth(value);
+            cn->ActivateSortTracer(); // tracer is assigned to '1'
         }
     }
+
     value = OutletNode->getContrArea() * 1.0E-6;
     value = WCoeff * pow(value, WExpnt);
     OutletNode->setChannelWidth(value);
@@ -750,9 +553,8 @@ void tKinemat::SurfaceFlow() {
     // If running in parallel, only partition with last reach writes
     if (tGraph::hasLastReach())
 #endif
-    // CJC2025: Use stream manipulators for proper floating point formatting
     theOFStream << std::fixed << std::setprecision(4) << currentTime
-                << "\t" << Qout << "\t" << OutletNode->getHlevel() << "\n";
+                << "," << Qout << "," << OutletNode->getHlevel() << "\n";
     return;
 }
 
@@ -839,8 +641,10 @@ void tKinemat::RunRoutingModel(int it, int *check, double timeStep) {
         cHead = NodesIterH.DatPtr();
         cOutlet = NodesIterO.DatPtr();
 
-        //can calculate the number of time steps to check for transient period here ASM
-        CountLimit = TransientTime / (dt / 60);
+        // Number of routing time steps the transient conductivity stays active:
+        // TransientTime is in hours, dt in seconds. Round to nearest so
+        // sub-hourly time steps don't truncate the limit to zero.
+        CountLimit = (int) (TransientTime * 3600.0 / dt + 0.5);
 
         // Initialize widths, lengths, slopes, levels, C, Y1, Y2, Y3
         InitializeStreamReach(NNodesIter.DatRef(), CountLimit);
@@ -866,6 +670,14 @@ void tKinemat::RunRoutingModel(int it, int *check, double timeStep) {
         else
             KinematWave(C, Y1, Y2, Y3, reis, his, qit, H0, check);
 
+        // Clamp computed water depths to zero. Transmission losses can drive depths
+        // slightly negative during low-flow conditions. Negative depths cause pow(h, 5/3) to produce NaN.
+        // This "post-solve clamp" is a practical approach. The alternative would be bounding
+        // res[i] more tightly before solving so depths never go below zero but we would have
+        // to know the available water volume per link in advance i.e. its circular.
+        for (int i = 0; i < n; i++)
+            if (his[i] < 0.0) his[i] = 0.0;
+
         // Update computed values of levels & Qs
 
 /********************* Start of modifications by JECR 2015 **************************/
@@ -890,9 +702,6 @@ void tKinemat::RunRoutingModel(int it, int *check, double timeStep) {
     }
 #endif
     }
-
-    // Close file with reach info
-    if (TimeSteps == 0) ControlOut.close();
 
     TimeSteps++;
     return;
@@ -1114,13 +923,7 @@ void tKinemat::setTravelVelocityKin(double curr_discharge, double CArea) {
     else
         flowout = curr_discharge;
 
-    // Non-linear model
-    if (flowexp > 0.0) {
-        hillvel = kincoef * pow(flowout / CArea, flowexp);
-    }
-        // Linear model
-    else
-        hillvel = velcoef / velratio;
+    hillvel = kincoef * pow(flowout / CArea, flowexp);
 
     return;
 }
@@ -1166,23 +969,25 @@ void tKinemat::InitializeStreamReach(int NN, int CountLimit) {
         bis[i] = cmove->getChannelWidth();
         ais[i] = cmove->getFlowEdg()->getLength();
         rifis[i] = cmove->getRoughness();
-        //ASM 2/9/2017
+        // Compute the maximum volumetric loss rate for this link via Darcy's law:
+        //   NodeLoss = K_sat * wetted_area = K_sat * width * length  [m3/s]
+        // CHANNELCONDUCTIVITY must be supplied in m/s.
         if (percolationOption == 1) {
-            //setCoeffstest(cmove);
-            //poro = soilPtr->getSoilProp(9);  // Surface hydraulic conductivity
-            NodeLoss[i] = bis[i] * ais[i] * ChannelConduc * channelPorosity; // ASM testporo; w*l*poro*ksat [m3/s]
-            ChanLength += ais[i]; // ASM
+            // Constant-conductivity loss: K_sat is fixed for the entire simulation.
+            NodeLoss[i] = bis[i] * ais[i] * ChannelConduc;
+            ChanLength += ais[i];
         } else if (percolationOption == 2) {
-            // Need to get time information here
+            // Transient-conductivity loss: use TransientConduc during the initial wetting
+            // period (Count < CountLimit timesteps with active percolation), then switch
+            // to the lower steady-state ChannelConduc once the bed is saturated.
             if (Count > CountLimit - 1) {
-                NodeLoss[i] = bis[i] * ais[i] * ChannelConduc * channelPorosity;
+                NodeLoss[i] = bis[i] * ais[i] * ChannelConduc;
                 ChanLength += ais[i];
             } else {
-                NodeLoss[i] = bis[i] * ais[i] * TransientConduc * channelPorosity;
+                NodeLoss[i] = bis[i] * ais[i] * TransientConduc;
                 ChanLength += ais[i];
             }
         }
-        //end ASM edits
 
         Slope = cmove->getFlowEdg()->getSlope();
 
@@ -1195,7 +1000,6 @@ void tKinemat::InitializeStreamReach(int NN, int CountLimit) {
         if (his[i] > maxH)
             maxH = his[i];
 
-        //PrintFlowStacks(ControlOut, cmove);
 
         cmove = cmove->getDownstrmNbr();
         i++;
@@ -1229,27 +1033,6 @@ void tKinemat::InitializeStreamReach(int NN, int CountLimit) {
 
     ComputeCoefficientArrays();
 
-
-    // Output control
-    if (TimeSteps == 0) {
-        ControlOut << "## REACH ID = " << id + 1 << " ##" << "\n";
-        ControlOut << "- WIDTH -\t";
-        ControlPrint(ControlOut, bis, n);
-        ControlOut << "- LENGTH -\t";
-        ControlPrint(ControlOut, ais, m);
-        ControlOut << "- ROUGHNESS -\t";
-        ControlPrint(ControlOut, rifis, n);
-        ControlOut << "- SLOPE -\t";
-        ControlPrint(ControlOut, siis, n);
-        ControlOut << "- C -\t";
-        ControlPrint(ControlOut, C, n);
-        ControlOut << "- Y1 -\t";
-        ControlPrint(ControlOut, Y1, n - 2);
-        ControlOut << "- Y2 -\t";
-        ControlPrint(ControlOut, Y2, n - 1);
-        ControlOut << "- Y3 -\t";
-        ControlPrint(ControlOut, Y3, n - 1);
-    }
 
     return;
 }
@@ -1404,14 +1187,39 @@ void tKinemat::AssignLateralInflux() {
                 cmove->setFt(0.0);
                 //}
                 Preach += clis[i];
-            } else if (percolationOption == 1 || percolationOption == 2) {    //ASM constant loss and transient methods
-                reis1 = reis[i] - NodeLoss[i];
-                if (reis1 < 0) {
-                    clis[i] = reis[i];
-                    reis[i] = 0.0;
-                } else {
+            } else if (percolationOption == 1 || percolationOption == 2) {
+                // Apply bed infiltration loss to this interior link.
+                // When water is present (his[i] > 0), the full NodeLoss is applied
+                // even if it exceeds the lateral inflow. reis[i] is allowed to go
+                // negative, which the kinematic wave solver correctly interprets as
+                // a net sink withdrawing water from in-channel flow.
+                // When the channel is dry, loss is capped at available lateral inflow.
+                if (his[i] > 0.0) {
+                    // The solver still receives the full potential sink (routing
+                    // unchanged), but the ledger (clis -> setChannelPerc -> mrf
+                    // ChannelPerc) books only what the node can supply this time
+                    // step: stored water in its control volume plus incoming
+                    // lateral influx. Otherwise the full Darcy rate is reported
+                    // indefinitely off tiny recession depths.
+                    double ctrlLen = 0.5 * ais[i];
+                    if (i > 0)
+                        ctrlLen += 0.5 * ais[i - 1];
+                    double availRate = his[i] * bis[i] * ctrlLen / dt;
+                    if (reis[i] > 0.0)
+                        availRate += reis[i];
+                    clis[i] = (NodeLoss[i] < availRate) ? NodeLoss[i] : availRate;
+                    reis[i] -= NodeLoss[i];
+                } else if (reis[i] > NodeLoss[i]) {
                     clis[i] = NodeLoss[i];
-                    reis[i] = reis1;
+                    reis[i] -= NodeLoss[i];
+                } else {
+                    // Guard because reis[i] should theoretically never be negative at this point in the code
+                    if (reis[i] > 0.0) {
+                        clis[i] = reis[i];
+                    } else {
+                        clis[i] = 0.0;
+                    }
+                    reis[i] = 0.0;
                 }
                 Preach += clis[i]; // ASM 2/16/2017 this sums percolation in the channel
             }
@@ -1473,17 +1281,29 @@ void tKinemat::AssignLateralInflux() {
                 //}
                 Preach += clis[i];
             } else if (percolationOption == 1 || percolationOption == 2) {
-                if (reis[i] > 0) {
-                    reis1 = reis[i] - NodeLoss[i];
-                    if (reis1 < 0) {
+                // Same logic as interior links above applied to the last link in
+                // reach, including the availability cap on the booked loss.
+                if (his[i] > 0.0) {
+                    double ctrlLen = 0.5 * ais[i];
+                    if (i > 0)
+                        ctrlLen += 0.5 * ais[i - 1];
+                    double availRate = his[i] * bis[i] * ctrlLen / dt;
+                    if (reis[i] > 0.0)
+                        availRate += reis[i];
+                    clis[i] = (NodeLoss[i] < availRate) ? NodeLoss[i] : availRate;
+                    reis[i] -= NodeLoss[i];
+                } else if (reis[i] > NodeLoss[i]) {
+                    clis[i] = NodeLoss[i];
+                    reis[i] -= NodeLoss[i];
+                } else {
+                    // Guard because reis[i] should theoretically never be negative at this point in the code
+                    if (reis[i] > 0.0) {
                         clis[i] = reis[i];
-                        reis[i] = 0.0;
                     } else {
-                        clis[i] = NodeLoss[i];
-                        reis[i] = reis1;
+                        clis[i] = 0.0;
                     }
-                } else
-                    clis[i] = 0.0;
+                    reis[i] = 0.0;
+                }
                 Preach += clis[i]; // ASM 2/16/2017 this sums percolation in the channel reach
             } //end ASM
         }
@@ -1672,19 +1492,6 @@ void tKinemat::UpdateStreamVars() {
     return;
 }
 
-/*****************************************************************************
-**
-**  tKinemat::ControlPrint()
-**
-**  Prints out an array 'a' to a destination 'Otp'
-**
-*****************************************************************************/
-void tKinemat::ControlPrint(ofstream &Otp, double *a, int NN) {
-    for (int i = 0; i < NN; i++)
-        Otp << a[i] << " ";
-    Otp << "\n\n";
-    return;
-}
 
 /*****************************************************************************
 **
@@ -2435,32 +2242,15 @@ void tKinemat::UpdateHsShifted(double *Xnew, double *Xold, double Hupp, int N) {
 **
 ***************************************************************************/
 
-void tKinemat::writeRestart(fstream &rStr) const {
-    BinaryWrite(rStr, id);
-    BinaryWrite(rStr, m);
-    BinaryWrite(rStr, m1);
-    BinaryWrite(rStr, TimeSteps);
-    BinaryWrite(rStr, dt);
-    BinaryWrite(rStr, dtReff);
-    BinaryWrite(rStr, qit);
-    BinaryWrite(rStr, Qin);
-    BinaryWrite(rStr, H0);
-    BinaryWrite(rStr, Qout);
-    BinaryWrite(rStr, maxH);
-    BinaryWrite(rStr, maxReff);
-    BinaryWrite(rStr, Roughness);
-    BinaryWrite(rStr, Width);
-    BinaryWrite(rStr, kincoef);
-
-    // If this isn't dumped FlwVel, Qstrm, Hlevel are wrong
-    int sz = NodesLstO.getSize();
-    BinaryWrite(rStr, sz);
-    for (int i = 0; i < sz; i++)
+void tKinemat::writeRestart(ostream &rStr) const {
+    tPtrListIter<tCNode> outletIter(const_cast<tPtrList<tCNode>&>(NodesLstO));
+    tCNode* on;
+    int i = 0;
+    for (on = outletIter.FirstP(); !outletIter.AtEnd(); on = outletIter.NextP(), i++) {
+        int64_t nodeID = static_cast<int64_t>(on->getID());
+        BinaryWrite(rStr, nodeID);
         BinaryWrite(rStr, OutletHlev[i]);
-
-    OutletNode->writeRestart(rStr);
-
-    tFlowNet::writeRestart(rStr);
+    }
 }
 
 /***************************************************************************
@@ -2469,31 +2259,41 @@ void tKinemat::writeRestart(fstream &rStr) const {
 **
 ***************************************************************************/
 
-void tKinemat::readRestart(fstream &rStr) {
-    BinaryRead(rStr, id);
-    BinaryRead(rStr, m);
-    BinaryRead(rStr, m1);
-    BinaryRead(rStr, TimeSteps);
-    BinaryRead(rStr, dt);
-    BinaryRead(rStr, dtReff);
-    BinaryRead(rStr, qit);
-    BinaryRead(rStr, Qin);
-    BinaryRead(rStr, H0);
-    BinaryRead(rStr, Qout);
-    BinaryRead(rStr, maxH);
-    BinaryRead(rStr, maxReff);
-    BinaryRead(rStr, Roughness);
-    BinaryRead(rStr, Width);
-    BinaryRead(rStr, kincoef);
-
+void tKinemat::readRestart(istream &rStr) {
     int sz;
     BinaryRead(rStr, sz);
+    assert(sz == NodesLstO.getSize());
     for (int i = 0; i < sz; i++)
         BinaryRead(rStr, OutletHlev[i]);
+}
 
-    OutletNode->readRestart(rStr);
+/***************************************************************************
+**
+** tKinemat::readRestartGlobal() Function
+**
+** Reads totalOutlets (nodeID, Hlev) pairs from the stream, applying only
+** the ones that belong to this rank's outlet list.
+**
+***************************************************************************/
 
-    tFlowNet::readRestart(rStr);
+void tKinemat::readRestartGlobal(istream &rStr, int totalOutlets) {
+    // Build nodeID → outlet index map for fast lookup
+    unordered_map<int, int> outletIdxMap;
+    tPtrListIter<tCNode> outletIter(NodesLstO);
+    tCNode* on;
+    int i = 0;
+    for (on = outletIter.FirstP(); !outletIter.AtEnd(); on = outletIter.NextP(), i++)
+        outletIdxMap[on->getID()] = i;
+
+    for (int k = 0; k < totalOutlets; k++) {
+        int64_t nodeID;
+        double hlev;
+        BinaryRead(rStr, nodeID);
+        BinaryRead(rStr, hlev);
+        auto it = outletIdxMap.find(static_cast<int>(nodeID));
+        if (it != outletIdxMap.end())
+            OutletHlev[it->second] = hlev;
+    }
 }
 
 #ifdef PARALLEL_TRIBS
@@ -2510,7 +2310,7 @@ void tKinemat::openOutletFile(tInputFile &infile)
   // the last reach
   if (tGraph::hasLastReach()) {
     char fullName2[kMaxNameSize+20];
-    infile.ReadItem(fullName2, "OUTHYDROFILENAME" );
+    infile.ReadItem(fullName2, "OUTFILENAME" );
     strcat( fullName2, "_Outlet.qout" );
     theOFStream.open(fullName2);
 
@@ -2520,8 +2320,7 @@ void tKinemat::openOutletFile(tInputFile &infile)
       exit(2);
     }
 
-    if (simCtrl->Header_label=='Y')
-      theOFStream<<"1-Time,hr\t "<<"2-Qstrm,m3/s\t"<<"3-Hlev,m"<<"\n";
+    theOFStream << "Time_hr,Qstrm_m3_s,Hlev_m\n";
   }
 
 }

@@ -2,6 +2,80 @@
 # Changelog 
 All notable changes to this project are documented in this file.
 
+## [6.0.0] - 08/25/2026
+v6.0.0 is a major release focused on simplifying the user experience and streamlining the codebase, thus is not backwards compatible with previous versions. This version introduces a major rework of the main input file, standardized input/output file formats, complete rework of the restart module, improvements to snow physics, adds modern raster support via GDAL, and implements optimizations to improve simulation performance. **To view examples of the updated v6.0.0 input structure and the new snow parameter files (.spf), please visit our [Model Benchmark Repository](https://github.com/tRIBS-Model/tRIBS-benchmarks).**
+
+The v6.0.0 changes listed below are abbreviated. For specific details refer to the tRIBS Wiki or the pull request links associated with the changes below.
+
+### Added
+* **GDAL Integration:** Added optional build configuration to link against GDAL, allowing tRIBS to read a wide variety of binary raster formats. Includes a new `WITH_GDAL` CMake flag. ([#103](https://github.com/tRIBS-Model/tRIBS/pull/103))
+* **Static Land Use Grids:** Added `OPTLANDUSE = 2` to allow reading spatially variable but temporally constant land use parameters from non-timestamped rasters. ([#102](https://github.com/tRIBS-Model/tRIBS/pull/102))
+* **Snow Parameter File:** Users can now provide a dedicated `.spf` file for snow physics constants, moving away from hardcoded defaults. ([#104](https://github.com/tRIBS-Model/tRIBS/pull/104))
+* **New Snow Physics:** ([#104](https://github.com/tRIBS-Model/tRIBS/pull/104))
+    * **Dynamic Density:** Implemented snow compaction and density evolution based on Jordan (1991) and Anderson (1976).
+    * **Liquid Water Routing:** Added a physically-based routing scheme accounting for holding capacity and conductivity (Colbeck 1972).
+    * **Phase Partitioning:** Added user-selectable thresholds for Wet-bulb or Air Temperature to determine precipitation phase.
+* **Snow Outputs:** Added `Snow Depth` and `Snow Density` to standard pixel and dynamic output routines. ([#104](https://github.com/tRIBS-Model/tRIBS/pull/104))
+* **Standardized Hydrologic Outputs:** All output files that report hydrologic variables have been standardized to CSV format with a single header line. ([#114](https://github.com/tRIBS-Model/tRIBS/pull/114))
+* **Parallel Outputs:** Previously when running the model in parallel the outputs would get written to an individual file for each processor which required merging later by the user. All outputs are now merged on the head node before writing. ([#118](https://github.com/tRIBS-Model/tRIBS/pull/118))
+* **Standardized Hydrologic Inputs:** All forcing and parameter input files were standardized to CSV format with a single header line. Centroid latitude, longitude, and UTC timezone offset are no longer specified in the station and gridded data files. ([#116](https://github.com/tRIBS-Model/tRIBS/pull/116))
+* **Root Zone Depth:** Previously root zone depth used for determining soil moisture for calculating plant transpiration was hardcoded at 1m. Root zone depth is now a land use parameter that can be provided in the land use table or gridded. Users who do not want to use this feature can specify `9999.99` in the land use table to use the original default of 1m. ([#117](https://github.com/tRIBS-Model/tRIBS/pull/117))
+* **Restart Module Overhaul:** The rarely used restart mechanism in the model was completely rewritten to only include the necessary variables for restarting the model. A restart file can be used to hot start any simulation (with the same mesh) with no dependence on simulation time/dates or the number of parallel processors used. ([#119](https://github.com/tRIBS-Model/tRIBS/pull/119))
+* **Optional Stomatal Resistance Scaling:** In addition to the built-in diurnal stomatal resistance scaling, users can now provide a new parameter file that contains monthly scaling ratios. If left unspecified the default behavior is no motnhly scaling. ([#121](https://github.com/tRIBS-Model/tRIBS/pull/121))
+* **Node Based Outputs:** Previously node based outputs in either the `*.pixel` or `*.qout` files could only be specified using the node ID which required the user to run the model first. The node input files were reworked to accept either the node ID, like before, or a XY coordinate pair. With the XY coordinates the model will find the closest node nearby and let the user node what was selected. ([#123](https://github.com/tRIBS-Model/tRIBS/pull/123))
+* **Land Use Input Validation:** Land use parameters are now checked at startup for both the parameter table and time-varying grids. Non-numeric table entries and physically out-of-range values (e.g. `VegFraction > 1`, which corrupts the canopy water balance) stop the model with a descriptive message naming the parameter and its location. The `9999.99` no-data placeholder is still accepted for grid-supplied parameters. ([#125](https://github.com/tRIBS-Model/tRIBS/pull/125))
+* **In-Process Reach Partitioning:** Running tRIBS in parallel no longer requires the standalone MeshBuilder tool and its external `gpmetis` and perl script workflow to produce a partition graph file. METIS (v5.2) is now included in the source tree and compiled into the binary, and the stream reach graph is built and partitioned at runtime. ([#126](https://github.com/tRIBS-Model/tRIBS/pull/126))
+* **Partition-Only Mode:** Added `PARALLELMODE = 2`, which builds the mesh and stream network, writes the partition graph file, prints partition statistics, then exits without running the simulation. Statistics include per-partition reach, headwater, and node counts, the load balance and the floor set by the largest indivisible reach, and the channel and subsurface connections that cross processor boundaries. ([#126](https://github.com/tRIBS-Model/tRIBS/pull/126))
+
+### Fixed
+* **ET Partitioning:** Fixed a scaling bug in `tEvapoTrans` where unscaled vegetation rates were subtracted from potential ET. ([#107](https://github.com/tRIBS-Model/tRIBS/pull/107))
+* **Snow Fluxes:** Removed the vegetation fraction scaling on sublimation and evaporation from the ground snowpack. ([#107](https://github.com/tRIBS-Model/tRIBS/pull/107))
+* **tIntercept Memory Leak:** Resolved a crash occurring at simulation termination due to improper deallocation of grid filenames when interception was disabled. ([#102](https://github.com/tRIBS-Model/tRIBS/pull/102))
+* **Sub-hourly Precipitation:** Resolved a bug when using sub-hourly precipitation inputs with the snow module turned on caused by the snow module using the wrong timestep. ([#111](https://github.com/tRIBS-Model/tRIBS/pull/111))
+* **Channel Transmission Losses:** Refactored and fixed multiple bugs related to the channel transmission losses. Previous versions capped transmission losses to the available volume of lateral fluxes into the stream node at each timestep. ([#112](https://github.com/tRIBS-Model/tRIBS/pull/112))
+* **Surface Temperature Inputs:** Fixed multiple bugs related to point or gridded surface temperature input. This feature is valuable but was rarely used, now functioning as expected: each timestep surface temperature is calculated using input surface temperature as the initial state. When surface temperature is not provided calculated surface temperature evolves freely from the energy balance (same as before). ([#116](https://github.com/tRIBS-Model/tRIBS/pull/116))
+* **Groundwater Solver Hang (Lambert W):** Fixed an infinite loop in the water table solver (`tHydroModel::LambertW`) that could cause the model to hang indefinitely (100% CPU, no further output) for narrow combinations of saturated hydraulic conductivity, and the conductivity decay parameter `f`. An operator error in the Halley iteration's termination condition let the iteration count cap be bypassed. Additionally, when the Lambert W argument falls below the limit (`-1/e`), the solver now clamps to the value (`W₀(-1/e) = -1`) instead of driving the iteration into a non-convergent region. ([#124](https://github.com/tRIBS-Model/tRIBS/pull/124))
+* **Unsaturated Zone Water Balance:** Fixed several mass-balance errors in `tHydroModel::UnSaturatedZone` that created or destroyed small amounts of water. Evapotranspiration is now supply-limited before it is committed so reported ET cannot exceed the water deliverable above the water table pinned at bedrock (`tHydroModel::MaxSoilETRate`); the `WTStaysAtSurf` and `WTGetsToSurf` surface-runoff partitions now conserve net influx when net rainfall is negative under lateral inflow; and the `Perched_Evol` wedge collapse conserves column moisture instead of resetting it to a fixed value. ([#125](https://github.com/tRIBS-Model/tRIBS/pull/125))
+* **Snow Pack Mass Balance:** Corrected a sign error in `tSnowPack` where, when evaporation or sublimation demand exceeded the remaining liquid or ice store, the loss was recorded with the wrong sign, producing a mass-balance error as the pack disappeared. ([#125](https://github.com/tRIBS-Model/tRIBS/pull/125))
+* **Channel Transmission Loss Reporting:** Fixed a unit mismatch that truncated the transient channel-conductivity period to zero under sub-hourly timesteps, and corrected the MRF `ChannelPerc` output, which booked the full Darcy loss rate off negligible flow depths and accumulated it with a hardcoded timestep. Reported losses are now capped at the water available to each stream node and integrated over the routing timestep; the routing solver itself is unchanged. ([#125](https://github.com/tRIBS-Model/tRIBS/pull/125))
+* **Sub-hourly Forcing:** The original formulation of the snow module was not written to allow any input other than an hourly timestep with hourly forcing data. This has been fixed. Additionally, there were multiple problems with the output accumulators when using sub-hourly forcing that were corrected.
+* **Transpiration Factor Units:** Fixed a unit mismatch in `tEvapoTrans::ComputeETComponents` where the psychrometric constant was used in kPa/K while the Clausius-Clapeyron slope was in Pa/K, causing the transpiration factor to be evaluated with a psychrometric term two orders of magnitude too small. Transpiration rates change in all simulations. ([#129](https://github.com/tRIBS-Model/tRIBS/pull/129))
+
+### Changed & Refactored
+* **Input Simplification:** Streamlined the `.in` file by removing legacy or unused options including:
+    * Stochastic storm generator. ([#97](https://github.com/tRIBS-Model/tRIBS/pull/97))
+    * RIBS-output compatibility and alternative visualization options. ([#107](https://github.com/tRIBS-Model/tRIBS/pull/107))
+    * Conditional header writing (headers are now always written). ([#107](https://github.com/tRIBS-Model/tRIBS/pull/107))
+    * Simplified gridded rainfall options; the model now standardizes on mm/hr for both point and gridded data. ([#98](https://github.com/tRIBS-Model/tRIBS/pull/98))
+    * Removed HydroMetConverter options for converting meteorologcial inputs from various sources internally. ([#96](https://github.com/tRIBS-Model/tRIBS/pull/98))
+    * Simplified `OPTEVAPOTRANS` to support only the Penman-Monteith method for calculating ET. ([#107](https://github.com/tRIBS-Model/tRIBS/pull/107))
+    * Simplified `OPTMESHINPUT` to support only pre-generated 4-mesh files or points files. ([#107](https://github.com/tRIBS-Model/tRIBS/pull/107))
+    * Simplified `OPTINTERCEPT` to support only the Rutter method for calculating canopy interception. ([#109](https://github.com/tRIBS-Model/tRIBS/pull/109))
+    * Removed multiple command line options that were either dead code or neaver used in practice. ([#113](https://github.com/tRIBS-Model/tRIBS/pull/113))
+    * Removed legacy forecast module. ([#115](https://github.com/tRIBS-Model/tRIBS/pull/115))
+* **C++ Performance Optimizations:** ([#107](https://github.com/tRIBS-Model/tRIBS/pull/107), [#120](https://github.com/tRIBS-Model/tRIBS/pull/120)) 
+    * Overall performance optimizations have shown to be around a 15 to 20% improvement in total wall time.
+    * **Memory Management:** Refactored geometry functions (`FindIntersectionCoords`, `PlaneFit`, and `setRVtx`) to pass `tArray<double>` by `const` reference, eliminating massive heap allocation overhead.
+    * **Math:** Replaced `pow()` calls with `x*x` and `sqrt()` in core physics loops to reduce CPU cycles.
+    * **Standardization:** Unified platform-specific headers and replaced `sprintf` with `snprintf` for modern compiler compatibility.
+    * **Basin Averaged Outputs:** The functions related to saving the array with the data for the *.mrf output were found to be very computationally intensive. The code was refactored to improve performance.
+* **Error Warning Outputs:** While running the model in parallel there were multiple error messages that would be duplicated across all processor ranks or other issues resulting in massive log files. Many error messages modified to only print 10 times before being silenced.
+* **Solar Position Calculation Inputs:** Previously the input values for solar position calculations were required in multiple input files. They have been moved to the main input file under the keywords: `UTCOFFSET`, `CENTROIDLAT`, and `CENTROIDLONG`. ([#116](https://github.com/tRIBS-Model/tRIBS/pull/116))
+* **Vertical-normal Inputs:** Before v6.0.0 the initial groundwater depth and depth to bedrock were assumed to to be slope-normal. This resulted in the model outputs showing depths deeper than what the user input. Now the inputs are vertical depths. ([#128](https://github.com/tRIBS-Model/tRIBS/pull/128))
+
+### Removed
+* Removed legacy code related to changes in main input file listed above.
+* Removed unused platform-specific `#ifdef` blocks in headers. ([#107](https://github.com/tRIBS-Model/tRIBS/pull/107))
+* Removed legacy debug printing in `tTriangulator`. ([#107](https://github.com/tRIBS-Model/tRIBS/pull/107))
+* Removed legacy command-line flags that were either never used or obsolete. ([#113](https://github.com/tRIBS-Model/tRIBS/pull/113))
+* Removed optional humidity inputs. Relative humdity is the only accepted humidity forcing. ([#116](https://github.com/tRIBS-Model/tRIBS/pull/116))
+* Removed optional `Kpan` parameter for `OPTEVPOTRANS = 2`. Any input ET forcing is now used directly as Potential ET. ([#116](https://github.com/tRIBS-Model/tRIBS/pull/116))
+* Removed `OUTHYDROFILENAME` input file keyword. All outputs are now written based on the keyword `OUTFILENAME`. ([#118](https://github.com/tRIBS-Model/tRIBS/pull/118))
+* Removed `*.ctrl` output. This file was never used and is a legacy output from a debugging workflow. ([#118](https://github.com/tRIBS-Model/tRIBS/pull/118))
+* Removed `ActEvp_mm_h` from pixel output files. Subsequent columns shift by one position. ([#129](https://github.com/tRIBS-Model/tRIBS/pull/129))
+
+---
+
 ## [5.3.1] - 10/15/2025
 ### Added
 * **Input Validation:** Added timestamp validation to rainfall and meteorological station input timeseries. Warning, older models will no longer run if there is missing data in the data files. ([#95](https://github.com/tRIBS-Model/tRIBS/pull/95))

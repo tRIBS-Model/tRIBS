@@ -2,7 +2,7 @@
  * TIN-based Real-time Integrated Basin Simulator (tRIBS)
  * Distributed Hydrologic Model
  *
- * Copyright (c) 2025. tRIBS Developers
+ * Copyright (c) tRIBS Developers
  *
  * See LICENSE file in the project root for full license information.
  ******************************************************************************/
@@ -14,6 +14,7 @@
 ***************************************************************************/
 
 #include <cassert>
+#include <cstdint>
 
 #include "src/tSimulator/tRestart.h"
 
@@ -28,81 +29,68 @@ tRestart<tSubNode>::tRestart(
 	tRunTimer* t,
 	tMesh<tSubNode>* m,
 	tKinemat* f,
-	tWaterBalance* b,
-	tHydroModel* h,
-	tRainfall* r,
-	tEvapoTrans* e,
-	tIntercept* i,
-   tSnowPack* s
-   )
+	tSnowPack* s)
 {
   timer = t;
   mesh = m;
   flow = f;
-  balance = b;
-  hydro = h;
-  rainfall = r;
-  evap = e;
-  intercept = i;
   snowpack = s;
 }
 
-/*************************************************************************
-**
-** Write restart information for all controlled objects
-**
-*************************************************************************/
-
 template< class tSubNode >
-void tRestart<tSubNode>::writeRestart(fstream & rStr)
+int tRestart<tSubNode>::getSnowOpt() const
 {
-  timer->writeRestart(rStr);
-  flow->writeRestart(rStr);
-  balance->writeRestart(rStr);
-  hydro->writeRestart(rStr);
-  rainfall->writeRestart(rStr);
-  intercept->readRestart(rStr);
-  mesh->writeRestart(rStr);
-	// Giuseppe DEBUG Restart 2012 - START 
-	// I have introduced an IF that checks whether
-	// if the snow module is on. If not, the relative variables 
-	// are not saved in the binary Restart files.
-	if (snowpack->getSnowOpt() != 0){
-		snowpack->writeRestart(rStr);
-	}
-    else{
-        evap->writeRestart(rStr);
-    }// Giuseppe DEBUG Restart 2012 - END
-	
-
+  return snowpack->getSnowOpt();
 }
 
-/*************************************************************************
-**
-** Read restart information for all controlled objects
-**
-*************************************************************************/
+template< class tSubNode >
+int tRestart<tSubNode>::getNumNodes() const
+{
+  // Must return the active (non-boundary) node count, not getSize(): the
+  // restart write path (tMesh::writeRestart) serializes only IsActive() nodes,
+  // so this count is both the header record count and the read-loop bound in
+  // tMesh::readRestartGlobal. Using getSize() (which includes boundary nodes)
+  // would advertise more records than are actually written.
+  return mesh->getNodeList()->getActiveSize();
+}
 
 template< class tSubNode >
-void tRestart<tSubNode>::readRestart(fstream & rStr)
+int tRestart<tSubNode>::getNumOutlets() const
 {
-	timer->readRestart(rStr);
-	flow->readRestart(rStr);
-	balance->readRestart(rStr);
-	hydro->readRestart(rStr);
-	rainfall->readRestart(rStr);
-	intercept->readRestart(rStr);
-	mesh->readRestart(rStr);
-	// Giuseppe DEBUG Restart 2012 - START 
-	// I have introduced an IF that checks whether
-	// if the snow module is on. This is to be consistent
-	// with the writeRestart function.
-	if (snowpack->getSnowOpt() != 0){	
-		snowpack->readRestart(rStr);
-	}
-    else{
-        evap->readRestart(rStr);
-    }// Giuseppe DEBUG Restart 2012 - END// Giuseppe DEBUG Restart 2012 - END
+  return flow->getReachOutletList().getSize();
+}
+
+template< class tSubNode >
+void tRestart<tSubNode>::writeRestart(ostream & rStr)
+{
+  flow->writeRestart(rStr);
+  mesh->writeRestart(rStr);
+}
+
+template< class tSubNode >
+void tRestart<tSubNode>::writeRestartOutlets(ostream & rStr)
+{
+  flow->writeRestart(rStr);
+}
+
+template< class tSubNode >
+void tRestart<tSubNode>::writeRestartNodes(ostream & rStr)
+{
+  mesh->writeRestart(rStr);
+}
+
+template< class tSubNode >
+void tRestart<tSubNode>::readRestart(istream & rStr)
+{
+  flow->readRestart(rStr);
+  mesh->readRestart(rStr);
+}
+
+template< class tSubNode >
+void tRestart<tSubNode>::readRestartGlobal(istream & rStr, int32_t totalOutlets, int32_t totalNodes)
+{
+  flow->readRestartGlobal(rStr, static_cast<int>(totalOutlets));
+  mesh->readRestartGlobal(rStr, static_cast<int>(totalNodes));
 }
 
 //=========================================================================

@@ -2,7 +2,7 @@
  * TIN-based Real-time Integrated Basin Simulator (tRIBS)
  * Distributed Hydrologic Model
  *
- * Copyright (c) 2025. tRIBS Developers
+ * Copyright (c) tRIBS Developers
  *
  * See LICENSE file in the project root for full license information.
  ******************************************************************************/
@@ -30,24 +30,8 @@
 #include "src/Mathutil/predicates.h"
 #include "src/tArray/tMatrix.h"
 
-#ifdef ALPHA_64
-  #include <iostream.h>
-  #include <math.h>
-#elif defined LINUX_32 //TODO update to LINUX
-  #include <iostream>
-  #include <cmath>
-
-#elif defined MAC
-  #include <iostream>
-  #include <cmath>
-
-#elif defined WIN
-  #include <iostream.h>
-  #include <math.h>
-#else 
-  #include <iostream.h>
-  #include <math.h>
-#endif
+#include <iostream>
+#include <cmath>
 
 using namespace std;
 
@@ -83,13 +67,13 @@ tEdge* IntersectsAnyEdgeInList( tEdge*, tPtrList< tEdge >& );
 
 double InterpSquareGrid( double, double, tMatrix< double >&, int );
 
-tArray< double > FindIntersectionCoords( tArray< double >,
-                                         tArray< double >,
-                                         tArray< double >,
-                                         tArray< double > );
+tArray< double > FindIntersectionCoords( const tArray< double >&,
+                                         const tArray< double >&,
+                                         const tArray< double >&,
+                                         const tArray< double >& );
 
-double PlaneFit(double x, double y, tArray<double> p0,
-                tArray<double> p1, tArray<double> p2, tArray<double> zs);
+double PlaneFit(double x, double y, const tArray<double>&p0,
+                const tArray<double>&p1, const tArray<double>&p2, const tArray<double>&zs);
 
 double LineFit(double x1, double y1, double x2, double y2, double nx);
 

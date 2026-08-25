@@ -2,7 +2,7 @@
  * TIN-based Real-time Integrated Basin Simulator (tRIBS)
  * Distributed Hydrologic Model
  *
- * Copyright (c) 2025. tRIBS Developers
+ * Copyright (c) tRIBS Developers
  *
  * See LICENSE file in the project root for full license information.
  ******************************************************************************/
@@ -94,7 +94,6 @@ class tKinemat : public tFlowNet
               double *, double *, double *, double *, 
               double *, double, double);
   
-  void ControlPrint(ofstream &, double *, int);
   void UpdateHsShifted(double *, double *, double, int);
   void AllocateMemory(int);
   void FreeMemory();
@@ -111,7 +110,6 @@ class tKinemat : public tFlowNet
   void RunHydrologicRouting();
   void SurfaceFlow();
   void setTravelVelocityKin(double, double);
-  void UpdateForNewRun(tInputFile &, int);
   void AssignChannelWidths(tInputFile &);
 
   double fmin(double *, int);
@@ -121,12 +119,12 @@ class tKinemat : public tFlowNet
   double ComputeNodeFlowVel(int);
   double RetrieveQeff(tCNode *);
 
-  void writeRestart(fstream &) const;
-  void readRestart(fstream &);
+  void writeRestart(ostream &) const;
+  void readRestart(istream &);
+  void readRestartGlobal(istream &, int);
 
   ifstream GeomtFile;       // Channel geometry input file
   ofstream theOFStream;     // Output file to store all the info
-  ofstream ControlOut;      // Output file to control simulations
 
   SimulationControl *simCtrl;   
 
@@ -172,7 +170,7 @@ protected:
 
 /*** Start edits by JECR 2015 ***/
   int optres, checkID, checkNode;
-  double  ChannelConduc, ReachLoss, poro, reis1, Pchannel, Preach, ChanWidth, TotWidth, ChanLength, channelPorosity; //ASM
+  double  ChannelConduc, ReachLoss, poro, reis1, Pchannel, Preach, TotWidth, ChanLength, channelPorosity; //ASM
   double  TransientConduc, TransientTime, TotChanLength; //ASM
   double  ExtraPerc, PotentialPerc, TotalPerc, Qin1; //ASM 2/14/2017 Variables for calculating channel loss
   int percolationOption, CountLimit, Count; //ASM perolcation option

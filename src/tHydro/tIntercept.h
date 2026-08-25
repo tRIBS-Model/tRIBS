@@ -2,18 +2,18 @@
  * TIN-based Real-time Integrated Basin Simulator (tRIBS)
  * Distributed Hydrologic Model
  *
- * Copyright (c) 2025. tRIBS Developers
+ * Copyright (c) tRIBS Developers
  *
  * See LICENSE file in the project root for full license information.
  ******************************************************************************/
 
 /***************************************************************************
 **
-**  tIntercept.h: Header file for class tIntercept 
+**  tIntercept.h: Header file for class tIntercept
 **
 **  This class encapsulates the rainfall interception routines
-**  necessary for net precipitation computations. Two interception methods
-**  are currently implemented based on Gray (1970) and Rutter et al (1971).
+**  necessary for net precipitation computations. Interception is computed
+**  using the Rutter et al (1971) method.
 **
 ***************************************************************************/
 
@@ -42,15 +42,12 @@ class tIntercept
   int    getIoption();
   int    IsThereCanopy(tCNode *);
   void   callInterception(tCNode *, double);
-  void   InterceptGray(tCNode *);
   void   InterceptRutter(tCNode *, double);
   void   SetIntercpParameters(tCNode *);
   void   SetIntercpVariables(tInputFile&, tHydroModel*);
   double storageRungeKutta(double, double, double, double *);
   double RutterFn(double, double, double, double);
   double getCtoS(tCNode *);
-  void   writeRestart(fstream &) const;
-  void   readRestart(fstream &);
 
   void readLUGrid(char*); // SKYnGM2008LU
 
@@ -71,9 +68,8 @@ class tIntercept
 
   int maxInterStormPeriod;
   double metTime;
-  double coeffA, coeffB;                 //Gray model 
   double coeffP, coeffS, coeffK, coeffb; //Rutter model
-  double coeffV;                         //Both models
+  double coeffV;
 };
 
 #endif

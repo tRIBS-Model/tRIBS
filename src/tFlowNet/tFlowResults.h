@@ -2,7 +2,7 @@
  * TIN-based Real-time Integrated Basin Simulator (tRIBS)
  * Distributed Hydrologic Model
  *
- * Copyright (c) 2025. tRIBS Developers
+ * Copyright (c) tRIBS Developers
  *
  * See LICENSE file in the project root for full license information.
  ******************************************************************************/
@@ -33,39 +33,12 @@
 #include "src/tInOut/tInputFile.h"
 #include "src/Headers/Definitions.h"
 
-#ifdef ALPHA_64
-  #include <math.h>
-  #include <stdlib.h>
-  #include <string.h>
-  #include <iostream.h>
-  #include <stdio.h>
-#elif defined LINUX_32
-  #include <cmath>
-  #include <cstdlib>
-  #include <cstring>
-  #include <iostream>
-  #include <cstdio>
-
-#elif defined MAC
-  #include <cmath>
-  #include <cstdlib>
-  #include <cstring>
-  #include <iostream>
-  #include <cstdio>
-
-#elif defined WIN
-  #include <math.h>
-  #include <stdlib.h>
-  #include <string.h>
-  #include <iostream.h>
-  #include <stdio.h>
-#else 
-  #include <math.h>
-  #include <stdlib.h>
-  #include <string.h>
-  #include <iostream.h>
-  #include <stdio.h>
-#endif
+#include <cmath>
+#include <cstdlib>
+#include <cstring>
+#include <iostream>
+#include <fstream>
+#include <iomanip>
 
 //=========================================================================
 //
@@ -134,19 +107,16 @@ public:
   double *Perc; 	// Percolation from the channel bottom ASM percolation option
   double *qunsat;		// Mean net flow froom unsaturated zone CJC2025
 
-  int *fState;                  // Forecast state
-
-  int   checkForecast();
-  void  SetFlowResVariables(tInputFile &, double); 
-  void  writeAndUpdate(double, int);
+  void  SetFlowResVariables(tInputFile &, double);
+  void  writeAndUpdate(double);
   void  store_rain(double,double);
+  void  store_rain(int init, double ratio, double value);
   void  store_maxminrain(double,double, int);
+  void  store_maxminrain(int init, double ratio, double value, int flag);
   void  store_saturation(double,double, int);
+  void  store_saturation(int init, double ratio, double value, int flag);
   void  free_results();
-  void  read_prev_hyd(char *, int);
-  void  add_fore_hyd(char *, int);
-  void  write_inter_hyd(char *, char *, int);
-  void  write_extra_hyd(char *, char *);
+  void  write_inter_hyd(char *, char *);
   void  write_Runoff_Types(char *, char *);
   void  whenTimeIsOver( double );
   void  store_volume(double, double);          
@@ -177,8 +147,6 @@ public:
   void update_prev_hyd()
     { for(int ii=0; ii < iimax; ii++) phydro[ii]+=mhydro[ii]; }
 
-  void writeRestart(fstream &) const;
-  void readRestart(fstream &);
 };
 
 #endif

@@ -2,7 +2,7 @@
  * TIN-based Real-time Integrated Basin Simulator (tRIBS)
  * Distributed Hydrologic Model
  *
- * Copyright (c) 2025. tRIBS Developers
+ * Copyright (c) tRIBS Developers
  *
  * See LICENSE file in the project root for full license information.
  ******************************************************************************/
@@ -57,9 +57,8 @@ class Simulator
   tCOutput<tCNode>  *outp;        // Pointer to output object
   tRestart<tCNode>  *restart;     // Pointer to restart object
 
-  int count, fState;
-  double dt_rain;                 // Time step of rain 
-  double lfr_hour;                // Time tag of last forecasted rainfall 
+  int count;
+  double dt_rain;                 // Time step of rain
   double lmr_hour;                // Time tag of last measured rainfall 
   double begin_hour;              // Time tag of initial time
   double met_hour;                // Time tag of last measured met
@@ -68,9 +67,6 @@ class Simulator
   
   int searchRain;                 // Search threshold (hours)
 
-
-  int  check_mod_status();
-  int  checkForecast();
 
   void get_next_mrain(int);
   void get_next_met();
@@ -81,10 +77,8 @@ class Simulator
   void simulation_loop(tHydroModel*, tKinemat*, tEvapoTrans*, 
 		       tIntercept*, tWaterBalance*, tSnowPack*, // SKY2008Snow from AJR2007
 		       tInputFile&); // SKY2008Snow
-  void RunItAgain(tInputFile&, tHydroModel*, tKinemat*, 
-		  tEvapoTrans*, tIntercept*, tWaterBalance*, tPreProcess*,  tSnowPack*); // SKY2008Snow from AJR2007
   void PrintRunTimeVars(tHydroModel *, int);
-  void UpdatePrecipitationInput(int);
+  void UpdatePrecipitationInput();
   void SurfaceHydroProcesses(tEvapoTrans *, tIntercept *, tSnowPack *); // SKY2008Snow from AJR2007
   void SubSurfaceHydroProcesses(tHydroModel *);
   void OutputSimulatedVars(tKinemat *);

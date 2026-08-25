@@ -2,7 +2,7 @@
  * TIN-based Real-time Integrated Basin Simulator (tRIBS)
  * Distributed Hydrologic Model
  *
- * Copyright (c) 2025. tRIBS Developers
+ * Copyright (c) tRIBS Developers
  *
  * See LICENSE file in the project root for full license information.
  ******************************************************************************/
@@ -55,22 +55,8 @@
 #include "src/tMeshList/tMeshList.h"
 #include "src/Headers/globalFns.h"
 
-#ifdef ALPHA_64
-  #include <iostream.h>
-  #include <math.h> 
-#elif defined LINUX_32
-  #include <iostream>
-  #include <cmath>
-#elif defined MAC
-  #include <iostream>
-  #include <cmath>
-#elif defined WIN
-  #include <iostream.h>
-  #include <math.h> 
-#else 
-  #include <iostream.h>
-  #include <math.h> 
-#endif
+#include <iostream>
+#include <cmath>
 
 using namespace std;
 
@@ -265,7 +251,7 @@ public:
   double CalcLength();               // computes & sets length
   double CalcSlope();                // computes & sets slope
   void setCCWEdg( tEdge * edg );     // sets ptr to counter-clockwise neighbor
-  void setRVtx( tArray< double > );  // sets coords of Voronoi vertex RH tri
+  void setRVtx( const tArray< double >& );  // sets coords of Voronoi vertex RH tri
   void setVEdgLen( double ); // sets length of corresponding Voronoi edge
   double CalcVEdgLen();      // computes, sets & returns length of V cell edg
   tEdge * FindComplement();  // returns ptr to edge's complement
@@ -810,7 +796,7 @@ inline void tEdge::setCCWEdg( tEdge* edg ){
    ccwedg = edg;
 }
 
-inline void tEdge::setRVtx( tArray< double > arr ){
+inline void tEdge::setRVtx( const tArray< double >& arr ){
    assert( arr.getSize() == 2 );
    rvtx = arr;
 }

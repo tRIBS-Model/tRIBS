@@ -2,7 +2,7 @@
  * TIN-based Real-time Integrated Basin Simulator (tRIBS)
  * Distributed Hydrologic Model
  *
- * Copyright (c) 2025. tRIBS Developers
+ * Copyright (c) tRIBS Developers
  *
  * See LICENSE file in the project root for full license information.
  ******************************************************************************/
@@ -66,9 +66,10 @@ public:
   void   PrintNewVars(tCNode *, double); 
   void   PrintNewGWVars(tCNode *, int); 
   
-  double get_Total_Moist(double);         
-  double get_Upper_Moist(double, double); 
+  double get_Total_Moist(double);
+  double get_Upper_Moist(double, double);
   double get_Lower_Moist(double, double) const;
+  double PowPsibOverNwt(double);
   
   //double get_Z1Z2_Moist(double, double, double);
   // SKY2008Snow from AJR2007
@@ -84,9 +85,9 @@ public:
   double getTransmissivityInfD(double) const;
   double GetCellRunon(tCNode *, double);
   double ComputeSurfSoilMoist(double);
+  double ComputeNwtSatThreshold() const;
+  double MaxSoilETRate(tCNode *, double);
 
-  void    writeRestart(fstream &) const;
-  void    readRestart(fstream &);
 
   void   set_Suction_Term(double);    
   void   SetCellRunon(tCNode *, double, double, double, int);
@@ -162,6 +163,13 @@ private:
   double SeIn{}, Se0{};   			// Effective saturation in the power
   double ThRiNf{}, ThReNf{};                // (3 + 1/lambda)
 
+  // Single-slot cache for pow((-Psib/Nwt),PoreInd), see PowPsibOverNwt().
+  // cachedPowNwt starts at -1 (depths are >= 0) to force the first compute
+  double cachedPowNwt{-1.0};
+  double cachedPowPsib{0.0};
+  double cachedPowPoreInd{0.0};
+  double cachedPowVal{0.0};
+
   double Ksat{};
   double F{};
   double Ths{};
@@ -176,8 +184,6 @@ private:
   double TotRain{}; 			// Cumulative rainfall value M^3
 
   // SKYnGM2008LU: Land Use Parameters
-  double a_LU{};
-  double b1_LU{};
   double P_LU{};
   double S_LU{};
   double K_LU{};
@@ -191,6 +197,7 @@ private:
   // CJC2025 Stress Thresholds
   double ST_LU{};
   double SE_LU{};
+  double RZ_LU{};
 
   // SKY2008Snow from AJR2007
   double snowMeltEx{};
@@ -200,7 +207,6 @@ private:
   double TotMoist{}; 			// Cumulative change in moisture storage
   double DtoBedrock{}; 			// Depth to bedrock
   double surfaceSoilDepth; // Depth for surface soil moisture [mm]
-  double rootZoneDepth;    // Depth for root zone moisture [mm]
   
   ofstream fctout;
   double fSoi100{}, fTop100{}, fClm100{}, fGW100{}, dM100{}, dMRt{}, mTh100{}, mThRt{};

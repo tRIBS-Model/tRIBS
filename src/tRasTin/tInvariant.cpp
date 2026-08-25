@@ -2,7 +2,7 @@
  * TIN-based Real-time Integrated Basin Simulator (tRIBS)
  * Distributed Hydrologic Model
  *
- * Copyright (c) 2025. tRIBS Developers
+ * Copyright (c) tRIBS Developers
  *
  * See LICENSE file in the project root for full license information.
  ******************************************************************************/
@@ -27,6 +27,35 @@
 
 /***************************************************************************
 **
+**  ParseTableToken()
+**
+**  Shared helper for the soil and land parameter-table readers below.
+**  Converts one comma-separated table token to a double and fails fast (exit)
+**  on a non-numeric entry. Every table cell must be numeric; a parameter that
+**  is instead supplied by a gridded map (OPTSOILTYPE=1, OPTLANDUSE grid modes)
+**  uses the numeric 9999.99 no-data placeholder, which parses fine and is
+**  overwritten by the grid value downstream. Non-numeric text is never valid,
+**  so report the file and column and stop.
+**
+***************************************************************************/
+static double ParseTableToken(const std::string &token, const char *tableName,
+                              int column)
+{
+	try {
+		return std::stod(token);
+	}
+	catch (const std::exception &) {
+		cout << "\nError: Non-numeric entry '" << token << "' in parameter table '"
+		     << tableName << "' (column " << (column + 1) << ")." << endl;
+		cout << "All soil/land table values must be numeric; use the 9999.99 "
+		     << "no-data value for a parameter that is supplied by a grid." << endl;
+		cout << "Exiting Program...\n\n" << endl;
+		exit(2);
+	}
+}
+
+/***************************************************************************
+**
 **  GenericSoilData(tInputFile *)
 **
 **  Constructor and Destructor for GenericSoilData Class
@@ -35,7 +64,7 @@
 GenericSoilData::GenericSoilData(tMesh<tCNode> *mesh, 
 								 tInputFile *input, tResample *resamp)
 {  
-	int np, id;
+	int id;
 	double *sc;
     
     // Changes added by Giuseppe in August 2016 to allow reading soil grids
@@ -55,34 +84,72 @@ GenericSoilData::GenericSoilData(tMesh<tCNode> *mesh,
 		id++;
 	}
 	
+	const int kSoilColumns = 12; // ID + 11 soil properties
 	ifstream Inp0(soilTable);
 	if (!Inp0) {
 		cout <<"\nFile "<<soilTable<<" not found!"<<endl;
 		cout <<"Exiting Program...\n\n"<<endl;
 		exit(2);
 	}
-	
-	// Reads # of soil classes and # parameters
-	Inp0 >> numClass >> np; 
-	
-	assert(numClass > 0 && np > 0);
+
+	std::string header;
+	std::getline(Inp0, header);
+	if (!header.empty() && header.back() == '\r') header.pop_back();
+	int colCount = 1;
+	for (char c : header)
+		if (c == ',') ++colCount;
+	if (colCount != kSoilColumns) {
+		cout << "\nError: Soil table '" << soilTable << "' has " << colCount
+		     << " columns, expected " << kSoilColumns << " (ID + 11 parameters)." << endl;
+		cout << "Exiting Program...\n\n" << endl;
+		exit(2);
+	}
+
+	std::vector<std::vector<double>> rows;
+	std::string line;
+	while (std::getline(Inp0, line)) {
+		if (line.empty()) continue;
+		if (line.back() == '\r') line.pop_back();
+		if (line.empty()) continue;
+		std::istringstream ss(line);
+		std::string token;
+		std::vector<double> row(kSoilColumns);
+		for (int j = 0; j < kSoilColumns; j++) {
+			std::getline(ss, token, ',');
+			row[j] = ParseTableToken(token, soilTable, j);
+		}
+		rows.push_back(row);
+	}
+	Inp0.close();
+
+	numClass = static_cast<int>(rows.size());
+	assert(numClass > 0);
+
+	int maxSoilID = 0;
+	for (cn=niter.FirstP(); niter.IsActive(); cn=niter.NextP())
+		maxSoilID = std::max(maxSoilID, cn->getSoilID());
+	if (maxSoilID > numClass) {
+		cout << "\nError: Soil raster contains class ID " << maxSoilID
+		     << " but soil table '" << soilTable << "' only has "
+		     << numClass << " rows." << endl;
+		cout << "Exiting Program...\n\n" << endl;
+		exit(2);
+	}
+
 	SoilClass = new SoilType* [numClass];
 	assert(SoilClass != nullptr);
-	
-	sc = new double [np];
+
+	sc = new double [kSoilColumns];
 	assert(sc != nullptr);
-	
-	// Reads in the soil parameters 
-	for (int i=0; i < numClass; i++) {
-		for (int j=0; j < np; j++)
-			Inp0 >> sc[j];
-		SoilClass[i] = new SoilType(sc, np);
+
+	for (int i = 0; i < numClass; i++) {
+		for (int j = 0; j < kSoilColumns; j++)
+			sc[j] = rows[i][j];
+		SoilClass[i] = new SoilType(sc, kSoilColumns);
 		assert(SoilClass[i] != nullptr);
 	}
-	
-	Inp0.close();
 	delete [] sc;
-    
+
     // Giuseppe 2016 - Assign the soil properties to the nodes via the set functions
     id = 0;
     for (cn=niter.FirstP(); niter.IsActive(); cn=niter.NextP()) {
@@ -107,50 +174,59 @@ GenericSoilData::GenericSoilData(tMesh<tCNode> *mesh,
     //else if (stdgrid_opt == 1)        // Comment out later Giuseppe 2016
     if (stdgrid_opt == 1)
     {
-        
-        int sID_array = 0;
-        for (cn=niter.FirstP(); niter.IsActive(); cn=niter.NextP()) {
-            sID_array++;
-        }
-        int Asize = sID_array;
-        
-        // Read the path to the soil grids from the gdf file
         input->ReadItem(scfile, "SCGRID");
-        
-        int sID = 0;
-        int numParameters;
-        double SCgridlat;
-        double SCgridlong;
-        double SCgridgmt;
-        
+
         cout<<"\nReading Soil Cover Data Grid File: ";
         cout<< scfile<<"..."<<endl<<flush;
-        
+
         ifstream readFile(scfile);
         if (!readFile) {
             cout << "\nFile "<<scfile<<" not found!" << endl;
             cout << "Exiting Program...\n\n"<<endl;
-            exit(1);}
-        
-        readFile >> numParameters; //Reads first line of the *.gdf file (11 parameters)
-        
-        //Read default parameters from the second line of the *.gdf file
-        readFile >> SCgridlat;
-        readFile >> SCgridlong;
-        readFile >> SCgridgmt;
-        
-        // Initialize variable with the names of the soil parameters and corresponding files
+            exit(1);
+        }
+
+        std::string header;
+        std::getline(readFile, header);
+        if (!header.empty() && header.back() == '\r') header.pop_back();
+        int colCount = 1;
+        for (char c : header)
+            if (c == ',') ++colCount;
+        if (colCount != 3) {
+            cout << "\nError: Soil grid file '" << scfile << "' has " << colCount
+                 << " columns, expected 3 (Variable,BasePath,FileExtension)." << endl;
+            cout << "Exiting Program...\n\n" << endl;
+            exit(1);
+        }
+
+        std::vector<std::vector<std::string>> rows;
+        std::string line;
+        while (std::getline(readFile, line)) {
+            if (line.empty()) continue;
+            if (line.back() == '\r') line.pop_back();
+            if (line.empty()) continue;
+            std::istringstream ss(line);
+            std::vector<std::string> row(3);
+            for (int j = 0; j < 3; j++)
+                std::getline(ss, row[j], ',');
+            rows.push_back(row);
+        }
+        readFile.close();
+
+        int numParameters = static_cast<int>(rows.size());
         SCgridBaseNames.resize(numParameters);
         SCgridParamNames.resize(numParameters);
         SCgridExtNames.resize(numParameters);
         SCgridName.resize(numParameters);
-        
+
         for (int ct=0;ct<numParameters;ct++) {
 
-            string temp;
-            readFile >> temp;
-            SCgridParamNames[ct] = make_unique<char[]>(temp.length() + 1);
-            strcpy(SCgridParamNames[ct].get(), temp.c_str());
+            const std::string &paramName = rows[ct][0];
+            const std::string &baseName  = rows[ct][1];
+            const std::string &extName   = rows[ct][2];
+
+            SCgridParamNames[ct] = make_unique<char[]>(paramName.length() + 1);
+            strcpy(SCgridParamNames[ct].get(), paramName.c_str());
 
             if ( (strcmp(SCgridParamNames[ct].get(),"KS")!=0) &&
                 (strcmp(SCgridParamNames[ct].get(),"TS")!=0) &&
@@ -168,12 +244,10 @@ GenericSoilData::GenericSoilData(tMesh<tCNode> *mesh,
                 cout << "\tCheck and re-run the program" << endl;
                 cout << "\nExiting Program..."<<endl<<endl;
                 exit(1);
-                
             }
 
-            readFile >> temp;
-            SCgridBaseNames[ct] = make_unique<char[]>(temp.length() + 1);
-            strcpy(SCgridBaseNames[ct].get(), temp.c_str());
+            SCgridBaseNames[ct] = make_unique<char[]>(baseName.length() + 1);
+            strcpy(SCgridBaseNames[ct].get(), baseName.c_str());
 
             if (strcmp(SCgridBaseNames[ct].get(),"NO_DATA")==0) {
                 Cout << "\nCannot use NO_DATA for SC Grids"<<endl;
@@ -181,15 +255,13 @@ GenericSoilData::GenericSoilData(tMesh<tCNode> *mesh,
                 exit(1);
             }
 
-            readFile >> temp;
-            SCgridExtNames[ct] = make_unique<char[]>(temp.length() + 1);
-            strcpy(SCgridExtNames[ct].get(), temp.c_str());
+            SCgridExtNames[ct] = make_unique<char[]>(extName.length() + 1);
+            strcpy(SCgridExtNames[ct].get(), extName.c_str());
 
-            SCgridName[ct] = make_unique<char[]>(100);//new char[100];
-
-            strcpy(SCgridName[ct].get(),SCgridBaseNames[ct].get()); // copy the first string into SCgridName[ct]
-            strcat(SCgridName[ct].get(),"."); // append "."
-            strcat(SCgridName[ct].get(),SCgridExtNames[ct].get()); // append SCgridExtNames[ct]
+            SCgridName[ct] = make_unique<char[]>(100);
+            strcpy(SCgridName[ct].get(), baseName.c_str());
+            strcat(SCgridName[ct].get(), ".");
+            strcat(SCgridName[ct].get(), extName.c_str());
             
             if (strcmp(SCgridParamNames[ct].get(),"KS")==0)
             {
@@ -371,9 +443,7 @@ GenericSoilData::~GenericSoilData() {
 void GenericSoilData::SetSoilParameters(tMesh<tCNode> *mesh,
 										tResample *resamp, tInputFile &infile, int option)
 {
-	int np, nt;
 	int id;
-	double troyan;
 	
 	if ( option ) {     // Needs a new soil resampling 
 		Cout<<"\nResampling Soils......"<<endl<<flush;
@@ -390,53 +460,78 @@ void GenericSoilData::SetSoilParameters(tMesh<tCNode> *mesh,
 	}
 	
 	infile.ReadItem(soilTable, "SOILTABLENAME"); // input table
+	const int kSoilColumns = 12; // ID + 11 soil properties
 	ifstream Inp0(soilTable);
 	if (!Inp0) {
 		cout <<"File "<<soilTable<<" not found!"<<endl;
 		cout <<"Exiting Program...\n\n"<<endl;
 		exit(2);
 	}
-	
-	Inp0>>nt>>np;           // Reads # of soil classes and # parameters
-	
-	if ( option ) {         // Needs a new soil resampling 
+
+	std::string header;
+	std::getline(Inp0, header);
+	if (!header.empty() && header.back() == '\r') header.pop_back();
+	int colCount = 1;
+	for (char c : header)
+		if (c == ',') ++colCount;
+	if (colCount != kSoilColumns) {
+		cout << "\nError: Soil table '" << soilTable << "' has " << colCount
+		     << " columns, expected " << kSoilColumns << " (ID + 11 parameters)." << endl;
+		cout << "Exiting Program...\n\n" << endl;
+		exit(2);
+	}
+
+	std::vector<std::vector<double>> rows;
+	std::string line;
+	while (std::getline(Inp0, line)) {
+		if (line.empty()) continue;
+		if (line.back() == '\r') line.pop_back();
+		if (line.empty()) continue;
+		std::istringstream ss(line);
+		std::string token;
+		std::vector<double> row(kSoilColumns);
+		for (int j = 0; j < kSoilColumns; j++) {
+			std::getline(ss, token, ',');
+			row[j] = ParseTableToken(token, soilTable, j);
+		}
+		rows.push_back(row);
+	}
+	Inp0.close();
+
+	int rowCount = static_cast<int>(rows.size());
+
+	if ( option ) {         // Needs a new soil resampling
 		for (int iprop=0;iprop < numClass;iprop++)
 			delete SoilClass[iprop];
 		delete [] SoilClass;
-		
-		numClass = nt;
-		assert(numClass > 0 && np > 0);
-		
-		// Create 'numClass' of 'SoilType' pointers
+
+		numClass = rowCount;
+		assert(numClass > 0);
+
 		SoilClass = new SoilType* [numClass];
 		assert(SoilClass != 0);
-		
-		double *sc;
-		sc = new double [np];
+
+		double *sc = new double [kSoilColumns];
 		assert(sc != 0);
-		
-		// Create each 'SoilType' object
-		for (int i=0; i < numClass; i++)    {
-			for (int j=0; j < np; j++)
-				Inp0 >> sc[j];
-			SoilClass[i] = new SoilType(sc, np);
+
+		for (int i=0; i < numClass; i++) {
+			for (int j=0; j < kSoilColumns; j++)
+				sc[j] = rows[i][j];
+			SoilClass[i] = new SoilType(sc, kSoilColumns);
 			assert(SoilClass[i] != 0);
 		}
-		Inp0.close();
 		delete [] sc;
 	}
 	else if ( !option ) {
-		if (nt != numClass) {
+		if (rowCount != numClass) {
 			cout<<"\nWarning! Number of classes does not correspond to previous";
-			cout <<"\nProceeding with latter number of classes"<<endl<<flush; 
+			cout <<"\nProceeding with latter number of classes"<<endl<<flush;
 		}
-		for (int i=0; i < numClass; i++) {
-			for (int j=0; j < np; j++) {
-				Inp0 >> troyan;
-				SoilClass[i]->setProperty( j, troyan );
-			}
+		int readCount = std::min(numClass, rowCount);
+		for (int i=0; i < readCount; i++) {
+			for (int j=0; j < kSoilColumns; j++)
+				SoilClass[i]->setProperty( j, rows[i][j] );
 		}
-		Inp0.close();
 	}
 	}
 
@@ -536,15 +631,74 @@ void SoilType::setProperty(int id, double param) {
 
 /***************************************************************************
 **
+**  ValidateLandUseRow()
+**
+**  Physical-range validation for a single land-use table row. tRIBS
+**  historically accepted out-of-range parameters silently; a VegFraction > 1
+**  drives the canopy rain partition (coeffV*netP_veg + (1-coeffV)*rainfall)
+**  negative and destroys precipitation mass in the water balance. Fail fast
+**  with a message naming the parameter, its value, and the land-use class ID.
+**
+**  Column layout of the .ldt table (see header row):
+**    0 = ID,             1 = ThroughFall (P),   2 = CanopyStorage (S),
+**    3 = DrainCoeff (K), 4 = DrainExp (b2),     5 = Albedo (Al),
+**    6 = VegHeight (h),  7 = OptTransm (Kt),    8 = StomRes (Rs),
+**    9 = VegFraction (V),10 = LAI,             11 = EvapThresh (Theta*s),
+**   12 = TransThresh (Theta*t), 13 = RootZoneDepth (RZD)
+**
+***************************************************************************/
+static void ValidateLandUseRow(const std::vector<double> &row,
+                               const char *tableName)
+{
+	struct Bound { int col; const char *name; double lo; double hi; };
+	// hi < 0.0 means "non-negative only" (no upper bound).
+	static const Bound bounds[] = {
+		{ 1,  "ThroughFall coefficient (P)", 0.0,  1.0 },
+		{ 2,  "CanopyStorage (S)",           0.0, -1.0 },
+		{ 3,  "DrainCoeff (K)",              0.0, -1.0 },
+		{ 4,  "DrainExp (b2)",               0.0, -1.0 },
+		{ 5,  "Albedo (Al)",                 0.0,  1.0 },
+		{ 6,  "VegHeight (h)",               0.0, -1.0 },
+		{ 7,  "OptTransm coefficient (Kt)",  0.0,  1.0 },
+		{ 8,  "StomRes (Rs)",                0.0, -1.0 },
+		{ 9,  "VegFraction (V)",             0.0,  1.0 },
+		{ 10, "LAI",                         0.0, -1.0 },
+		{ 11, "EvapThresh (Theta*s)",        0.0,  1.0 },
+		{ 12, "TransThresh (Theta*t)",       0.0,  1.0 },
+		{ 13, "RootZoneDepth (RZD)",         0.0, -1.0 }
+	};
+
+	int classID = static_cast<int>(row[0]);
+	for (const Bound &b : bounds) {
+		double v = row[b.col];
+		if (v == 9999.99)
+			continue;   // gridded/unspecified placeholder; nothing to validate
+		bool bad = (v < b.lo) || (b.hi >= 0.0 && v > b.hi);
+		if (bad) {
+			cout << "\nError: Land use table '" << tableName
+			     << "' class ID " << classID << ": parameter " << b.name
+			     << " = " << v << " is out of physical range ";
+			if (b.hi >= 0.0)
+				cout << "[" << b.lo << ", " << b.hi << "].";
+			else
+				cout << "(must be >= " << b.lo << ").";
+			cout << "\nExiting Program...\n\n" << endl;
+			exit(2);
+		}
+	}
+}
+
+/***************************************************************************
+**
 **  GenericLandData(tInputFile *)
 **
 **  Constructor and Destructor for GenericLandData Class
 **
 ***************************************************************************/
-GenericLandData::GenericLandData(tMesh<tCNode> *mesh, 
+GenericLandData::GenericLandData(tMesh<tCNode> *mesh,
 								 tInputFile *input, tResample *resamp)
-{  
-	int np, id;
+{
+	int id;
 	double *lc;
 	
 	input->ReadItem(landTable, "LANDTABLENAME");   // input table
@@ -559,32 +713,71 @@ GenericLandData::GenericLandData(tMesh<tCNode> *mesh,
 		id++;
 	}
 	
+	const int kLandColumns = 14; // ID + 13 land use properties
 	ifstream Inp0(landTable);
 	if (!Inp0) {
 		cout <<"\nFile "<<landTable<<" not found!"<<endl;
 		cout <<"Exiting Program...\n\n"<<endl;
 		exit(2);
 	}
-	
-	// Reads # of land classes and # parameters
-	Inp0 >> numClass >> np; 
-	
-	assert(numClass > 0 && np > 0);
+
+	std::string header;
+	std::getline(Inp0, header);
+	if (!header.empty() && header.back() == '\r') header.pop_back();
+	int colCount = 1;
+	for (char c : header)
+		if (c == ',') ++colCount;
+	if (colCount != kLandColumns) {
+		cout << "\nError: Land use table '" << landTable << "' has " << colCount
+		     << " columns, expected " << kLandColumns << " (ID + 13 parameters)." << endl;
+		cout << "Exiting Program...\n\n" << endl;
+		exit(2);
+	}
+
+	std::vector<std::vector<double>> rows;
+	std::string line;
+	while (std::getline(Inp0, line)) {
+		if (line.empty()) continue;
+		if (line.back() == '\r') line.pop_back();
+		if (line.empty()) continue;
+		std::istringstream ss(line);
+		std::string token;
+		std::vector<double> row(kLandColumns);
+		for (int j = 0; j < kLandColumns; j++) {
+			std::getline(ss, token, ',');
+			row[j] = ParseTableToken(token, landTable, j);
+		}
+		ValidateLandUseRow(row, landTable);
+		rows.push_back(row);
+	}
+	Inp0.close();
+
+	numClass = static_cast<int>(rows.size());
+	assert(numClass > 0);
+
+	int maxLandID = 0;
+	for (cn=niter.FirstP(); niter.IsActive(); cn=niter.NextP())
+		maxLandID = std::max(maxLandID, cn->getLandUse());
+	if (maxLandID > numClass) {
+		cout << "\nError: Land use raster contains class ID " << maxLandID
+		     << " but land use table '" << landTable << "' only has "
+		     << numClass << " rows." << endl;
+		cout << "Exiting Program...\n\n" << endl;
+		exit(2);
+	}
+
 	LandClass = new LandType* [numClass];
 	assert(LandClass != 0);
-	
-	lc = new double [np];
+
+	lc = new double [kLandColumns];
 	assert(lc != 0);
-	
-	// Reads in the land parameters 
-	for (int i=0; i < numClass; i++) {
-		for (int j=0; j < np; j++) {
-			Inp0 >> lc[j];}
-		LandClass[i] = new LandType(lc, np);
+
+	for (int i = 0; i < numClass; i++) {
+		for (int j = 0; j < kLandColumns; j++)
+			lc[j] = rows[i][j];
+		LandClass[i] = new LandType(lc, kLandColumns);
 		assert(LandClass[i] != 0);
 	}
-	
-	Inp0.close();
 	delete [] lc;
 }
 
@@ -604,9 +797,7 @@ GenericLandData::~GenericLandData() {
 void GenericLandData::SetLtypeParameters(tMesh<tCNode> *mesh,
 										 tResample *resamp, tInputFile &infile, int option)
 {
-	int np, nt;
 	int id;
-	double troyan;
 	
 	if ( option ) {              // Needs a new soil resampling 
 		Cout<<"\nResampling Landuse......"<<endl<<flush;
@@ -623,51 +814,78 @@ void GenericLandData::SetLtypeParameters(tMesh<tCNode> *mesh,
 	}
 	
 	infile.ReadItem(landTable, "LANDTABLENAME"); // Input table
+	const int kLandColumns = 14; // ID + 13 land use properties
 	ifstream Inp0(landTable);
 	if (!Inp0) {
 		cout <<"File "<<landTable<<" not found!!!"<<endl;
 		cout<<", tInvariant Error"<<endl;
 		exit(2);
 	}
-	
-	Inp0>>nt>>np; // Reads # of landuse classes and # parameters
-	
-	if ( option ) { // Needs a new landuse resampling 
+
+	std::string header;
+	std::getline(Inp0, header);
+	if (!header.empty() && header.back() == '\r') header.pop_back();
+	int colCount = 1;
+	for (char c : header)
+		if (c == ',') ++colCount;
+	if (colCount != kLandColumns) {
+		cout << "\nError: Land use table '" << landTable << "' has " << colCount
+		     << " columns, expected " << kLandColumns << " (ID + 13 parameters)." << endl;
+		cout << "Exiting Program...\n\n" << endl;
+		exit(2);
+	}
+
+	std::vector<std::vector<double>> rows;
+	std::string line;
+	while (std::getline(Inp0, line)) {
+		if (line.empty()) continue;
+		if (line.back() == '\r') line.pop_back();
+		if (line.empty()) continue;
+		std::istringstream ss(line);
+		std::string token;
+		std::vector<double> row(kLandColumns);
+		for (int j = 0; j < kLandColumns; j++) {
+			std::getline(ss, token, ',');
+			row[j] = ParseTableToken(token, landTable, j);
+		}
+		ValidateLandUseRow(row, landTable);
+		rows.push_back(row);
+	}
+	Inp0.close();
+
+	int rowCount = static_cast<int>(rows.size());
+
+	if ( option ) { // Needs a new landuse resampling
 		for (int iprop=0;iprop < numClass;iprop++)
 			delete LandClass[iprop];
 		delete [] LandClass;
-		
-		numClass = nt;
-		assert(numClass > 0 && np > 0);
+
+		numClass = rowCount;
+		assert(numClass > 0);
 		LandClass = new LandType* [numClass];
 		assert(LandClass != 0);
-		
-		double *lc;
-		lc = new double [np];
+
+		double *lc = new double [kLandColumns];
 		assert(lc != 0);
-		
+
 		for (int i=0; i < numClass; i++) {
-			for (int j=0; j < np; j++)
-				Inp0 >> lc[j];
-			LandClass[i] = new LandType(lc, np);
+			for (int j=0; j < kLandColumns; j++)
+				lc[j] = rows[i][j];
+			LandClass[i] = new LandType(lc, kLandColumns);
 			assert(LandClass[i] != 0);
 		}
-		Inp0.close();
 		delete [] lc;
 	}
 	else if ( !option ) {
-		if (nt != numClass) {
+		if (rowCount != numClass) {
 			cout<<"\nWarning! Number of classes does not correspond to previous";
-			cout <<"\nProceeding with latter number of classes"<<endl<<flush; 
+			cout <<"\nProceeding with latter number of classes"<<endl<<flush;
 		}
-		
-		for (int i=0; i < numClass; i++) {
-			for (int j=0; j < np; j++) {
-				Inp0 >> troyan;
-				LandClass[i]->setProperty( j, troyan );
-			}
+		int readCount = std::min(numClass, rowCount);
+		for (int i=0; i < readCount; i++) {
+			for (int j=0; j < kLandColumns; j++)
+				LandClass[i]->setProperty( j, rows[i][j] );
 		}
-		Inp0.close();
 	}
 	return;
 }

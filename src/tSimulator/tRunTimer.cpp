@@ -2,7 +2,7 @@
  * TIN-based Real-time Integrated Basin Simulator (tRIBS)
  * Distributed Hydrologic Model
  *
- * Copyright (c) 2025. tRIBS Developers
+ * Copyright (c) tRIBS Developers
  *
  * See LICENSE file in the project root for full license information.
  ******************************************************************************/
@@ -179,14 +179,6 @@ void tRunTimer::InitializeTimer( tInputFile &infile )
 	else
 		etistep = dtRain;
 
-	// Rainfall Forecast Times
-	optForecast = infile.ReadItem(optForecast, "FORECASTMODE");
-	if (optForecast != 0) {
-		fTime = infile.ReadItem(fTime, "FORECASTTIME");
-		fLength = infile.ReadItem(fLength, "FORECASTLENGTH");
-		fLead = infile.ReadItem(fLead, "FORECASTLEADTIME");
-	}
-	
 	// Adjustments to Time with Rainfall Input
 	
 	double help;
@@ -204,9 +196,6 @@ void tRunTimer::InitializeTimer( tInputFile &infile )
 	
 	//Initialize met time as tstep to get first hour
 	MetTime = EtITime = tstep;
-	
-	//Initialize storm time for stochastic rainfall
-	StormTime_1 = StormTime = 0;
 	
 }
 
@@ -535,143 +524,6 @@ double tRunTimer::res_hour_end(int it)
 	return startHour + (double)(it+1)*outputInterval;
 }
 
-/***************************************************************************
-**
-** tRunTimer::Get Rainfall Forecasting Functions
-**
-**
-***************************************************************************/
-
-double tRunTimer::getfTime() { return fTime; }
-
-double tRunTimer::getfLength() { return fLength; }
-
-double tRunTimer::getfLead() { return fLead; }
-
-int tRunTimer::getoptForecast() { return optForecast; }
-
-/***************************************************************************
-**
-** tRunTimer::Stochastic Storm Functions
-**
-**
-***************************************************************************/
-void tRunTimer::UpdateStorm( double update ) 
-{
-	StormTime_1 = StormTime;
-	StormTime = StormTime + update;
-	return;
-}
-
-double tRunTimer::getStormTime() 
-{
-	return StormTime;
-}
-
-double tRunTimer::getPrevStormTime() 
-{
-	return StormTime_1;
-}
-
-/***************************************************************************
-**
-** tWaterBalance::writeRestart() Function
-** 
-** Called from tSimulator during simulation loop
-** 
-***************************************************************************/
-void tRunTimer::writeRestart(fstream & rStr) const
-{
-  for (int i = 0; i < 13; i++) {
-    BinaryWrite(rStr, days[i]);
-    BinaryWrite(rStr, cumdays[i]);
-  } 
-  BinaryWrite(rStr, minute);
-  BinaryWrite(rStr, hour);
-  BinaryWrite(rStr, day);
-  BinaryWrite(rStr, month);
-  BinaryWrite(rStr, year);
-  BinaryWrite(rStr, minuteRn);
-  BinaryWrite(rStr, hourRn);
-  BinaryWrite(rStr, dayRn);
-  BinaryWrite(rStr, monthRn);
-  BinaryWrite(rStr, yearRn);
-  BinaryWrite(rStr, minuteS);
-  BinaryWrite(rStr, hourS);
-  BinaryWrite(rStr, minS);
-  BinaryWrite(rStr, dayS);
-  BinaryWrite(rStr, monthS);
-  BinaryWrite(rStr, yearS);
-  BinaryWrite(rStr, optForecast);
-  BinaryWrite(rStr, dtRain);
-  BinaryWrite(rStr, startHour);
-  BinaryWrite(rStr, currentTime);
-  BinaryWrite(rStr, nextOutputTime);
-  BinaryWrite(rStr, nextSPOutputTime);
-  BinaryWrite(rStr, tstep);
-  BinaryWrite(rStr, gwatstep);
-  BinaryWrite(rStr, metstep);
-  BinaryWrite(rStr, outputInterval);
-  BinaryWrite(rStr, SPOutputInterval);
-  BinaryWrite(rStr, RainTime);
-  BinaryWrite(rStr, fTime);
-  BinaryWrite(rStr, fLength);
-  BinaryWrite(rStr, fLead);
-  BinaryWrite(rStr, etistep);
-  BinaryWrite(rStr, MetTime);
-  BinaryWrite(rStr, EtITime);
-  BinaryWrite(rStr, StormTime);
-  BinaryWrite(rStr, StormTime_1);
-}
-
-/***************************************************************************
-**
-** tRunTimer::readRestart() Function
-**
-***************************************************************************/
-void tRunTimer::readRestart(fstream & rStr)
-{
-  for (int i = 0; i < 13; i++) {
-    BinaryRead(rStr, days[i]);
-    BinaryRead(rStr, cumdays[i]);
-  }
-  BinaryRead(rStr, minute);
-  BinaryRead(rStr, hour);
-  BinaryRead(rStr, day);
-  BinaryRead(rStr, month);
-  BinaryRead(rStr, year);
-  BinaryRead(rStr, minuteRn);
-  BinaryRead(rStr, hourRn);
-  BinaryRead(rStr, dayRn);
-  BinaryRead(rStr, monthRn);
-  BinaryRead(rStr, yearRn);
-  BinaryRead(rStr, minuteS);
-  BinaryRead(rStr, hourS);
-  BinaryRead(rStr, minS);
-  BinaryRead(rStr, dayS);
-  BinaryRead(rStr, monthS);
-  BinaryRead(rStr, yearS);
-  BinaryRead(rStr, optForecast);
-  BinaryRead(rStr, dtRain);
-  BinaryRead(rStr, startHour);
-  BinaryRead(rStr, currentTime);
-  BinaryRead(rStr, nextOutputTime);
-  BinaryRead(rStr, nextSPOutputTime);
-  BinaryRead(rStr, tstep);
-  BinaryRead(rStr, gwatstep);
-  BinaryRead(rStr, metstep);
-  BinaryRead(rStr, outputInterval);
-  BinaryRead(rStr, SPOutputInterval);
-  BinaryRead(rStr, RainTime);
-  BinaryRead(rStr, fTime);
-  BinaryRead(rStr, fLength);
-  BinaryRead(rStr, fLead);
-  BinaryRead(rStr, etistep);
-  BinaryRead(rStr, MetTime);
-  BinaryRead(rStr, EtITime);
-  BinaryRead(rStr, StormTime);
-  BinaryRead(rStr, StormTime_1);
-}
 
 //=========================================================================
 //

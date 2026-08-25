@@ -2,7 +2,7 @@
  * TIN-based Real-time Integrated Basin Simulator (tRIBS)
  * Distributed Hydrologic Model
  *
- * Copyright (c) 2025. tRIBS Developers
+ * Copyright (c) tRIBS Developers
  *
  * See LICENSE file in the project root for full license information.
  ******************************************************************************/
@@ -22,14 +22,7 @@
 
 #include "src/Headers/Inclusions.h"
 
-#ifdef ALPHA_64
-#elif defined LINUX_32
-  #ifndef _WIN32
-  #include <unistd.h>
-  #endif
-#elif defined WIN
-#else 
-#endif
+#include <unistd.h>
 
 //=========================================================================
 //
@@ -43,14 +36,12 @@ class tPreProcess
 {
  public:
   tPreProcess();
-  tPreProcess(SimulationControl*, tInputFile &);
+  tPreProcess(tInputFile &);
   ~tPreProcess();
-  
-  SimulationControl *simCtrl;
 
   void CheckInputFile(tInputFile &);
-  void CheckFileExists(tInputFile &, char *, const char*);
-  void CheckPathNameCorrect(tInputFile &, char*, const char*);
+  void CheckFileExists(char *, const char*);
+  void CheckPathNameCorrect(char*, const char*);
 
   int    IterReadItem(tInputFile &,    int, const char *);
   void   IterReadItem(tInputFile &, char *, const char *);

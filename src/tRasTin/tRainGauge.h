@@ -2,14 +2,14 @@
  * TIN-based Real-time Integrated Basin Simulator (tRIBS)
  * Distributed Hydrologic Model
  *
- * Copyright (c) 2025. tRIBS Developers
+ * Copyright (c) tRIBS Developers
  *
  * See LICENSE file in the project root for full license information.
  ******************************************************************************/
 
 /***************************************************************************
 **
-**  tRainGauge.h:   Header file for class tRainGauge. Modeled after 
+**  tRainGauge.h:   Header file for class tRainGauge. Modeled after
 **                  tHydroMet
 **
 **  This class encapsulates the rainfall data from a raingauge station.
@@ -36,51 +36,41 @@ class tRainGauge
  public:
   tRainGauge();
   ~tRainGauge();
+
   void setStation(int);
   void setLat(double);
   void setLong(double);
-
   // SKY2008Snow from AJR2007
   void setElev(double); //AJR @ NMT 2007
-
-  void setTime(int);
   void setFileName(char*);
-  void setYear(int *);
-  void setMonth(int *);
-  void setDay(int *);
-  void setHour(int *);
-  void setRain(double *);
-  void setParm(int);
-  
+  void setYear(const std::vector<int>&);
+  void setMonth(const std::vector<int>&);
+  void setDay(const std::vector<int>&);
+  void setHour(const std::vector<int>&);
+  void setRain(const std::vector<double>&);
+
   int getStation();
   double getLat();
   double getLong();
 
   // SKY2008Snow from AJR2007
   double getElev(); //AJR @ NMT 2007
-
-  int getTime();
   char* getFileName();
   int getYear(int);
   int getMonth(int);
   int getDay(int);
   int getHour(int);
-  int getParm();
   double getRain(int);
-  void writeRestart(fstream &) const;
-  void readRestart(fstream &);
-  
+
  protected:
-  int numTimes, stationID, numParams;
+  int stationID;
   char *fileName;
   double basinLat, basinLong;
 
   // SKY2008Snow from AJR2007
   double elev;//AJR @ NMT 2007
-
-  double *rain;
-  int *year, *month, *day, *hour;
-  
+  std::vector<int>    year, month, day, hour;
+  std::vector<double> rain;
 };
 
 #endif

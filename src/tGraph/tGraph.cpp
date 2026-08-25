@@ -2,7 +2,7 @@
  * TIN-based Real-time Integrated Basin Simulator (tRIBS)
  * Distributed Hydrologic Model
  *
- * Copyright (c) 2025. tRIBS Developers
+ * Copyright (c) tRIBS Developers
  *
  * See LICENSE file in the project root for full license information.
  ******************************************************************************/
@@ -17,13 +17,19 @@
 #include "src/Headers/globalIO.h"
 #include "src/Headers/Definitions.h"
 #include "src/tMeshList/tMeshList.h"
+#include "src/tPartition/tPartition.h"
 
 #ifdef PARALLEL_TRIBS
 #include "src/tParallel/tParallel.h"
+#include <fcntl.h>       // open()  -- muting METIS stdout on non-master ranks
+#include <unistd.h>      // dup(), dup2(), STDOUT_FILENO
 #endif
 
+#include <algorithm>
 #include <cassert>
+#include <cstdio>
 #include <map>
+#include <utility>
 
 SimulationControl* tGraph::sim = 0;
 tMesh<tCNode>* tGraph::mesh = 0;
@@ -32,6 +38,7 @@ tKinemat* tGraph::flow = 0;
 int tGraph::numGlobalReach = 0;
 int tGraph::numGlobalPart = 1;
 int tGraph::localPart = 0;
+int tGraph::partMethod = -1;
 
 std::vector<tGraphNode> tGraph::conn;
 
@@ -41,7 +48,6 @@ std::vector<int> tGraph::pointsPerReach;
 
 int* tGraph::hid = 0;;
 int* tGraph::oid = 0;
-int* tGraph::aboveid = 0;
 
 std::vector<tCNode*> tGraph::nodeAboveOutlet;
 std::set<tCNode*,IDOrder>* tGraph::upFlow = 0;
@@ -60,23 +66,6 @@ const int RUNON       = 6000;
 const int QPIN        = 7000;
 const int GROUNDWATER = 9000;
 const int NWT         = 10000;
-
-// MeshBuilder variables
-int tGraph::nodeBytes = 0;
-int tGraph::edgeBytes = 0;
-int tGraph::numGlobalNodes = 0;
-int tGraph::numGlobalEdges = 0;
-
-int* tGraph::nodesPerReach = 0;
-int* tGraph::internalEdgesPerReach = 0;
-int* tGraph::externalEdgesPerReach = 0;
-int* tGraph::fluxNodesPerReach = 0;
-int* tGraph::fluxEdgesPerReach = 0;
-
-int* tGraph::nodeOffset = 0;
-int* tGraph::edgeOffset = 0;
-int* tGraph::fluxNodeOffset = 0;
-int* tGraph::fluxEdgeOffset = 0;
 
 tGraph::tGraph() {}
 tGraph::~tGraph() {}
@@ -105,7 +94,6 @@ void tGraph::finalize(){
 
   if (hid != NULL) delete [] hid;
   if (oid != NULL) delete [] oid;
-  if (aboveid != NULL) delete [] aboveid;
 
   for (int i = 0; i < numGlobalPart; i++) {
     upFlow[i].erase(upFlow[i].begin(), upFlow[i].end());
@@ -129,7 +117,7 @@ void tGraph::finalize(){
 *************************************************************************/
 
 void tGraph::initialize(SimulationControl* s, tMesh<tCNode>* m, tKinemat* f,
-  tInputFile& InputFile) {
+  tInputFile& InputFile, bool partitionOnly) {
 
   sim = s;
   mesh = m;
@@ -142,6 +130,15 @@ void tGraph::initialize(SimulationControl* s, tMesh<tCNode>* m, tKinemat* f,
   // Partition stream reach graph
   Cout << "\nPartitioning stream reach graph..." << endl;
   partition(InputFile);
+
+  // Partition-only run (PARALLELMODE 2): the graphfile and its statistics
+  // are the product. Stop before update() deactivates non-local nodes and
+  // edges so the statistics passes see the full mesh; the caller exits
+  // without running the simulation.
+  if (partitionOnly) {
+    reportPartitionStats();
+    return;
+  }
 
   // Update stream reach and node list information
   Cout << "\nUpdating stream reach and node list..." << endl;
@@ -156,139 +153,6 @@ void tGraph::initialize(SimulationControl* s, tMesh<tCNode>* m, tKinemat* f,
 #ifdef PARALLEL_TRIBS
   }
 #endif
-}
-
-/*************************************************************************
-**
-** Initialize for MeshBuilder input where no tMesh exists when this is called
-** and tGraph partitions and reads only information needed for local reaches
-**
-*************************************************************************/
-
-void tGraph::initialize(SimulationControl* s, tMesh<tCNode>* m,
-  tInputFile& InputFile)
-{
-  sim = s;
-  mesh = m;
-
-  // Create stream connectivity table
-  Cout << "\nRead reach directory..." << endl;
-  ReadDirectoryFromMeshBuilder();
-
-  // Partition stream reach graph
-  Cout << "\nPartitioning stream reach graph..." << endl;
-  partition(InputFile);
-
-  // Update stream reach and node list information
-  Cout << "\nRead partitioned reach and node list..." << endl;
-  ReadFlowMesh();
-
-  // Calculate overlapping nodes for flux exchange
-  Cout << "\nCalculate overlap ..." << endl;
-  calculateOverlap();
-
-  // Set the node above outlet flux information (replaces calculateRunFlux())
-  // Information came from meshBuilder directory
-  Cout << "\nSet node above run flux ..." << endl;
-  for (int i = 0; i < numGlobalReach; i++)
-      nodeAboveOutlet.push_back(NULL); 
-
-  for (int reach = 0; reach < numGlobalReach; reach++) {
-    for (int i = 0; i < localReach.size(); i++) {
-
-      if (hid[localReach[i]] == oid[reach] &&
-          reach2partition[reach] != localPart) {
-            nodeAboveOutlet[reach] = mesh->getNodeFromID(aboveid[reach]);
-      }
-    }
-  }
-
-  // Write connectivity to file
-  Cout << "\nWrite connectivity..." << endl;
-  outputConnectivity(InputFile);
-}
-
-/*************************************************************************
-**
-** Graph information calculated by MeshBuilder is read in
-** Includes counts of nodes and edges for each reach and offsets within file
-**
-*************************************************************************/
-
-void tGraph::ReadDirectoryFromMeshBuilder()
-{
-  fstream reachStr("reach.meshb", ios::in);
-  std::string dummy;
-  int reach;
-
-  reachStr >> numGlobalReach            // Number of reaches 
-           >> numGlobalNodes            // Total number of nodes
-           >> nodeBytes                 // Size of node information in bytes
-           >> numGlobalEdges            // Total number of edges
-           >> edgeBytes;                // Size of edge information in bytes
-
-  // Read reach node and edge counts (put boundary nodes in extra reach)
-  nodesPerReach = new int[numGlobalReach + 1];
-  nodeOffset = new int[numGlobalReach + 1];
-
-  fluxNodesPerReach = new int[numGlobalReach + 1];
-  fluxNodeOffset = new int[numGlobalReach + 1];
-
-  internalEdgesPerReach = new int[numGlobalReach + 1];
-  externalEdgesPerReach = new int[numGlobalReach + 1];
-  edgeOffset = new int[numGlobalReach + 1];
-
-  fluxEdgesPerReach = new int[numGlobalReach + 1];
-  fluxEdgeOffset = new int[numGlobalReach + 1];
-
-  for (int i = 0; i < numGlobalReach + 1; i++) {
-    reachStr >> reach
-             >> nodesPerReach[i]
-             >> nodeOffset[i]
-
-             >> fluxNodesPerReach[i]
-             >> fluxNodeOffset[i]
-
-             >> internalEdgesPerReach[i]
-             >> externalEdgesPerReach[i]
-             >> edgeOffset[i]
-
-             >> fluxEdgesPerReach[i]
-             >> fluxEdgeOffset[i];
-
-    pointsPerReach.push_back(nodesPerReach[i]);
-  }
-
-  int size, upsize, downsize, value, id;
-  tCNode* curnode;
-
-  // Read reach head node IDs and reach outlet node IDs
-  hid = new int[numGlobalReach];
-  oid = new int[numGlobalReach];
-  aboveid = new int[numGlobalReach];
-
-  for (int i = 0; i < numGlobalReach; i++) {
-    reachStr >> dummy >> id >> hid[i] >> oid[i] >> aboveid[i];
-  }
-
-  // Read connectivity of stream reaches
-  for (int i = 0; i < numGlobalReach; i++) {
-    reachStr >> dummy >> id;
-    tGraphNode rnode(id);
-    conn.push_back(rnode);
-
-    reachStr >> dummy >> upsize;
-    for (int j = 0; j < upsize; j++) {
-      reachStr >> value;
-      conn[i].addUpstream(value);
-    }
-
-    reachStr >> dummy >> downsize;
-    for (int j = 0; j < downsize; j++) {
-      reachStr >> value;
-      conn[i].addDownstream(value);
-    }
-  }
 }
 
 /*************************************************************************
@@ -433,7 +297,19 @@ void tGraph::partition(int np, tInputFile& InputFile) {
     Cout << "np = " << np << endl;
   }
 
-  for (int i = 0; i < numGlobalReach; i++) 
+  // A stream reach is the smallest unit of work, so there cannot be more
+  // partitions than reaches.
+  if (np > numGlobalReach) {
+    Cout << "\ntGraph: Cannot split " << numGlobalReach << " stream reaches "
+         << "across " << np << " processors." << endl;
+    Cout << "A stream reach is the smallest unit of work that can be assigned "
+         << "to a processor,\nso the basin's reach count is the ceiling on "
+         << "parallelism. Rerun with at most\n" << numGlobalReach
+         << " processors." << endl;
+    exit(1);
+  }
+
+  for (int i = 0; i < numGlobalReach; i++)
       reach2partition.push_back(0);
 
   // Special case: only 1 partition
@@ -446,28 +322,113 @@ void tGraph::partition(int np, tInputFile& InputFile) {
   
   // More than 1 partition
   else {
-    // Check for partitioning file option
-    int optgfile = 0;
-    optgfile = InputFile.ReadItem( optgfile, "GRAPHOPTION"); 
+    // GRAPHOPTION selects the partitioning method (v6.0.0+):
+    //   0 = SF   (surface flow: flow edges only)
+    //   1 = SSF  (surface-subsurface: flow + subsurface flux edges)
+    //   2 = SSFH (SSF plus a headwater balancing constraint)
+    int optgraph = 0;
+    optgraph = InputFile.ReadItem( optgraph, "GRAPHOPTION" );
+    if (optgraph < 0 || optgraph > 2) {
+      cout << "\ntGraph: Invalid GRAPHOPTION = " << optgraph << endl;
+      cout << "As of v6.0.0, GRAPHOPTION selects the partitioning method:" << endl;
+      cout << "   0 = SF   (surface flow edges only)" << endl;
+      cout << "   1 = SSF  (surface + subsurface flux edges)" << endl;
+      cout << "   2 = SSFH (SSF + headwater balancing constraint)" << endl;
+      exit(1);
+    }
+    tPartition::PartMethod method =
+        static_cast<tPartition::PartMethod>(optgraph);
 
-    // Check for partitioning file
-    if (optgfile == 1 || optgfile == 2) {
-      char pfile[256];
-      strcpy(pfile,"");
+    // Partition graphfile: if GRAPHFILE is provided it must exist and is
+    // read; if it is blank or absent, the partition is always generated
+    // in-process and written to <OUTFILENAME>_<method>_<np>nodes.reach for
+    // inspection or later reuse via GRAPHFILE. The output path is never
+    // searched for an existing file.
+    char pfile[kMaxNameSize+32];
+    strcpy(pfile,"");
+    if (InputFile.IsItemIn( "GRAPHFILE" ))
       InputFile.ReadItem( pfile, "GRAPHFILE" );
+    if (strcmp(pfile, "-999") == 0)   // ReadItem's missing-value sentinel
+      strcpy(pfile,"");
 
-      // If a file was given, read in partitioning based
-      // on file format type
-      if (optgfile == 1)
-        readReachPartitionFromFile(pfile);
-      else
-        readInletOutletPartitionFromFile(pfile);
+    if (strlen(pfile) > 0) {
+      ifstream graphTest(pfile);
+      if (!graphTest.good()) {
+        cout << "\ntGraph: GRAPHFILE '" << pfile << "' not found." << endl;
+        cout << "Provide a valid partition graph file, or leave GRAPHFILE "
+             << "blank to have tRIBS generate one." << endl;
+        exit(1);
+      }
+      graphTest.close();
+      readReachPartitionFromFile(pfile, np);
+    }
+    else {
+      char outbase[kMaxNameSize];
+      InputFile.ReadItem( outbase, "OUTFILENAME" );
+      snprintf(pfile, sizeof(pfile), "%s_%s_%dnodes.reach",
+               outbase, tPartition::MethodToken(method), np);
+      Cout << "\nNo parallel partitioning graph file (GRAPHFILE) provided."
+           << "\nGenerating the partition in-process ("
+           << tPartition::MethodToken(method) << ", " << np
+           << " partitions) and writing it to '" << pfile << "'."
+           << "\nSet GRAPHFILE to this path to reuse it in future runs."
+           << endl;
+      partMethod = method;   // stays -1 when the partition is read from a file
+      generatePartition(np, method, pfile);
     }
 
-    // Else no partition file was given,
-    // create a simple default partitioning
-    else {
-        createDefaultPartition(np);
+    // Every partition must own at least one reach. A rank with no reaches has
+    // no work and no data to exchange, which either wastes the processor or
+    // deadlocks at the first exchange. 
+    std::vector<int> reachesPerPart(np, 0);
+    for (int i = 0; i < numGlobalReach; i++)
+      reachesPerPart[ reach2partition[i] ]++;
+    int emptyParts = 0;
+    for (int p = 0; p < np; p++)
+      if (reachesPerPart[p] == 0) emptyParts++;
+
+    if (emptyParts > 0) {
+      // The largest reach is indivisible, so total/largest is the most
+      // partitions that can still each be given a fair share of the work.
+      std::vector<int> counts(numGlobalReach, 0);
+      tMeshList<tCNode>* nlist = mesh->getNodeList();
+      tMeshListIter<tCNode> niter(nlist);
+      for (tCNode* cn = niter.FirstP(); niter.IsActive() && cn != 0;
+           cn = niter.NextP()) {
+        int r = cn->getReach();
+        if (r >= 0 && r < numGlobalReach) counts[r]++;
+      }
+      long totalNodes = 0;
+      int largest = 0;
+      for (int i = 0; i < numGlobalReach; i++) {
+        totalNodes += counts[i];
+        if (counts[i] > largest) largest = counts[i];
+      }
+      int suggested = (largest > 0) ? (int)(totalNodes / largest) : np - 1;
+      if (suggested >= np) suggested = np - 1;
+      if (suggested < 1)   suggested = 1;
+
+      char msg[512];
+      snprintf(msg, sizeof(msg),
+        "\ntGraph: %d of %d partitions contain no stream reaches.",
+        emptyParts, np);
+      Cout << msg << endl;
+      Cout << "Every processor must own at least one reach, so this run "
+           << "cannot proceed." << endl;
+      snprintf(msg, sizeof(msg),
+        "\nThis basin has %d reaches totaling %ld nodes, and its largest "
+        "single reach holds\n%d nodes. Because a reach cannot be split across "
+        "processors, roughly %d\nprocessors is the most that can still be "
+        "given a fair share of the work.",
+        numGlobalReach, totalNodes, largest, suggested);
+      Cout << msg << endl;
+      snprintf(msg, sizeof(msg), "Rerun with about %d processors.", suggested);
+      Cout << msg << endl;
+      if (strlen(pfile) > 0 && partMethod < 0)
+        Cout << "\nNote: this partition came from GRAPHFILE '" << pfile
+             << "',\nwhich may have been generated for a different processor "
+             << "count. Delete it\nand rerun to regenerate it." << endl;
+      exit(1);
     }
 
     // Collect local reaches together
@@ -495,51 +456,6 @@ void tGraph::partition(int np, tInputFile& InputFile) {
 /*************************************************************************
 **
 ** Read graph partitioning from file.
-** The inlet/outlet format is as follows:
-**
-** A line for each reach should contain:
-**   <partition number> <inlet ID> <outlet ID>
-**
-** Example (7 reaches on 4 processors):
-**
-**  0 1082 1145
-**  0 1083 1145
-**  1 1085 1156
-**  1 1145 1156
-**  2 1084 1190
-**  2 1156 1190
-**  3 1190 1198
-**
-*************************************************************************/
-
-void tGraph::readInletOutletPartitionFromFile(char* pfile) {
-
-    ifstream partFile;
-    partFile.open(pfile);
-    int whichPart, headID, outletID;
-    int nr = 0;
-    while (nr < numGlobalReach && !partFile.eof()) {
-        partFile >> whichPart >> headID >> outletID;
-        int preach = whichReach(headID, outletID);
-        if (sim->debug == 'Y') {
-            Cout << "Partition = " << whichPart
-                 << " head = " << headID
-                 << " outlet = " << outletID
-                 << " reach = " << preach
-                 << endl;
-        }
-        nr++;
-        assert(preach >= 0 && preach < numGlobalReach);
-        reach2partition[preach] = whichPart;
-    }
-    partFile.close();
-    Cout << "\nPartitioning read from inlet/output file " << pfile << endl;
-}
-
-
-/*************************************************************************
-**
-** Read graph partitioning from file.
 ** The reach format is as follows:
 **
 ** A line for each reach should contain:
@@ -557,22 +473,59 @@ void tGraph::readInletOutletPartitionFromFile(char* pfile) {
 **
 *************************************************************************/
 
-void tGraph::readReachPartitionFromFile(char* pfile) {
+void tGraph::readReachPartitionFromFile(char* pfile, int np) {
 
     ifstream partFile;
     partFile.open(pfile);
+    if (!partFile.good()) {
+        cout << "\ntGraph: Cannot open graph file '" << pfile << "'" << endl;
+        exit(1);
+    }
+
+    // Validate as we read: every reach assigned exactly once and every
+    // partition id within the current process count. A mismatch usually means
+    // the file was generated for a different mesh or processor count,
+    // delete it (or fix GRAPHFILE) and tRIBS will regenerate it.
+    std::vector<int> assigned(numGlobalReach, 0);
     int whichPart, preach;
     int nr = 0;
-    while (nr < numGlobalReach && !partFile.eof()) {
-        partFile >> whichPart >> preach;
+    while (partFile >> whichPart >> preach) {
         if (sim->debug == 'Y') {
             Cout << "Partition = " << whichPart
                  << " reach = " << preach
                  << endl;
         }
-        nr++;
-        assert(preach >= 0 && preach < numGlobalReach);
+        if (preach < 0 || preach >= numGlobalReach) {
+            cout << "\ntGraph: Bad reach id " << preach << " in '" << pfile
+                 << "' (mesh has " << numGlobalReach << " reaches)." << endl;
+            cout << "The graph file does not match this mesh. Delete it and "
+                 << "rerun to regenerate it." << endl;
+            exit(1);
+        }
+        if (whichPart < 0 || whichPart >= np) {
+            cout << "\ntGraph: Partition id " << whichPart << " in '" << pfile
+                 << "' is outside this run's range 0.." << np-1 << "." << endl;
+            cout << "The graph file was likely generated for a different "
+                 << "number of processors. Delete it and rerun to "
+                 << "regenerate it." << endl;
+            exit(1);
+        }
+        if (assigned[preach]) {
+            cout << "\ntGraph: Reach " << preach << " is assigned twice in '"
+                 << pfile << "'. Delete the file and rerun to regenerate it."
+                 << endl;
+            exit(1);
+        }
+        assigned[preach] = 1;
         reach2partition[preach] = whichPart;
+        nr++;
+    }
+    if (nr != numGlobalReach) {
+        cout << "\ntGraph: Graph file '" << pfile << "' assigns " << nr
+             << " reaches but the mesh has " << numGlobalReach << "." << endl;
+        cout << "The file is truncated or from a different mesh. Delete it "
+             << "and rerun to regenerate it." << endl;
+        exit(1);
     }
     partFile.close();
     Cout << "\nPartitioning read from reach file " << pfile << endl;
@@ -581,30 +534,295 @@ void tGraph::readReachPartitionFromFile(char* pfile) {
 
 /*************************************************************************
 **
-** Create default partitions.
+** Generate partitions in-process via METIS from the in-memory reach graph.
+**
+** Replaces the external MeshBuilder + gpmetis + perl workflow: instead of
+** reading a precomputed .reach file, build the weighted reach graph here and
+** call METIS_PartGraphKway (via tPartition::ComputePartition).
+**
+** Runs before update(), so all mesh nodes/edges are still active -- the node
+** counts (METIS vertex weights) and the reach-flux adjacency are computed here
+** with read-only passes and do NOT touch the shared conn/pointsPerReach that
+** update() manages later.
+**
+**   method is a tPartition::PartMethod value (= GRAPHOPTION):
+**           0=SF (flow edges only)
+**           1=SSF (flow + subsurface flux edges)
+**           2=SSF-H (flow + flux, plus a headwater balancing constraint)
 **
 *************************************************************************/
 
-void tGraph::createDefaultPartition(int np) {
+void tGraph::generatePartition(int np, int method, const char* outPath) {
 
-    // Split reaches as evenly as possible between partitions
-    // Last partition may have less than others
-    assert(numGlobalReach >= np);
-    int rstart = 0;
-    int rend = -1;
-    int rp = np;
-    int nreach = numGlobalReach;
-    for (int i = 0; i < np; i++) {
-      rstart = rend + 1;
-      rend = (i == (np - 1)) ? numGlobalReach - 1 :
-                              rstart + (nreach + rp - 1) / rp - 1;
-      nreach = nreach - (rend - rstart + 1);
-      rp--;
-      // Assign partition to reaches
-      for (int j = rstart; j <= rend; j++)
-        reach2partition[j] = i;
+  // 1. Node count per reach == METIS vertex weight. Read-only pass over all
+  //    active nodes (every node is still active at partition time).
+  std::vector<int> counts(numGlobalReach, 0);
+  tMeshList<tCNode>* nlist = mesh->getNodeList();
+  tMeshListIter<tCNode> niter(nlist);
+  for (tCNode* cn = niter.FirstP(); niter.IsActive() && cn != 0;
+       cn = niter.NextP()) {
+    int r = cn->getReach();
+    if (r >= 0 && r < numGlobalReach) counts[r]++;
+  }
+
+  // 2. Reach-level subsurface flux adjacency (SSF / SSF-H only). Same rule as
+  //    update(): an edge whose endpoints lie in different reaches couples those
+  //    two reaches. Computed into a local structure, not conn.
+  bool useFlux = (method == tPartition::SSF || method == tPartition::SSF_H);
+  std::vector< std::set<int> > fluxAdj(numGlobalReach);
+  if (useFlux) {
+    tMeshList<tEdge>* elist = mesh->getEdgeList();
+    tMeshListIter<tEdge> eiter(elist);
+    for (tEdge* ce = eiter.FirstP(); eiter.IsActive() && ce != 0;
+         ce = eiter.NextP()) {
+      tCNode* co = (tCNode*)ce->getOriginPtrNC();
+      tCNode* cd = (tCNode*)ce->getDestinationPtrNC();
+      int a = co->getReach();
+      int b = cd->getReach();
+      if (a != b && a >= 0 && a < numGlobalReach &&
+                    b >= 0 && b < numGlobalReach) {
+        fluxAdj[a].insert(b);
+        fluxAdj[b].insert(a);
+      }
     }
+  }
 
+  // 3. Build the reach list for tPartition from the in-memory graph.
+  std::vector<tPartition::Reach> reaches(numGlobalReach);
+  for (int i = 0; i < numGlobalReach; i++) {
+    reaches[i].id         = i;
+    reaches[i].pointCount = counts[i];
+    reaches[i].headID     = hid[i];
+    reaches[i].outletID   = oid[i];
+    reaches[i].downstream = conn[i].getDownstream();   // flow edges
+    if (useFlux)
+      reaches[i].flux.assign(fluxAdj[i].begin(), fluxAdj[i].end());
+  }
+
+  // 4. Size of the graph METIS is about to work on, so the report can name
+  //    what its edge-cut counts. Flow edges are a subset of flux pairs (two
+  //    reaches joined end-to-end share a junction node, so they are mesh
+  //    neighbors too), which means the SSF/SSF-H graph is exactly the flux
+  //    pair set and the SF graph is the flow edges alone.
+  long flowTotal = 0, fluxTotal = 0;
+  for (int i = 0; i < numGlobalReach; i++) {
+    flowTotal += (long)reaches[i].downstream.size();
+    fluxTotal += (long)reaches[i].flux.size();
+  }
+  fluxTotal /= 2;                  // each pair is stored from both ends
+
+  // 5. Partition and copy the result into reach2partition. Every rank runs
+  //    METIS, so the result is reported through Cout (master only) rather
+  //    than from inside ComputePartition.
+  // METIS reports problems with printf() from inside the vendored C library,
+  // so those lines bypass Cout's master-only gating and every rank emits its
+  // own copy. Mute stdout on non-master ranks for the duration of the call. 
+  int savedStdout = -1;
+#ifdef PARALLEL_TRIBS
+  if (!tParallel::isMaster()) {
+    fflush(stdout);
+    savedStdout = dup(STDOUT_FILENO);
+    int devNull = open("/dev/null", O_WRONLY);
+    if (devNull >= 0) {
+      dup2(devNull, STDOUT_FILENO);
+      close(devNull);
+    }
+  }
+#endif
+
+  int edgeCut = 0;
+  std::vector<int> part = tPartition::ComputePartition(
+      reaches, np, static_cast<tPartition::PartMethod>(method), &edgeCut);
+
+#ifdef PARALLEL_TRIBS
+  if (savedStdout >= 0) {           // restore stdout on the muted ranks
+    fflush(stdout);
+    dup2(savedStdout, STDOUT_FILENO);
+    close(savedStdout);
+  }
+#endif
+
+  for (int i = 0; i < numGlobalReach; i++)
+    reach2partition[i] = part[i];
+
+  Cout << "Partitioned " << numGlobalReach << " reaches into " << np
+       << " partitions ("
+       << tPartition::MethodToken(static_cast<tPartition::PartMethod>(method))
+       << "); " << edgeCut << " of " << (useFlux ? fluxTotal : flowTotal)
+       << (useFlux ? " subsurface neighbor pairs" : " channel connections")
+       << " cross processor boundaries" << endl;
+
+  // 6. Persist the generated partition so it can be reused / inspected.
+  bool isMaster = true;
+#ifdef PARALLEL_TRIBS
+  isMaster = tParallel::isMaster();
+#endif
+  if (outPath != 0 && strlen(outPath) > 0 && isMaster)
+    tPartition::WriteReachFile(reaches, part, np, outPath);
+}
+
+/*************************************************************************
+**
+** Print statistics for the current reach partition (reach2partition),
+** whether it was generated in-process or read from a GRAPHFILE:
+**
+**   - per partition: reach count, headwater reaches, node count and share
+**   - balance: max/mean node-count ratio across partitions
+**   - flow edge cut:  downstream reach links crossing partitions (these
+**     become upstream/downstream MPI exchanges during routing)
+**   - flux edge cut:  reach pairs sharing a mesh edge that lie in
+**     different partitions (these become overlap-node MPI exchanges)
+**
+** Must run before update(): the node and edge passes assume the full
+** mesh is still active. Output is master-only (Cout).
+**
+*************************************************************************/
+
+void tGraph::reportPartitionStats() {
+
+  if (numGlobalReach <= 0) {
+    Cout << "\nNo stream reaches found; nothing to report." << endl;
+    return;
+  }
+
+  // Per-reach node counts (same pass as generatePartition step 1)
+  std::vector<int> counts(numGlobalReach, 0);
+  tMeshList<tCNode>* nlist = mesh->getNodeList();
+  tMeshListIter<tCNode> niter(nlist);
+  for (tCNode* cn = niter.FirstP(); niter.IsActive() && cn != 0;
+       cn = niter.NextP()) {
+    int r = cn->getReach();
+    if (r >= 0 && r < numGlobalReach) counts[r]++;
+  }
+
+  // Per-partition aggregates
+  std::vector<int> pReaches(numGlobalPart, 0);
+  std::vector<int> pNodes(numGlobalPart, 0);
+  std::vector<int> pHeads(numGlobalPart, 0);
+  long totalNodes = 0;
+  for (int i = 0; i < numGlobalReach; i++) {
+    int p = reach2partition[i];
+    pReaches[p]++;
+    pNodes[p] += counts[i];
+    totalNodes += counts[i];
+    if (conn[i].getUpstreamCount() == 0) pHeads[p]++;
+  }
+
+  // Flow edge cut: downstream links whose endpoints are in different
+  // partitions (each link counted once, from its upstream reach)
+  int flowEdges = 0, flowCut = 0;
+  for (int i = 0; i < numGlobalReach; i++) {
+    std::vector<int> dreach = conn[i].getDownstream();
+    for (size_t j = 0; j < dreach.size(); j++) {
+      flowEdges++;
+      if (reach2partition[i] != reach2partition[dreach[j]]) flowCut++;
+    }
+  }
+
+  // Flux edge cut: unique reach pairs coupled by at least one mesh edge
+  // (the SSF graph edge rule; reported for every method since it measures
+  // the subsurface overlap communication the partition implies)
+  std::set< std::pair<int,int> > fluxPairs;
+  tMeshList<tEdge>* elist = mesh->getEdgeList();
+  tMeshListIter<tEdge> eiter(elist);
+  for (tEdge* ce = eiter.FirstP(); eiter.IsActive() && ce != 0;
+       ce = eiter.NextP()) {
+    int a = ((tCNode*)ce->getOriginPtrNC())->getReach();
+    int b = ((tCNode*)ce->getDestinationPtrNC())->getReach();
+    if (a != b && a >= 0 && a < numGlobalReach &&
+                  b >= 0 && b < numGlobalReach)
+      fluxPairs.insert(std::make_pair(std::min(a,b), std::max(a,b)));
+  }
+  int fluxEdges = (int)fluxPairs.size(), fluxCut = 0;
+  for (std::set< std::pair<int,int> >::iterator it = fluxPairs.begin();
+       it != fluxPairs.end(); ++it)
+    if (reach2partition[it->first] != reach2partition[it->second]) fluxCut++;
+
+  // Balance: worst partition node count relative to a perfect split
+  double meanNodes = (double)totalNodes / numGlobalPart;
+  int maxNodes = 0;
+  for (int p = 0; p < numGlobalPart; p++)
+    if (pNodes[p] > maxNodes) maxNodes = pNodes[p];
+
+  char line[256];
+  Cout << "\nPartition statistics" << endl;
+  Cout << "--------------------" << endl;
+  snprintf(line, sizeof(line),
+           "Reaches: %d   Nodes: %ld   Partitions: %d",
+           numGlobalReach, totalNodes, numGlobalPart);
+  Cout << line << endl << endl;
+  // Mark the quantity METIS actually minimized. SF is given the channel
+  // connections alone; SSF/SSFH are given the flux pairs (which already
+  // contain every channel connection), so only one of the two is a target.
+  char flowMark[48], fluxMark[48];
+  flowMark[0] = '\0';
+  fluxMark[0] = '\0';
+  if (partMethod == tPartition::SF)
+    snprintf(flowMark, sizeof(flowMark), "   <- minimized by SF");
+  else if (partMethod == tPartition::SSF || partMethod == tPartition::SSF_H)
+    snprintf(fluxMark, sizeof(fluxMark), "   <- minimized by %s",
+             tPartition::MethodToken(
+                 static_cast<tPartition::PartMethod>(partMethod)));
+
+  snprintf(line, sizeof(line),
+           "Channel connections (reach to downstream reach): %d, "
+           "of which %d cross processors%s", flowEdges, flowCut, flowMark);
+  Cout << line << endl;
+  snprintf(line, sizeof(line),
+           "Subsurface neighbors (reach pairs exchanging lateral flux): %d, "
+           "of which %d cross processors%s", fluxEdges, fluxCut, fluxMark);
+  Cout << line << endl;
+  if (partMethod < 0)
+    Cout << "Partition was read from a GRAPHFILE, so neither quantity was "
+         << "minimized in this run." << endl;
+  snprintf(line, sizeof(line),
+           "Reaches joined end-to-end are mesh neighbors too, so the %d "
+           "channel crossings are\ncounted among the %d subsurface ones, not "
+           "additional to them.", flowCut, fluxCut);
+  Cout << line << endl;
+  Cout << "Every processor crossing becomes an MPI exchange each timestep; "
+       << "fewer is better." << endl << endl;
+  snprintf(line, sizeof(line), "%10s %10s %12s %10s %8s",
+           "Partition", "Reaches", "Headwaters", "Nodes", "Node%");
+  Cout << line << endl;
+  for (int p = 0; p < numGlobalPart; p++) {
+    snprintf(line, sizeof(line), "%10d %10d %12d %10d %7.1f%%",
+             p, pReaches[p], pHeads[p], pNodes[p],
+             100.0 * pNodes[p] / totalNodes);
+    Cout << line << endl;
+  }
+  // Reach size spread. A reach is indivisible, so the largest one sets a
+  // hard floor on the balance any partitioning could reach: whichever
+  // partition holds it is at least that big.
+  std::vector<int> sorted(counts);
+  std::sort(sorted.begin(), sorted.end());
+  int smallest = sorted.front();
+  int largest  = sorted.back();
+  int median   = sorted[sorted.size()/2];
+  double floorBalance = largest / meanNodes;
+
+  snprintf(line, sizeof(line),
+           "\nLoad balance (largest partition / even split): %.3f "
+           "(1.0 = every partition equal)", maxNodes / meanNodes);
+  Cout << line << endl;
+  snprintf(line, sizeof(line),
+           "Reach sizes (nodes): smallest %d, median %d, largest %d",
+           smallest, median, largest);
+  Cout << line << endl;
+  if (floorBalance > 1.0) {
+    snprintf(line, sizeof(line),
+             "A reach cannot be split, so the largest one puts a floor of "
+             "%.3f on the balance\nachievable with %d partitions. Use fewer "
+             "partitions for a more even split.",
+             floorBalance, numGlobalPart);
+  }
+  else {
+    snprintf(line, sizeof(line),
+             "No single reach exceeds an even share, so any remaining "
+             "imbalance comes from how\nwhole reaches combine and from "
+             "keeping cross processor communication low.");
+  }
+  Cout << line << endl;
 }
 
 /*************************************************************************
@@ -958,602 +1176,6 @@ void tGraph::update() {
 
   // Calculate runoff/runon flux nodes
   calculateRunFlux();
-}
-
-
-/*************************************************************************
-**
-** Load the nodes and edges belonging to reaches in this processors
-** partition, and load all boundary nodes and edges onto every processor
-**
-*************************************************************************/
-
-void tGraph::ReadFlowMesh()
-{
-   int nnodes, nedges;
-   int id, firstID, flowID, streamID, ccwID;
-   int origID, destID, origReach, destReach, origBoundary, destBoundary;
-   int origPartition, destPartition;
-   int reach;
-
-   tCNode curnode, origNode, destNode;
-   tEdge curedge;
-   tCNode* cn;
-
-   fstream nodeStr, edgeStr, fluxNodeStr, fluxEdgeStr;
-
-#ifdef PARALLEL_TRIBS
-   tParallel::barrier();
-#endif
-
-   // Files with one copy of every node and edge ordered by reach
-   nodeStr.open("nodes.meshb", ios::in | ios::binary);
-   edgeStr.open("edges.meshb", ios::in | ios::binary);
-   BinaryRead(edgeStr, nedges);
-   BinaryRead(nodeStr, nnodes);
-
-   // Files with duplicate nodes and edges per reach for partitioned mesh
-   fluxNodeStr.open("fluxnodes.meshb", ios::in | ios::binary);
-   fluxEdgeStr.open("fluxedges.meshb", ios::in | ios::binary);
-
-   // Boundary directory information is in the last slot of reach information
-   int boundaryReach = numGlobalReach;
-
-   // Map of reaches to connecting reaches
-   std::map<int,std::map<int,int> > reachFlux;
-
-   // Get node and edge list from the tMesh we are going to fill in
-   tMeshList<tCNode>* nodeList = mesh->getNodeList();
-   tMeshList<tEdge>* edgeList = mesh->getEdgeList();
-
-   // Determine if last reach is on this processor
-   lastReach = inLocalPartition(numGlobalReach - 1);
-
-   //////////////////////////////////////////////////////////////////////////
-   //
-   // Pass 1 read of the node file
-   // Creates all nodes and inserts in nodelist but doesn't have edge pointers
-   // to match up with edge ids for first edge and flow edge
-   //
-   cout << "Read reach nodes: Pass 1" << endl;
-
-   // Local reach nodes added to mesh
-   std::vector<int>::iterator riter;
-   for (riter = localReach.begin(); riter != localReach.end(); riter++) {
-      reach = (*riter);
-      nodeStr.seekg(nodeOffset[reach], ios::beg);
-
-      for (int node = 0; node < nodesPerReach[reach]; node++) {
-         ReadFlowNode(nodeStr, &curnode);
-         nodeList->insertAtActiveBack(curnode);
-      }
-   }
-
-   // Boundary (inactive) reach nodes added to mesh
-   nodeStr.seekg(nodeOffset[boundaryReach], ios::beg);
-   for (int node = 0; node < nodesPerReach[boundaryReach]; node++) {
-      ReadFlowNode(nodeStr, &curnode);
-      nodeList->insertAtBack(curnode);
-   }
-
-   // Create the lookup table for currently loaded nodes which are the local
-   // nodes for the reaches on this partition and the boundary nodes
-   mesh->allocateNodeTable(nnodes);
-   tMeshListIter< tCNode > nodIter( nodeList );
-   for (cn = nodIter.FirstP(); !(nodIter.AtEnd()); cn = nodIter.NextP())
-      mesh->setNodeFromID(cn->getID(), cn);
-
-   // Local flux nodes added to mesh may be duplicates because both reaches
-   // are local to this partition, so check before adding
-   for (riter = localReach.begin(); riter != localReach.end(); riter++) {
-      origReach = (*riter);
-      fluxNodeStr.seekg(fluxNodeOffset[origReach], ios::beg);
-
-      // Read the flux nodes attached to this reach
-      for (int node = 0; node < fluxNodesPerReach[origReach]; node++) {
-         ReadFlowNode(fluxNodeStr, &destNode);
-
-         // Add flux node if not in the mesh already
-         if (mesh->getNodeFromID(destNode.getID()) == 0) {
-            nodeList->insertAtBack(destNode);
-            destReach = destNode.getReach();
-
-            // Note that this is not good because we don't have the pointer
-            // to the destNode coming out of the insertAtBack
-            mesh->setNodeFromID(destNode.getID(), &destNode);
-         }
-      }
-   }
-
-   // Flux nodes for boundary nodes
-   fluxNodeStr.seekg(fluxNodeOffset[boundaryReach], ios::beg);
-
-   for (int node = 0; node < fluxNodesPerReach[boundaryReach]; node++) {
-      ReadFlowNode(fluxNodeStr, &destNode);
-
-      // Add flux node if not in the mesh because of another reach
-      if (mesh->getNodeFromID(destNode.getID()) == 0) {
-         nodeList->insertAtBack(destNode);
-         destReach = destNode.getReach();
-
-         // Note that this is not good because we don't have the pointer
-         // to the destNode coming out of the insertAtBack
-         mesh->setNodeFromID(destNode.getID(), &destNode);
-      }
-   }
-
-   // Create node table with addition of flux nodes
-   mesh->deleteNodeTable();
-   mesh->allocateNodeTable(nnodes);
-   for (cn = nodIter.FirstP(); !(nodIter.AtEnd()); cn = nodIter.NextP())
-      mesh->setNodeFromID(cn->getID(), cn);
-
-   //////////////////////////////////////////////////////////////////////////
-   //
-   // Pass 1 read of the edge file
-   //
-   cout << "Read reach edges: Pass 1" << endl;
-   // Read every edge in local reaches
-   for (riter = localReach.begin(); riter != localReach.end(); riter++) {
-      origReach = (*riter);
-      edgeStr.seekg(edgeOffset[origReach], ios::beg);
-
-      // Internal edges where origin and destination are in same reach
-      for (int edge = 0; edge < internalEdgesPerReach[origReach]; edge++) {
-         ReadFlowEdge(edgeStr, &curedge, &origID, &destID);
-
-         tCNode *origNode = mesh->getNodeFromID(origID);
-         curedge.setOriginPtr(origNode);
-
-         tCNode *destNode = mesh->getNodeFromID(destID);
-         curedge.setDestinationPtr(destNode);
-
-         curedge.setFlowAllowed(1);
-         edgeList->insertAtActiveBack(curedge);
-      }
-
-      // External edges where origin and destination in different reach
-      // If the reach = -1 it is the boundary nodes and must always be loaded
-      for (int edge = 0; edge < externalEdgesPerReach[origReach]; edge++) {
-         ReadFlowEdge(edgeStr, &curedge, &origID, &destID);
-
-         tCNode *origNode = mesh->getNodeFromID(origID);
-         curedge.setOriginPtr(origNode);
-         origBoundary = origNode->getBoundaryFlag();
-         origPartition = -1;
-         if (origReach != -1)
-            origPartition = getPartition(origReach);
-
-         tCNode *destNode = mesh->getNodeFromID(destID);
-         curedge.setDestinationPtr(destNode);
-         destBoundary = destNode->getBoundaryFlag();
-         destReach = destNode->getReach();
-         destPartition = -1;
-         if (destReach != -1)
-            destPartition = getPartition(destReach);
-
-         // set the "flowallowed" status and put in edge list appropriately
-         if (origBoundary == kClosedBoundary ||
-             destBoundary == kClosedBoundary ||
-             (origBoundary == kOpenBoundary && destBoundary == kOpenBoundary)) {
-            curedge.setFlowAllowed(0);
-            edgeList->insertAtBack(curedge);
-         } else {
-            curedge.setFlowAllowed(1);
-            edgeList->insertAtActiveBack(curedge);
-
-            // Record the existence of flux sharing
-            reachFlux[origReach][destReach] = 1;
-         }
-
-         // Set upflow nodes which are always attached to flux nodes
-         if (origNode->getID() == hid[origReach] && 
-             origPartition == localPart &&
-             destPartition != localPart &&
-             destPartition != -1 &&
-             origReach > destReach)
-            upFlow[destPartition].insert(origNode);
-
-         // Set downflow nodes which are always attached to flux nodes
-         if (destNode->getID() == hid[destReach] && 
-             origPartition == localPart &&
-             destPartition != localPart &&
-             destPartition != -1 &&
-             destReach > origReach)
-            downFlow[destPartition].insert(destNode);
-      }
-
-      // Flux edges are completely in another reach and connect a flux node
-      // to its flow edge which is required by groundwater
-      fluxEdgeStr.seekg(fluxEdgeOffset[origReach], ios::beg);
-      for (int edge = 0; edge < fluxEdgesPerReach[origReach]; edge++) {
-         ReadFlowEdge(fluxEdgeStr, &curedge, &origID, &destID);
-
-         tCNode *origNode = mesh->getNodeFromID(origID);
-         curedge.setOriginPtr(origNode);
-
-         tCNode *destNode = mesh->getNodeFromID(destID);
-         curedge.setDestinationPtr(destNode);
-
-         curedge.setFlowAllowed(0);
-         edgeList->insertAtBack(curedge);
-      }
-   }
-
-   // Read boundary (inactive) edges (internal and external treated the same)
-   edgeStr.seekg(edgeOffset[boundaryReach], ios::beg);
-   int totalBoundaryEdges = internalEdgesPerReach[boundaryReach] +
-                            externalEdgesPerReach[boundaryReach];
-
-   for (int edge = 0; edge < totalBoundaryEdges; edge++) {
-      ReadFlowEdge(edgeStr, &curedge, &origID, &destID);
-
-      tCNode *origNode = mesh->getNodeFromID(origID);
-      curedge.setOriginPtr(origNode);
-      origBoundary = origNode->getBoundaryFlag();
-
-      tCNode *destNode = mesh->getNodeFromID(destID);
-      curedge.setDestinationPtr(destNode);
-      destBoundary = destNode->getBoundaryFlag();
-
-      // set the "flowallowed" status and put in edge list appropriately
-      curedge.setFlowAllowed(0);
-      edgeList->insertAtBack(curedge);
-   }
-
-   // Create the lookup table of edges indexed by edge id
-   tEdge** EdgeTable = new tEdge*[nedges];
-   tEdge* ce; 
-   tMeshListIter< tEdge > edgIter( edgeList );
-   for (ce = edgIter.FirstP(); !(edgIter.AtEnd()); ce = edgIter.NextP())
-      EdgeTable[ce->getID()] = ce;
-      
-   // Read flux edges which might already be in the edge list
-   fluxEdgeStr.seekg(fluxEdgeOffset[boundaryReach], ios::beg);
-   for (int edge = 0; edge < fluxEdgesPerReach[boundaryReach]; edge++) {
-      ReadFlowEdge(fluxEdgeStr, &curedge, &origID, &destID);
-
-      if (EdgeTable[curedge.getID()] == 0) {
-         EdgeTable[curedge.getID()] = &curedge;
-         tCNode *origNode = mesh->getNodeFromID(origID);
-         curedge.setOriginPtr(origNode);
-         origBoundary = origNode->getBoundaryFlag();
-
-         tCNode *destNode = mesh->getNodeFromID(destID);
-         curedge.setDestinationPtr(destNode);
-         destBoundary = destNode->getBoundaryFlag();
-
-         curedge.setFlowAllowed(0);
-         edgeList->insertAtBack(curedge);
-      }
-   }
-
-   // Create the lookup table of edges indexed by edge id
-   delete [] EdgeTable;
-   EdgeTable = new tEdge*[nedges];
-   for (ce = edgIter.FirstP(); !(edgIter.AtEnd()); ce = edgIter.NextP())
-      EdgeTable[ce->getID()] = ce;
-      
-   //////////////////////////////////////////////////////////////////////////
-   //
-   // Pass 2 read of the node file to fill in node pointers
-   //
-   cout << "Read reach nodes: Pass 2" << endl;
-
-   // Local reach nodes read to retrieve ids which can be looked up in tables
-   for (riter = localReach.begin(); riter != localReach.end(); riter++) {
-      reach = (*riter);
-      nodeStr.seekg(nodeOffset[reach], ios::beg);
-
-      for (int node = 0; node < nodesPerReach[reach]; node++) {
-         ReadFlowNode(nodeStr, &id, &firstID, &flowID, &streamID);
-
-         // Get the pointer to the existing node in the mesh
-         cn = mesh->getNodeFromID(id);
-         if (cn != 0) {
-            cn->setEdg(EdgeTable[firstID]);
-            if (flowID >= 0)
-               cn->setFlowEdg(EdgeTable[flowID]);
-            if (streamID >= 0)
-               cn->setStreamNode(mesh->getNodeFromID(streamID));
-         }
-      }
-   }
-
-   // Boundary reach nodes read to retrieve ids which can be looked up in tables
-   nodeStr.seekg(nodeOffset[boundaryReach], ios::beg);
-
-   for (int node = 0; node < nodesPerReach[boundaryReach]; node++) {
-      ReadFlowNode(nodeStr, &id, &firstID, &flowID, &streamID);
-
-      cn = mesh->getNodeFromID(id);
-      if (cn != 0) {
-         cn->setEdg(EdgeTable[firstID]);
-         if (flowID >= 0)
-            cn->setFlowEdg(EdgeTable[flowID]);
-         if (streamID >= 0)
-            cn->setStreamNode(mesh->getNodeFromID(streamID));
-      }
-   }
-
-   // Flux boundary nodes read to retrieve ids which can be looked up in tables
-   fluxNodeStr.seekg(fluxNodeOffset[boundaryReach], ios::beg);
-
-   for (int node = 0; node < fluxNodesPerReach[boundaryReach]; node++) {
-      ReadFlowNode(fluxNodeStr, &id, &firstID, &flowID, &streamID);
-
-      cn = mesh->getNodeFromID(id);
-      if (cn != 0) {
-
-         // When a boundary node goes to a node within a reach that node is
-         // called a flux node and it is stored along with its ccw edges
-         // Additionally the destination node for the ccw edges are stored
-         // as flux nodes BUT not their ccw edges, so we must test before
-         // assigning setEdg()  Note that if something else fails this
-         // might be the problem
-
-         if (EdgeTable[firstID] != 0)
-            cn->setEdg(EdgeTable[firstID]);
-         if (flowID >= 0)
-            cn->setFlowEdg(EdgeTable[flowID]);
-         if (streamID >= 0)
-            cn->setStreamNode(mesh->getNodeFromID(streamID));
-      }
-   }
-
-   // Flux nodes read to retrieve ids which can be looked up in tables
-   for (riter = localReach.begin(); riter != localReach.end(); riter++) {
-      reach = (*riter);
-      fluxNodeStr.seekg(fluxNodeOffset[reach], ios::beg);
-
-      for (int node = 0; node < fluxNodesPerReach[reach]; node++) {
-         ReadFlowNode(fluxNodeStr, &id, &firstID, &flowID, &streamID);
-         cn = mesh->getNodeFromID(id);
-         if (cn != 0) {
-            if (EdgeTable[firstID] != 0)
-               cn->setEdg(EdgeTable[firstID]);
-            if (flowID >= 0)
-               cn->setFlowEdg(EdgeTable[flowID]);
-            if (streamID >= 0)
-               cn->setStreamNode(mesh->getNodeFromID(streamID));
-         }
-      }
-   }
-
-   //////////////////////////////////////////////////////////////////////////
-   //
-   // Pass 2 read of the edge file to fill in edge pointers
-   //
-   cout << "Read reach edges: Pass 2" << endl;
-   tEdge *curedg, *ccwedg;
-
-   // Local reach edges
-   for (riter = localReach.begin(); riter != localReach.end(); riter++) {
-      reach = (*riter);
-      edgeStr.seekg(edgeOffset[reach], ios::beg);
-
-      // Local reach internal edges
-      for (int edge = 0; edge < internalEdgesPerReach[reach]; edge++) {
-         ReadFlowEdge(edgeStr, &id, &ccwID);
-         if (ccwID >= 0 && ccwID < nedges)
-            EdgeTable[id]->setCCWEdg(EdgeTable[ccwID]);
-      }
-
-      // Local reach external edges
-      for (int edge = 0; edge < externalEdgesPerReach[reach]; edge++) {
-         ReadFlowEdge(edgeStr, &id, &ccwID);
-         if (ccwID >= 0 && ccwID < nedges)
-            EdgeTable[id]->setCCWEdg(EdgeTable[ccwID]);
-      }
-
-      // Boundary flux edges
-      fluxEdgeStr.seekg(fluxEdgeOffset[reach], ios::beg);
-      for (int edge = 0; edge < fluxEdgesPerReach[boundaryReach]; edge++) {
-         ReadFlowEdge(fluxEdgeStr, &id, &ccwID);
-         if (ccwID >= 0 && ccwID < nedges && EdgeTable[ccwID] != 0)
-            EdgeTable[id]->setCCWEdg(EdgeTable[ccwID]);
-      }
-   }
-
-   // Boundary edges
-   edgeStr.seekg(edgeOffset[boundaryReach], ios::beg);
-   for (int edge = 0; edge < totalBoundaryEdges; edge++) {
-      ReadFlowEdge(edgeStr, &id, &ccwID);
-      if (ccwID >= 0 && ccwID < nedges && EdgeTable[ccwID] != 0)
-         EdgeTable[id]->setCCWEdg(EdgeTable[ccwID]);
-   }
-
-   // Boundary flux edges
-   fluxEdgeStr.seekg(fluxEdgeOffset[boundaryReach], ios::beg);
-   for (int edge = 0; edge < fluxEdgesPerReach[boundaryReach]; edge++) {
-      ReadFlowEdge(fluxEdgeStr, &id, &ccwID);
-      if (ccwID >= 0 && ccwID < nedges && EdgeTable[ccwID] != 0)
-         EdgeTable[id]->setCCWEdg(EdgeTable[ccwID]);
-   }
-
-   // Set reaches that exchange flux
-   for (int i = 0; i < numGlobalReach; i++) {
-      for (int j = 0; j < numGlobalReach; j++) {
-         if ((i != j) && (reachFlux[i][j] == 1))
-            conn[i].addFlux(j);
-      }
-   }
-   reachFlux.clear();
-
-   edgeStr.close();
-   nodeStr.close();
-   fluxNodeStr.close();
-   fluxEdgeStr.close();
-
-   delete [] EdgeTable;
-
-#ifdef PARALLEL_TRIBS
-   tParallel::barrier();
-#endif
-}
-
-/***************************************************************************
-**      
-** Read the flow node information
-** Filled tCNode is returned along with id variables which must be looked
-** up in EdgeTable or NodeTable to locate actual pointers
-**      
-***************************************************************************/
-          
-void tGraph::ReadFlowNode(fstream& nodeStr, tCNode* curnode)
-{       
-   int id, firstEdgeID, flowEdgeID, streamNodeID;
-   int boundary, flood, tracer, reach;
-   double hillpath, traveltime, srf, hsrf, psrf, satsrf, sbsrf;
-   double SoilMoistureSC, SoilMoistureUNSC, RootMoistureSC;
-   double EvapoTranspiration, ContrArea, NwtNew, Rain, Curvature, streampath;
-   double x, y, z, varea;
-
-   BinaryRead(nodeStr, id);
-   BinaryRead(nodeStr, boundary);
-   BinaryRead(nodeStr, x);
-   BinaryRead(nodeStr, y);
-   BinaryRead(nodeStr, z);
-   BinaryRead(nodeStr, varea);
-   BinaryRead(nodeStr, firstEdgeID);
-   BinaryRead(nodeStr, flood);
-   BinaryRead(nodeStr, tracer);
-   BinaryRead(nodeStr, hillpath);
-   BinaryRead(nodeStr, traveltime);
-   BinaryRead(nodeStr, srf);
-   BinaryRead(nodeStr, hsrf);
-   BinaryRead(nodeStr, psrf);
-   BinaryRead(nodeStr, satsrf);
-   BinaryRead(nodeStr, sbsrf);
-   BinaryRead(nodeStr, EvapoTranspiration);
-   BinaryRead(nodeStr, SoilMoistureSC);
-   BinaryRead(nodeStr, SoilMoistureUNSC);
-   BinaryRead(nodeStr, RootMoistureSC);
-   BinaryRead(nodeStr, ContrArea);
-   BinaryRead(nodeStr, NwtNew);
-   BinaryRead(nodeStr, Rain);
-   BinaryRead(nodeStr, Curvature);
-   BinaryRead(nodeStr, streampath);
-   BinaryRead(nodeStr, reach);
-   BinaryRead(nodeStr, flowEdgeID);
-   BinaryRead(nodeStr, streamNodeID);
-
-   curnode->setID(id);
-   curnode->setBoundaryFlag(boundary);
-   curnode->setX(x);
-   curnode->setY(y);
-   curnode->setZ(z);
-   curnode->setVArea(varea);
-   curnode->setVArea_Rcp(1.0 / varea);
-   curnode->setFloodStatus(flood);
-   curnode->setTracer(tracer);
-   curnode->setHillPath(hillpath);
-   curnode->setTTime(traveltime);
-   curnode->setsrf(srf);
-   curnode->sethsrf(hsrf);
-   curnode->setpsrf(psrf);
-   curnode->setsatsrf(satsrf);
-   curnode->setsbsrf(sbsrf);
-   curnode->setEvapoTrans(EvapoTranspiration);
-   curnode->setSoilMoistureSC(SoilMoistureSC);
-   curnode->setSoilMoistureUNSC(SoilMoistureUNSC);
-   curnode->setRootMoistureSC(RootMoistureSC);
-   curnode->setContrArea(ContrArea);
-   curnode->setNwtNew(NwtNew);
-   curnode->setRain(Rain);
-   curnode->setCurvature(Curvature);
-   curnode->setStreamPath(streampath);
-   curnode->setReach(reach);
-}   
-
-void tGraph::ReadFlowNode(fstream& nodeStr,
-                          int* id, int* firstEdgeID, 
-                          int* flowEdgeID, int* streamNodeID)
-{       
-   int boundary, flood, tracer, reach;
-   double hillpath, traveltime, srf, hsrf, psrf, satsrf, sbsrf;
-   double SoilMoistureSC, SoilMoistureUNSC, RootMoistureSC;
-   double EvapoTranspiration, ContrArea, NwtNew, Rain, Curvature, streampath;
-   double x, y, z, varea;
-
-   BinaryRead(nodeStr, *id);
-   BinaryRead(nodeStr, boundary);
-   BinaryRead(nodeStr, x);
-   BinaryRead(nodeStr, y);
-   BinaryRead(nodeStr, z);
-   BinaryRead(nodeStr, varea);
-   BinaryRead(nodeStr, *firstEdgeID);
-   BinaryRead(nodeStr, flood);
-   BinaryRead(nodeStr, tracer);
-   BinaryRead(nodeStr, hillpath);
-   BinaryRead(nodeStr, traveltime);
-   BinaryRead(nodeStr, srf);
-   BinaryRead(nodeStr, hsrf);
-   BinaryRead(nodeStr, psrf);
-   BinaryRead(nodeStr, satsrf);
-   BinaryRead(nodeStr, sbsrf);
-   BinaryRead(nodeStr, EvapoTranspiration);
-   BinaryRead(nodeStr, SoilMoistureSC);
-   BinaryRead(nodeStr, SoilMoistureUNSC);
-   BinaryRead(nodeStr, RootMoistureSC);
-   BinaryRead(nodeStr, ContrArea);
-   BinaryRead(nodeStr, NwtNew);
-   BinaryRead(nodeStr, Rain);
-   BinaryRead(nodeStr, Curvature);
-   BinaryRead(nodeStr, streampath);
-   BinaryRead(nodeStr, reach);
-   BinaryRead(nodeStr, *flowEdgeID);
-   BinaryRead(nodeStr, *streamNodeID);
-}
-
-    
-/***************************************************************************
-**  
-** Read the flow edge information
-**    
-***************************************************************************/
-    
-void tGraph::ReadFlowEdge(fstream& edgeStr, tEdge* curedge,
-                          int* origID, int* destID)
-{   
-   int id, ccwID;
-   double x, y, z, varea, rvtx[2], length, slope, vedglen;
-   tArray<double> RVtx(2);
-
-   BinaryRead(edgeStr, id);
-   BinaryRead(edgeStr, rvtx[0]);
-   BinaryRead(edgeStr, rvtx[1]);
-   BinaryRead(edgeStr, length);
-   BinaryRead(edgeStr, slope);
-   BinaryRead(edgeStr, vedglen);
-   BinaryRead(edgeStr, *origID);
-   BinaryRead(edgeStr, *destID);
-   BinaryRead(edgeStr, ccwID);
-
-   curedge->setID(id);
-   RVtx[0] = rvtx[0];
-   RVtx[1] = rvtx[1];
-   curedge->setRVtx(RVtx);
-   curedge->setLength(length);
-   curedge->setSlope(slope);
-   curedge->setVEdgLen(vedglen);
-} 
-
-void tGraph::ReadFlowEdge(fstream& edgeStr, int* id, int* ccwID)
-{   
-   int origID, destID;
-   double x, y, z, varea, rvtx[2], length, slope, vedglen;
-   tArray<double> RVtx(2);
-
-   BinaryRead(edgeStr, *id);
-   BinaryRead(edgeStr, rvtx[0]);
-   BinaryRead(edgeStr, rvtx[1]);
-   BinaryRead(edgeStr, length);
-   BinaryRead(edgeStr, slope);
-   BinaryRead(edgeStr, vedglen);
-   BinaryRead(edgeStr, origID);
-   BinaryRead(edgeStr, destID);
-   BinaryRead(edgeStr, *ccwID);
 }
 
 /*************************************************************************

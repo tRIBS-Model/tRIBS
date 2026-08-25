@@ -2,7 +2,7 @@
  * TIN-based Real-time Integrated Basin Simulator (tRIBS)
  * Distributed Hydrologic Model
  *
- * Copyright (c) 2025. tRIBS Developers
+ * Copyright (c) tRIBS Developers
  *
  * See LICENSE file in the project root for full license information.
  ******************************************************************************/
@@ -54,11 +54,6 @@ tOutput<tSubNode>::tOutput(SimulationControl *simCtrPtr,
 	Cout<<"\nOutput Files:"<<endl<<endl;
 	infile.ReadItem(baseName, "OUTFILENAME" );    //basename of output
 	infile.ReadItem(nodeFile, "NODEOUTPUTLIST");  //pathname of node output
-
-	// Binary viz output
-   vizOption = infile.ReadItem(vizOption, "OPTVIZ");
-   if (this->vizOption > 0)
-	    infile.ReadItem(vizName, "OUTVIZFILENAME" );
 	
 #ifdef PARALLEL_TRIBS
   // Nodes, edges, triangles, and Z files are only written
@@ -71,19 +66,19 @@ tOutput<tSubNode>::tOutput(SimulationControl *simCtrPtr,
 	char trisext[10] = ".tri";
 	char zofsext[10] = ".z";
 	
-	CreateAndOpenFile( &nodeofs, nodesext );
-	CreateAndOpenFile( &edgofs,  edgesext );
-	CreateAndOpenFile( &triofs,  trisext );
-	CreateAndOpenFile( &zofs,    zofsext );
-	
+	CreateAndOpenFileSingle( &nodeofs, nodesext );
+	CreateAndOpenFileSingle( &edgofs,  edgesext );
+	CreateAndOpenFileSingle( &triofs,  trisext );
+	CreateAndOpenFileSingle( &zofs,    zofsext );
+
 	nodeofs.setf( ios::fixed, ios::floatfield);
 	zofs.setf   ( ios::fixed, ios::floatfield);
-	
+
 #ifdef PARALLEL_TRIBS
   }
 #endif
 
-	ReadNodeOutputList(); 
+	ReadNodeOutputList();
 	CreateAndOpenPixel();
 	dynvars = nullptr;
 }
@@ -114,11 +109,6 @@ tOutput<tSubNode>::tOutput( SimulationControl *simCtrPtr,
 	infile.ReadItem( baseName, "OUTFILENAME" );          
 	infile.ReadItem( nodeFile, "NODEOUTPUTLIST");  
 	
-	// Binary viz output
-   vizOption = infile.ReadItem(vizOption, "OPTVIZ");
-   if (this->vizOption > 0)
-	    infile.ReadItem(vizName, "OUTVIZFILENAME" );
-	
 #ifdef PARALLEL_TRIBS
   // Nodes, edges, triangles, and Z files are only written
   // by the Master node
@@ -130,10 +120,10 @@ tOutput<tSubNode>::tOutput( SimulationControl *simCtrPtr,
 	char trisext[10] = ".tri";
 	char zofsext[10] = ".z";
 	
-	CreateAndOpenFile( &nodeofs, nodesext);
-	CreateAndOpenFile( &edgofs,  edgesext);
-	CreateAndOpenFile( &triofs,  trisext);
-	CreateAndOpenFile( &zofs,    zofsext);
+	CreateAndOpenFileSingle( &nodeofs, nodesext);
+	CreateAndOpenFileSingle( &edgofs,  edgesext);
+	CreateAndOpenFileSingle( &triofs,  trisext);
+	CreateAndOpenFileSingle( &zofs,    zofsext);
 	
 	nodeofs.setf( ios::fixed, ios::floatfield);
 	zofs.setf   ( ios::fixed, ios::floatfield);
@@ -214,45 +204,46 @@ void tOutput<tSubNode>::CreateAndOpenFile( ofstream *theOFStream,
 	return;
 }
 
+/*************************************************************************
+**
+**  tOutput::CreateAndOpenFileSingle
+**
+**  Like CreateAndOpenFile but never appends a processor suffix.
+**  Used in parallel mode so the master can write one merged output file.
+**
+*************************************************************************/
 template< class tSubNode >
-void tOutput<tSubNode>::CreateAndOpenVizFile( ofstream *theOFStream,
-                                           char *extension )
-{ 
-	char procex[10];
+void tOutput<tSubNode>::CreateAndOpenFileSingle( ofstream *theOFStream,
+                                                 char *extension )
+{
 	char fullName[kMaxNameSize+6];
-   
-	strcpy( fullName, vizName );
+	strcpy( fullName, baseName );
 	strcat( fullName, extension );
-#ifdef PARALLEL_TRIBS
-	snprintf( procex,sizeof(procex),".%-d", tParallel::getMyProc()); //WR 09192023: converted sprintf to snprintf, needed to add sizeof(procex): warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.
-	strcat(fullName, procex);
-#else
-	snprintf( procex, sizeof(procex), "");
-	strcat(fullName, procex);
-#endif 
-  
-	theOFStream->open( fullName, ios::binary );
-  
+	theOFStream->open( fullName );
 	if ( !theOFStream->good() )
-		cerr << "File "<<fullName<<" not created.";
-  
-	Cout<<"Creating Output File: \t '"<<fullName<<"' "<<endl;
-	return;
-} 
+		cerr << "File " << fullName << " not created." << endl;
+}
 
 /*************************************************************************
 **
 **  tOutput::ReadNodeOutputList()
 **
-**  Opens and Reads the node list from a *.nol file whose structure is:
+**  Opens and reads the node list from a *.nol CSV file. The first line is
+**  a header flag declaring how the rows are specified, followed by one
+**  record per row (no count line):
 **
-**  Number of Nodes
-**  Node1 Node2 Node3 Node4 Node5 ...
+**    ID              X,Y
+**    105             456000.0,3812000.0
+**    250             457500.0,3813200.0
+**
+**  In "ID" mode each row is a Voronoi node ID. In "X,Y" mode each row is a
+**  coordinate pair, which is resolved here to the ID of the nearest node so
+**  that all downstream output handling is identical to the ID case.
 **
 *************************************************************************/
 template< class tSubNode >
 void tOutput<tSubNode>::ReadNodeOutputList() {
-	
+
 	ifstream readNOL(nodeFile);
 	if (!readNOL) {
 		Cout << "\nFile "<<nodeFile<<" not found..."<<endl;
@@ -264,8 +255,31 @@ void tOutput<tSubNode>::ReadNodeOutputList() {
         pixinfo = nullptr;
 		return;
 	}
-	
-	readNOL >> numNodes;
+
+	// First line is the header flag: a comma signals coordinate ("X,Y") mode,
+	// otherwise rows are interpreted as node IDs.
+	string header;
+	getline(readNOL, header);
+	bool coordMode = (header.find(',') != string::npos);
+
+	// Read every remaining non-empty row.
+	vector<int> ids;
+	vector<double> xs, ys;
+	string line;
+	while (getline(readNOL, line)) {
+		for (char &c : line) if (c == ',') c = ' ';   // CSV -> whitespace
+		istringstream iss(line);
+		if (coordMode) {
+			double x, y;
+			if (iss >> x >> y) { xs.push_back(x); ys.push_back(y); }
+		} else {
+			int id;
+			if (iss >> id) ids.push_back(id);
+		}
+	}
+	readNOL.close();
+
+	numNodes = coordMode ? (int)xs.size() : (int)ids.size();
 	nodeList = new int[numNodes];
 	uzel = new tSubNode*[numNodes];
 	pixinfo = new ofstream[numNodes];
@@ -277,11 +291,140 @@ void tOutput<tSubNode>::ReadNodeOutputList() {
 #endif
 
 	for (int i = 0; i < numNodes; i++) {
-		readNOL >> nodeList[i]; 
+		if (coordMode) {
+			// Pixel output may be requested for any active node.
+			double snapDist;
+			nodeList[i] = FindNearestNodeID(xs[i], ys[i], false, snapDist);
+			Cout<<"\nNode output coordinate ("<<xs[i]<<", "<<ys[i]
+				<<") resolved to nearest node ID "<<nodeList[i]
+				<<" ("<<snapDist<<" meters away)"<<endl;
+		} else {
+			nodeList[i] = ids[i];
+		}
 	}
-	
-	readNOL.close();
 	return;
+}
+
+/*************************************************************************
+**
+**  tOutput::FindNearestNodeID()
+**
+**  Returns the ID of the nearest eligible mesh node to (x, y) and reports the
+**  straight-line snap distance through snapDist. For pixel output (streamOnly
+**  false) only active computational nodes (kNonBoundary / kStream) are
+**  considered, since boundary nodes carry no hydrologic state. For streamflow
+**  outlets (streamOnly true) the search is restricted to the channel network
+**  (kStream / kOpenBoundary outlet).
+**
+**  Two sanity checks are emitted as warnings (the nearest node is still
+**  returned so the run proceeds):
+**    - the request falls outside the domain bounding box (likely a typo or
+**      wrong projection, e.g. lat/lon vs. UTM);
+**    - for outlets, the nearest stream node is much farther than the nearest
+**      node of ANY type, i.e. the coordinate is not actually on the channel.
+**      This gap test is self-calibrating: on-channel points have both
+**      distances comparable regardless of mesh resolution.
+**
+**  In parallel each processor searches its partition and the results are
+**  combined with MPI reductions (MINLOC for the nearest node, MIN/MAX for the
+**  bounding box and nearest-any distance).
+**
+*************************************************************************/
+template< class tSubNode >
+int tOutput<tSubNode>::FindNearestNodeID(double x, double y, bool streamOnly,
+                                         double &snapDist)
+{
+	tSubNode *cnn;
+	tMeshListIter<tSubNode> niter( g->getNodeList() );
+	double bestDist2 = -1.0;     // nearest eligible (selected) node
+	int bestID = -1;
+	double anyDist2 = -1.0;      // nearest node of any type (for the gap test)
+
+	// Full-domain extent of real (non closed-boundary) nodes, used to flag a
+	// coordinate that falls outside the model domain.
+	double loBox[2] = { +1.0e300, +1.0e300 };   // min x, min y
+	double hiBox[2] = { -1.0e300, -1.0e300 };   // max x, max y
+
+#ifdef PARALLEL_TRIBS
+	for ( cnn=niter.FirstP(); niter.IsActive(); cnn=niter.NextP() ) {
+#else
+	for ( cnn=niter.FirstP(); !(niter.AtEnd()); cnn=niter.NextP() ) {
+#endif
+		int bf = cnn->getBoundaryFlag();
+		if ( bf == kClosedBoundary )
+			continue;            // closed boundary nodes are never candidates
+
+		double nx = cnn->getX();
+		double ny = cnn->getY();
+		double dx = nx - x;
+		double dy = ny - y;
+		double d2 = dx*dx + dy*dy;
+
+		// Domain extent and nearest-of-any-type, over all real nodes.
+		if ( nx < loBox[0] ) loBox[0] = nx;
+		if ( nx > hiBox[0] ) hiBox[0] = nx;
+		if ( ny < loBox[1] ) loBox[1] = ny;
+		if ( ny > hiBox[1] ) hiBox[1] = ny;
+		if ( anyDist2 < 0.0 || d2 < anyDist2 )
+			anyDist2 = d2;
+
+		// Eligibility of this node for the requested output type.
+		bool eligible = streamOnly ? ( bf == kStream || bf == kOpenBoundary )
+		                           : ( bf == kNonBoundary || bf == kStream );
+		if ( !eligible )
+			continue;
+		if ( bestDist2 < 0.0 || d2 < bestDist2 ) {
+			bestDist2 = d2;
+			bestID = cnn->getID();
+		}
+	}
+
+	double resolvedDist2 = bestDist2;
+
+#ifdef PARALLEL_TRIBS
+	// Select the globally nearest eligible node across all processors. The
+	// processor that owns the winning node broadcasts its ID to everyone.
+	struct { double dist; int rank; } local, global;
+	local.dist = (bestDist2 < 0.0) ? 1.0e300 : bestDist2;
+	local.rank = tParallel::getMyProc();
+	MPI_Allreduce(&local, &global, 1, MPI_DOUBLE_INT, MPI_MINLOC, MPI_COMM_WORLD);
+	MPI_Bcast(&bestID, 1, MPI_INT, global.rank, MPI_COMM_WORLD);
+	resolvedDist2 = global.dist;
+	// Reduce the domain bounding box and the nearest-any distance.
+	double gLo[2], gHi[2];
+	MPI_Allreduce(loBox, gLo, 2, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
+	MPI_Allreduce(hiBox, gHi, 2, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+	loBox[0] = gLo[0]; loBox[1] = gLo[1];
+	hiBox[0] = gHi[0]; hiBox[1] = gHi[1];
+	double localAny = (anyDist2 < 0.0) ? 1.0e300 : anyDist2;
+	MPI_Allreduce(&localAny, &anyDist2, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
+#endif
+
+	snapDist = (resolvedDist2 < 0.0) ? -1.0 : sqrt(resolvedDist2);
+
+	// Warn if the request landed outside the domain: a strong sign of a typo
+	// or coordinates given in the wrong projection (e.g. lat/lon vs. UTM).
+	if ( bestID >= 0 &&
+	     ( x < loBox[0] || x > hiBox[0] || y < loBox[1] || y > hiBox[1] ) ) {
+		Cout<<"\nWARNING: requested coordinate ("<<x<<", "<<y<<") is OUTSIDE the "
+			<<"model domain\n         (x: "<<loBox[0]<<" to "<<hiBox[0]
+			<<", y: "<<loBox[1]<<" to "<<hiBox[1]<<").\n"
+			<<"         Snapped to node "<<bestID<<", "<<snapDist
+			<<" meters away. Check that coordinates use the mesh projection "
+			<<"(not lat/lon)."<<endl;
+	}
+
+	// For outlets, warn if the chosen stream node is much farther than the
+	// nearest node of any type: the coordinate is not on the channel. The
+	// factor adapts to mesh resolution, so no absolute threshold is needed.
+	if ( streamOnly && bestID >= 0 && anyDist2 >= 0.0 &&
+	     resolvedDist2 > 9.0 * anyDist2 ) {     // 9.0 = (3x distance)^2
+		Cout<<"\nWARNING: outlet coordinate ("<<x<<", "<<y<<") is "<<snapDist
+			<<" meters from the nearest stream node, but only "<<sqrt(anyDist2)
+			<<" meters from the nearest (non-stream) node."<<endl;
+	}
+
+	return bestID;
 }
 
 /*************************************************************************
@@ -312,95 +455,93 @@ void tOutput<tSubNode>::CreateAndOpenPixel()
 				strcpy(pixelnode, nodeNum);
 				strcat(pixelnode, pixelext);		 
 				
-				CreateAndOpenFile( &pixinfo[i], pixelnode );
+				CreateAndOpenFileSingle( &pixinfo[i], pixelnode );
 				
-				if (simCtrl->Header_label=='Y') {
-                    // first row name
-					pixinfo[i]<<"NodeID "//1
-					<<"Time_hr " //2
-					<<"Nwt_mm " //3
-					<<"Nf_mm " //4
-					<<"Nt_mm " //5
-					<<"Mu_mm " //6
-					<<"Mi_mm " //7
-					<<"QpOut_mm_h " //8
-					<<"QpIn_mm_h " //9
-					<<"Trnsm_m2_h " //10
-					<<"GWflx_m3_h " //11
-					<<"Srf_mm " //12
-					<<"Rain_mm_h " //13
-					<<"SoilMoist_[] " //14
-					<<"RootMoist_[] "  //15
-					<<"AirT_oC " //16
-					<<"DewT_oC " //17
-					<<"SurfT_oC " //18
-					<<"SoilT_oC " //19
-					<<"Press_Pa " //20
-					<<"RelHum_[] " //21
-					<<"SkyCov_[] "  //22
-					<<"Wind_m_s " //23
-					<<"NetRad_W_m2 " //24
-					<<"ShrtRadIn_W_m2 " //25
-                    <<"ShortRadInSlope_W_m2 "    //25.5  JB2025 @ ASU
-					<<"ShrtRadIn_dir_W_m2 " //27
-					<<"ShrtRadIn_dif_W_m2 " //28
-					<<"ShortAbsbVeg_W_m2 " //29
-					<<"ShortAbsbSoi_W_m2 " //30
-					<<"LngRadIn_W_m2 " //31
-					<<"LngRadOut_W_m2A " //32
-					<<"PotEvp_mm_h " //33
-					<<"ActEvp_mm_h " //34
-					<<"EvpTtrs_mm_h " //35
-					<<"EvpWetCan_mm_h " //36
-					<<"EvpDryCan_mm_h " //37
-					<<"EvpSoil_mm_h " //38
-					<<"Gflux_W_m2 " //39
-					<<"HFlux_W_m2 " //40
-					<<"Lflux_W_m2 " //41
-					<<"NetPrecip_mm_hr " //42
-					<<"LiqWE_cm " //43
-					<<"IceWE_cm "	//44
-					<<"SnWE_cm "	//45
-					<<"SnSub_cm "	//46
-					<<"SnEvap_cm "	//47
-					<<"U_kJ_m2 "  //48
-					<<"RouteWE_cm " //49
-					<<"SnTemp_C "	//50
-					<<"SurfAge_h "	//51
-					<<"DU_kJ_m2_etistep " //52
-					<<"snLHF_kJ_m2_etistep " //53
-					<<"snSHF_kJ_m2_etistep " //54
-					<<"snGHF_kJ_m2_etistep " //55
-					<<"snPHF_kJ_m2_etistep " //56
-					<<"snRLout_kJ_m2_etistep " //57
-					<<"snRLin_kJ_m2_etistep " //58
-					<<"snRSin_kJ_m2_etistep " //59
-					<<"Uerror_kJ_m2_etistep " //60
-					<<"IntSWEq_cm "		 //61
-					<<"IntSub_cm "		 //62
-					<<"IntSnUnload_cm "	 //63
-					<<"CanStorage_mm " //64
-					<<"CumIntercept_mm " //65
-					<<"Interception_mm " //66
-					<<"Recharge_mm/hr " //67
-					<<"RunOn_mm " //68
-					<<"Srf_Hour_mm " //69
-					<<"Qstrm_m3_s " //70
-					<<"Hlevel_m " //71
-					<<"CanStorParam_mm " //72
-					<<"IntercepCoeff_[] " //73
-					<<"ThroughFall_[] " //74
-					<<"CanFieldCap_mm " //75
-					<<"DrainCoeff_mm_hr " //76
-					<<"DrainExpPar_1_mm " //77
-					<<"LandUseAlb_[] " //78
-					<<"VegHeight_m " //79
-					<<"OptTransmCoeff_[] " //80
-					<<"StomRes_s_m " //81
-					<<"VegFraction[] " //82
-					<<"LeafAI_[] " //83
-					<<"\n";
-				}
+				// Write Header
+				pixinfo[i]<<"NodeID,"  //1
+				<<"Time_hr,"
+				<<"Nwt_mm,"
+				<<"Nf_mm,"
+				<<"Nt_mm,"             //5
+				<<"Mu_mm,"
+				<<"Mi_mm,"
+				<<"QpOut_mm_h,"
+				<<"QpIn_mm_h,"
+				<<"Trnsm_m2_h,"        //10
+				<<"GWflx_m3_h,"
+				<<"Srf_Hour_mm,"
+				<<"Rain_mm_h,"
+				<<"SoilMoist_[],"
+				<<"RootMoist_[],"      //15
+				<<"AirT_oC,"
+				<<"DewT_oC,"
+				<<"SurfT_oC,"
+				<<"SoilT_oC,"
+				<<"Press_Pa,"          //20
+				<<"RelHum_[],"
+				<<"SkyCov_[],"
+				<<"Wind_m_s,"
+				<<"NetRad_W_m2,"
+				<<"ShrtRadIn_W_m2,"    //25
+				<<"ShortRadInSlope_W_m2,"    // JB2025 @ ASU
+				<<"ShrtRadIn_dir_W_m2,"
+				<<"ShrtRadIn_dif_W_m2,"
+				<<"ShortAbsbVeg_W_m2,"
+				<<"ShortAbsbSoi_W_m2," //30
+				<<"LngRadIn_W_m2,"
+				<<"LngRadOut_W_m2A,"
+				<<"PotEvp_mm_h,"
+				<<"EvpTtrs_mm_h,"      //34
+				<<"EvpWetCan_mm_h,"
+				<<"TransDryCan_mm_h,"
+				<<"EvpSoil_mm_h,"
+				<<"Gflux_W_m2,"
+				<<"HFlux_W_m2,"        //39
+				<<"Lflux_W_m2,"
+				<<"NetPrecip_mm_hr,"
+				<<"LiqWE_cm,"
+				<<"IceWE_cm,"
+				<<"SnWE_cm,"           //44
+				<<"SnSub_cm,"
+				<<"SnEvap_cm,"
+				<<"U_kJ_m2,"
+				<<"RouteWE_cm,"
+				<<"SnTemp_C,"          //49
+				<<"SurfAge_h,"
+				<<"SnDepth_cm,"
+				<<"SnDensity_kg_m3,"
+				<<"DU_kJ_m2,"
+				<<"snLHF_kJ_m2,"       //54
+				<<"snSHF_kJ_m2,"
+				<<"snGHF_kJ_m2,"
+				<<"snPHF_kJ_m2,"
+				<<"snRLout_kJ_m2,"
+				<<"snRLin_kJ_m2,"      //59
+				<<"snRSin_kJ_m2,"
+				<<"Uerror_kJ_m2,"
+				<<"IntSWEq_cm,"
+				<<"IntSub_cm,"
+				<<"IntSnUnload_cm,"     //64
+				<<"CanStorage_mm,"
+				<<"CumIntercept_mm,"
+				<<"Interception_mm,"
+				<<"Recharge_mm/hr,"
+				<<"RunOn_mm,"          //69
+				<<"Qstrm_m3_s,"
+				<<"Hlevel_m,"
+				<<"ThroughFall_[],"
+				<<"CanFieldCap_mm,"
+				<<"DrainCoeff_mm_hr,"  //74
+				<<"DrainExpPar_1_mm,"
+				<<"LandUseAlb_[],"
+				<<"VegHeight_m,"
+				<<"OptTransmCoeff_[],"
+				<<"StomRes_s_m,"       //79
+				<<"VegFraction[],"
+				<<"LeafAI_[],"
+				<<"RootZoneDepth_m"    //82
+				<<"\n";
+				
 				pixinfo[i].setf( ios::right, ios::adjustfield );
 				pixinfo[i].setf( ios::fixed, ios::floatfield);  
 			}
@@ -587,23 +728,29 @@ void tOutput<tSubNode>::WriteOutput( double time )
 	int nActiveNodes = g->getNodeList()->getActiveSize();
 	int nActiveEdges = g->getEdgeList()->getActiveSize();
 
-	cout<<"Proc " << tParallel::getMyProc()
+	int myProc = tParallel::getMyProc();
+
+	cout<<"Proc " << myProc
 	    <<": tOutput Characteristics:"<<endl;
-  
-	cout<<"Proc " << tParallel::getMyProc()
-	    <<": Number of nodes: \t\t"<<nnodes<<endl;
-	cout<<"Proc " << tParallel::getMyProc()
-	    <<": Number of edges: \t\t"<<nedges<<endl;
-  
-	cout<<"Proc " << tParallel::getMyProc()
+
+	if (tParallel::isMaster()) {
+	  cout<<"Proc " << myProc
+	      <<": Number of nodes: \t\t"<<nnodes<<endl;
+	  cout<<"Proc " << myProc
+	      <<": Number of edges: \t\t"<<nedges<<endl;
+	}
+
+	cout<<"Proc " << myProc
 	    <<": Number of active nodes: \t"<<nActiveNodes<<endl<<flush;
-	cout<<"Proc " << tParallel::getMyProc()
+	cout<<"Proc " << myProc
 	    <<": Number of active edges: \t"<<nActiveEdges<<endl<<flush;
-  
-	cout<<"Proc " << tParallel::getMyProc()
-	    <<": Number of global active nodes: \t"<<nGlobalActiveNodes<<endl<<flush;
-	cout<<"Proc " << tParallel::getMyProc()
-	    <<": Number of global active edges: \t"<<nGlobalActiveEdges<<endl<<flush;
+
+	if (tParallel::isMaster()) {
+	  cout<<"Proc " << myProc
+	      <<": Number of global active nodes: \t"<<nGlobalActiveNodes<<endl<<flush;
+	  cout<<"Proc " << myProc
+	      <<": Number of global active edges: \t"<<nGlobalActiveEdges<<endl<<flush;
+	}
 
 #else
 
@@ -732,27 +879,9 @@ void tOutput<tSubNode>::WriteNodeData( double , tResample *)
 }
 
 template< class tSubNode >
-void tOutput<tSubNode>::WriteGeometry( tResample *)
-{
-	cout<<"tOutput:WriteNodeData VOID function!"<<endl; 
-}
-
-template< class tSubNode >
 void tOutput<tSubNode>::WriteDynamicVars( double )
 {
 	cout<<"tOutput:WriteDynamicVars VOID function!"<<endl; 
-}
-
-template< class tSubNode >
-void tOutput<tSubNode>::WriteDynamicVarsBinary( double )
-{
-	cout<<"tOutput:WriteDynamicVarsBinary VOID function!"<<endl; 
-}
-
-template< class tSubNode >
-void tOutput<tSubNode>::WriteDynamicVar( double time ) 
-{
-	cout<<"tOutput:WriteDynamicVar VOID function!"<<endl; 
 }
 
 template< class tSubNode >
@@ -799,12 +928,9 @@ tCOutput<tSubNode>::tCOutput(SimulationControl *simCtrPtr, tMesh<tSubNode> *g,
 {
 	simCtrl = simCtrPtr;
 	char nodeFileO[kMaxNameSize];
-	char vorofsext[10] = "_voi";
-	char widthsext[10] = "_width";
-	char drarsext[16] = "_area";
-	
+
 	// Set up interior outlets and open .qout files
-	infile.ReadItem( outletName, "OUTHYDROFILENAME");
+	infile.ReadItem( outletName, "OUTFILENAME");
 	infile.ReadItem( nodeFileO, "OUTLETNODELIST" );
 	ReadOutletNodeList(nodeFileO);
 
@@ -817,23 +943,27 @@ tCOutput<tSubNode>::tCOutput(SimulationControl *simCtrPtr, tMesh<tSubNode> *g,
 	CreateAndOpenOutlet();
 	SetInteriorOutlet();
 #endif
-	
-	// Create files to output vertices of Voronoi
-	// polygons and contributing area values
-	this->CreateAndOpenFile( &vorofs, vorofsext);
-	this->CreateAndOpenFile( &drareaofs, drarsext );
-	this->CreateAndOpenFile( &widthsofs, widthsext );
-	
+
+	{
+		std::set<std::string> selection;
+		char dynVarPath[kMaxNameSize];
+		dynVarPath[0] = '\0';
+		if (infile.IsItemIn("DYNVARFILE")) {
+			infile.ReadItem(dynVarPath, "DYNVARFILE");
+			ReadDynVarFile(dynVarPath, selection);
+		}
+		BuildDynVarTable(selection);
+	}
+
 	WriteNodeData( 0, resamp );
 }
 
 template< class tSubNode >
-tCOutput<tSubNode>::tCOutput(SimulationControl *simCtrPtr, tMesh<tSubNode> *g, 
-							 tInputFile &infile, tResample *resamp ) 
+tCOutput<tSubNode>::tCOutput(SimulationControl *simCtrPtr, tMesh<tSubNode> *g,
+							 tInputFile &infile, tResample *resamp )
 : tOutput<tSubNode>(simCtrPtr, g, infile, resamp, this->timptr)
-{   
-	char vorofsext[10] = "_voi";
-	this->CreateAndOpenFile( &vorofs, vorofsext);
+{
+	BuildDynVarTable({});
 }
 
 template< class tSubNode >
@@ -869,36 +999,91 @@ template< class tSubNode >
 void tCOutput<tSubNode>::WriteNodeData( double time )
 {
 	tSubNode *cn;
-	tEdge * firstedg;
-	tEdge * curedg; 
+	tEdge *firstedg;
+	tEdge *curedg;
 	tMeshListIter<tSubNode> ni( this->g->getNodeList() );
-	tArray< double > xy, xy1, xy2, xy3, xy4;
-	
-	// Writing to a file voronoi vertices  of the current node 
-	// The output format should be readable by ArcInfo & Matlab
-	vorofs.setf( ios::fixed, ios::floatfield);
+	tArray<double> xy;
+	char voiext[10] = "_voi";
+
 	if (time == 0) {
+#ifdef PARALLEL_TRIBS
+		ostringstream buf;
+		buf.setf(ios::fixed, ios::floatfield);
 		cn = ni.FirstP();
-		
 		while (ni.IsActive()) {
-			
-			vorofs<<cn->getID()<<','<<cn->getX()<<','<<cn->getY()<<"\n";
+			buf << cn->getID() << ',' << cn->getX() << ',' << cn->getY() << "\n";
 			firstedg = cn->getFlowEdg();
 			xy = firstedg->getRVtx();
-			vorofs<<xy[0]<<','<<xy[1]<<"\n";
+			buf << xy[0] << ',' << xy[1] << "\n";
 			curedg = firstedg->getCCWEdg();
-			while (curedg!=firstedg) {
+			while (curedg != firstedg) {
 				xy = curedg->getRVtx();
-				vorofs <<xy[0]<<','<<xy[1]<<"\n";
+				buf << xy[0] << ',' << xy[1] << "\n";
 				curedg = curedg->getCCWEdg();
 			}
-			vorofs<<"END"<<"\n";
+			buf << "END\n";
 			cn = ni.NextP();
 		}
-		vorofs<<"END"<<"\n";
-		
+		{
+			string localStr = buf.str();
+			int localLen = (int)localStr.size();
+			int nprocs = tParallel::getNumProcs();
+			vector<int> lengths(nprocs), offsets(nprocs);
+			MPI_Gather(&localLen, 1, MPI_INT,
+			           lengths.data(), 1, MPI_INT, MASTER_PROC, MPI_COMM_WORLD);
+			if (tParallel::isMaster()) {
+				int total = 0;
+				for (int p = 0; p < nprocs; p++) { offsets[p] = total; total += lengths[p]; }
+				vector<char> combined(total);
+				MPI_Gatherv((char*)localStr.data(), localLen, MPI_CHAR,
+				            combined.data(), lengths.data(), offsets.data(), MPI_CHAR,
+				            MASTER_PROC, MPI_COMM_WORLD);
+				string combinedStr(combined.data(), total);
+				vector<string> blocks;
+				const string delim = "END\n";
+				size_t pos = 0;
+				while (pos < (size_t)total) {
+					size_t end = combinedStr.find(delim, pos);
+					if (end == string::npos) break;
+					blocks.push_back(combinedStr.substr(pos, end - pos + delim.size()));
+					pos = end + delim.size();
+				}
+				sort(blocks.begin(), blocks.end(), [](const string &a, const string &b) {
+					return stoi(a) < stoi(b);
+				});
+				this->CreateAndOpenFileSingle(&vorofs, voiext);
+				vorofs.setf(ios::fixed, ios::floatfield);
+				for (const auto &blk : blocks) vorofs << blk;
+				vorofs << "END\n";
+				vorofs.close();
+			} else {
+				MPI_Gatherv((char*)localStr.data(), localLen, MPI_CHAR,
+				            nullptr, nullptr, nullptr, MPI_CHAR,
+				            MASTER_PROC, MPI_COMM_WORLD);
+			}
+		}
+#else
+		this->CreateAndOpenFileSingle(&vorofs, voiext);
+		vorofs.setf(ios::fixed, ios::floatfield);
+		cn = ni.FirstP();
+		while (ni.IsActive()) {
+			vorofs << cn->getID() << ',' << cn->getX() << ',' << cn->getY() << "\n";
+			firstedg = cn->getFlowEdg();
+			xy = firstedg->getRVtx();
+			vorofs << xy[0] << ',' << xy[1] << "\n";
+			curedg = firstedg->getCCWEdg();
+			while (curedg != firstedg) {
+				xy = curedg->getRVtx();
+				vorofs << xy[0] << ',' << xy[1] << "\n";
+				curedg = curedg->getCCWEdg();
+			}
+			vorofs << "END\n";
+			cn = ni.NextP();
+		}
+		vorofs << "END\n";
+		vorofs.close();
+#endif
 	}
-	vorofs.close();
 	return;
 }
 
@@ -917,155 +1102,221 @@ void tCOutput<tSubNode>::WriteNodeData( double time, tResample *tresamp )
 {
 	tSubNode *cn;
 	tMeshListIter<tSubNode> ni( this->g->getNodeList() );
-	
-	int k, i;
-	i = 0;
-	
-	// Writing to a file voronoi vertices  of the current node 
-	// The output format should be readable by ArcInfo & Matlab
-	vorofs.setf   (ios::fixed, ios::floatfield);
-	drareaofs.setf(ios::fixed, ios::floatfield);
-	widthsofs.setf(ios::fixed, ios::floatfield);
-	
+	int k, i = 0;
+	char voiext[10]   = "_voi";
+	char areaext[10]  = "_area";
+	char widthext[10] = "_width";
+
 	if (time == 0) {
+#ifdef PARALLEL_TRIBS
+		ostringstream voiBuf, areaBuf, widthBuf;
+		voiBuf.setf(ios::fixed, ios::floatfield);
+		areaBuf.setf(ios::fixed, ios::floatfield);
+		widthBuf.setf(ios::fixed, ios::floatfield);
+
+		if (tParallel::isMaster()) {
+			areaBuf << "ID\tX\tY\tCArea\n";
+			widthBuf << "ID\tX\tY\tWidth\tEdgL\tSlp\n";
+		}
+
 		cn = ni.FirstP();
-		drareaofs<<"ID\tX\tY\tCArea"<<"\n";
-		widthsofs<<"ID\tX\tY\tWidth\tEdgL\tSlp"<<"\n";
-		
 		while (ni.IsActive()) {
-			vorofs<<cn->getID()<<','<<cn->getX()<<','<<cn->getY()<<"\n";
-			for (k=0; k < tresamp->nPoints[i]; k++)
-				vorofs<<tresamp->vXs[i][k]<<","<<tresamp->vYs[i][k]<<"\n";
-			vorofs<<"END"<<"\n";
-			
+			voiBuf << cn->getID() << ',' << cn->getX() << ',' << cn->getY() << "\n";
+			for (k = 0; k < tresamp->nPoints[i]; k++)
+				voiBuf << tresamp->vXs[i][k] << "," << tresamp->vYs[i][k] << "\n";
+			voiBuf << "END\n";
+
 			if (cn->getBoundaryFlag() == 3) {
-				drareaofs<<cn->getID()
-				<<"\t"<<cn->getX()<<"\t"<<cn->getY()
-				<<"\t"<<cn->getContrArea()<<"\n";
-				widthsofs<<cn->getID()
-					<<"\t"<<cn->getX()<<"\t"<<cn->getY()
-					<<"\t"<<cn->getChannelWidth()
-					<<"\t"<<cn->getFlowEdg()->getLength()
-					<<"\t"<<cn->getFlowEdg()->getSlope()<<"\n";
+				areaBuf << cn->getID()
+				        << "\t" << cn->getX() << "\t" << cn->getY()
+				        << "\t" << cn->getContrArea() << "\n";
+				widthBuf << cn->getID()
+				         << "\t" << cn->getX() << "\t" << cn->getY()
+				         << "\t" << cn->getChannelWidth()
+				         << "\t" << cn->getFlowEdg()->getLength()
+				         << "\t" << cn->getFlowEdg()->getSlope() << "\n";
 			}
 			i++;
 			cn = ni.NextP();
-		} 
+		}
+		if (tGraph::hasLastReach()) {
+			if (cn->getBoundaryFlag() == 2) {
+				areaBuf << cn->getID()
+				        << "\t" << cn->getX() << "\t" << cn->getY()
+				        << "\t" << cn->getContrArea() << "\n";
+				widthBuf << cn->getID()
+				         << "\t" << cn->getX() << "\t" << cn->getY()
+				         << "\t" << cn->getChannelWidth() << "\t0.0\t0.0\n";
+			}
+		}
 
-		// Write geometry and static information for visualizer
-		if (this->vizOption == 1)
-			WriteGeometry(tresamp);
+		// Gather and write _voi: sort multi-line polygon blocks by node ID
+		{
+			string localStr = voiBuf.str();
+			int localLen = (int)localStr.size();
+			int nprocs = tParallel::getNumProcs();
+			vector<int> lengths(nprocs), offsets(nprocs);
+			MPI_Gather(&localLen, 1, MPI_INT,
+			           lengths.data(), 1, MPI_INT, MASTER_PROC, MPI_COMM_WORLD);
+			if (tParallel::isMaster()) {
+				int total = 0;
+				for (int p = 0; p < nprocs; p++) { offsets[p] = total; total += lengths[p]; }
+				vector<char> combined(total);
+				MPI_Gatherv((char*)localStr.data(), localLen, MPI_CHAR,
+				            combined.data(), lengths.data(), offsets.data(), MPI_CHAR,
+				            MASTER_PROC, MPI_COMM_WORLD);
+				string combinedStr(combined.data(), total);
+				vector<string> blocks;
+				const string delim = "END\n";
+				size_t pos = 0;
+				while (pos < (size_t)total) {
+					size_t end = combinedStr.find(delim, pos);
+					if (end == string::npos) break;
+					blocks.push_back(combinedStr.substr(pos, end - pos + delim.size()));
+					pos = end + delim.size();
+				}
+				sort(blocks.begin(), blocks.end(), [](const string &a, const string &b) {
+					return stoi(a) < stoi(b);
+				});
+				this->CreateAndOpenFileSingle(&vorofs, voiext);
+				vorofs.setf(ios::fixed, ios::floatfield);
+				for (const auto &blk : blocks) vorofs << blk;
+				vorofs << "END\n";
+				vorofs.close();
+			} else {
+				MPI_Gatherv((char*)localStr.data(), localLen, MPI_CHAR,
+				            nullptr, nullptr, nullptr, MPI_CHAR,
+				            MASTER_PROC, MPI_COMM_WORLD);
+			}
+		}
 
-#ifdef PARALLEL_TRIBS
-    // If the last reach is on this processor, report the final
-    // outlet node
-    if (tGraph::hasLastReach())
-#endif
+		// Gather and write _area: header from master, rows sorted by node ID
+		{
+			string localStr = areaBuf.str();
+			int localLen = (int)localStr.size();
+			int nprocs = tParallel::getNumProcs();
+			vector<int> lengths(nprocs), offsets(nprocs);
+			MPI_Gather(&localLen, 1, MPI_INT,
+			           lengths.data(), 1, MPI_INT, MASTER_PROC, MPI_COMM_WORLD);
+			if (tParallel::isMaster()) {
+				int total = 0;
+				for (int p = 0; p < nprocs; p++) { offsets[p] = total; total += lengths[p]; }
+				vector<char> combined(total);
+				MPI_Gatherv((char*)localStr.data(), localLen, MPI_CHAR,
+				            combined.data(), lengths.data(), offsets.data(), MPI_CHAR,
+				            MASTER_PROC, MPI_COMM_WORLD);
+				string combinedStr(combined.data(), total);
+				size_t headerEnd = combinedStr.find('\n');
+				string header = combinedStr.substr(0, headerEnd + 1);
+				vector<string> rows;
+				size_t pos = headerEnd + 1;
+				while (pos < (size_t)total) {
+					size_t end = combinedStr.find('\n', pos);
+					if (end == string::npos) break;
+					rows.push_back(combinedStr.substr(pos, end - pos + 1));
+					pos = end + 1;
+				}
+				sort(rows.begin(), rows.end(), [](const string &a, const string &b) {
+					return stoi(a) < stoi(b);
+				});
+				this->CreateAndOpenFileSingle(&drareaofs, areaext);
+				drareaofs.setf(ios::fixed, ios::floatfield);
+				drareaofs << header;
+				for (const auto &row : rows) drareaofs << row;
+				drareaofs.close();
+			} else {
+				MPI_Gatherv((char*)localStr.data(), localLen, MPI_CHAR,
+				            nullptr, nullptr, nullptr, MPI_CHAR,
+				            MASTER_PROC, MPI_COMM_WORLD);
+			}
+		}
+
+		// Gather and write _width: header from master, rows sorted by node ID
+		{
+			string localStr = widthBuf.str();
+			int localLen = (int)localStr.size();
+			int nprocs = tParallel::getNumProcs();
+			vector<int> lengths(nprocs), offsets(nprocs);
+			MPI_Gather(&localLen, 1, MPI_INT,
+			           lengths.data(), 1, MPI_INT, MASTER_PROC, MPI_COMM_WORLD);
+			if (tParallel::isMaster()) {
+				int total = 0;
+				for (int p = 0; p < nprocs; p++) { offsets[p] = total; total += lengths[p]; }
+				vector<char> combined(total);
+				MPI_Gatherv((char*)localStr.data(), localLen, MPI_CHAR,
+				            combined.data(), lengths.data(), offsets.data(), MPI_CHAR,
+				            MASTER_PROC, MPI_COMM_WORLD);
+				string combinedStr(combined.data(), total);
+				size_t headerEnd = combinedStr.find('\n');
+				string header = combinedStr.substr(0, headerEnd + 1);
+				vector<string> rows;
+				size_t pos = headerEnd + 1;
+				while (pos < (size_t)total) {
+					size_t end = combinedStr.find('\n', pos);
+					if (end == string::npos) break;
+					rows.push_back(combinedStr.substr(pos, end - pos + 1));
+					pos = end + 1;
+				}
+				sort(rows.begin(), rows.end(), [](const string &a, const string &b) {
+					return stoi(a) < stoi(b);
+				});
+				this->CreateAndOpenFileSingle(&widthsofs, widthext);
+				widthsofs.setf(ios::fixed, ios::floatfield);
+				widthsofs << header;
+				for (const auto &row : rows) widthsofs << row;
+				widthsofs.close();
+			} else {
+				MPI_Gatherv((char*)localStr.data(), localLen, MPI_CHAR,
+				            nullptr, nullptr, nullptr, MPI_CHAR,
+				            MASTER_PROC, MPI_COMM_WORLD);
+			}
+		}
+#else
+		this->CreateAndOpenFileSingle(&vorofs, voiext);
+		this->CreateAndOpenFileSingle(&drareaofs, areaext);
+		this->CreateAndOpenFileSingle(&widthsofs, widthext);
+		vorofs.setf(ios::fixed, ios::floatfield);
+		drareaofs.setf(ios::fixed, ios::floatfield);
+		widthsofs.setf(ios::fixed, ios::floatfield);
+		drareaofs << "ID\tX\tY\tCArea\n";
+		widthsofs << "ID\tX\tY\tWidth\tEdgL\tSlp\n";
+
+		cn = ni.FirstP();
+		while (ni.IsActive()) {
+			vorofs << cn->getID() << ',' << cn->getX() << ',' << cn->getY() << "\n";
+			for (k = 0; k < tresamp->nPoints[i]; k++)
+				vorofs << tresamp->vXs[i][k] << "," << tresamp->vYs[i][k] << "\n";
+			vorofs << "END\n";
+
+			if (cn->getBoundaryFlag() == 3) {
+				drareaofs << cn->getID()
+				          << "\t" << cn->getX() << "\t" << cn->getY()
+				          << "\t" << cn->getContrArea() << "\n";
+				widthsofs << cn->getID()
+				          << "\t" << cn->getX() << "\t" << cn->getY()
+				          << "\t" << cn->getChannelWidth()
+				          << "\t" << cn->getFlowEdg()->getLength()
+				          << "\t" << cn->getFlowEdg()->getSlope() << "\n";
+			}
+			i++;
+			cn = ni.NextP();
+		}
 
 		if (cn->getBoundaryFlag() == 2) {
-			drareaofs<<cn->getID()
-			<<"\t"<<cn->getX()<<"\t"<<cn->getY()
-			<<"\t"<<cn->getContrArea()<<"\n";
-			widthsofs<<cn->getID()
-				<<"\t"<<cn->getX()<<"\t"<<cn->getY()
-				<<"\t"<<cn->getChannelWidth()<<"\t0.0\t0.0"<<"\n";
+			drareaofs << cn->getID()
+			          << "\t" << cn->getX() << "\t" << cn->getY()
+			          << "\t" << cn->getContrArea() << "\n";
+			widthsofs << cn->getID()
+			          << "\t" << cn->getX() << "\t" << cn->getY()
+			          << "\t" << cn->getChannelWidth() << "\t0.0\t0.0\n";
 		}
-		vorofs<<"END"<<"\n";
+		vorofs << "END\n";
+		vorofs.close();
+		drareaofs.close();
+		widthsofs.close();
+#endif
 	}
-	vorofs.close();
-	drareaofs.close();
-	widthsofs.close();
 	return;
-}
-
-/*************************************************************************
-**
-**  tCOutput::WriteGeometry()
-**
-**  Writes the voronoi polygon information and static data suitable for
-**  the tRIBS reader for EnSight or ParaView
-**  After variables giving the number of polygons and number of points
-**  making up those polygons comes all points in order by polygon
-**  Next is the number of points per polygon which will all the polygons
-**  to be created from the points array.  Finally the data is written for
-**  each cell or polygon organized by data item across all cells.
-**
-*************************************************************************/
-template< class tSubNode >
-void tCOutput<tSubNode>::WriteGeometry(tResample* tresamp)
-{
-	tSubNode *cn;
-	tMeshListIter<tSubNode> ni( this->g->getNodeList() );
-
-	// Write the geometry data for visualizer using tResample because
-	// boundary polygons have been clipped
-	// Visualizer data is written in binary and organized by variable
-	// across all cells rather than all data for a single cell
-	ofstream geomofs;
-	char geomext[16] = ".tribs";
-	this->CreateAndOpenVizFile( &geomofs, geomext );
-
-	// Count the total number of voronoi vertices making up the polygons
-	int nActiveNodes = this->g->getNodeList()->getActiveSize();
-	int nPoints = 0;
-	for (int i = 0; i < nActiveNodes; i++)
-		nPoints += tresamp->nPoints[i];
-
-	// Write the counts of nodes (polygons) and points forming the polygons
-	BinaryWrite(geomofs, nActiveNodes);
-	BinaryWrite(geomofs, nPoints);
-
-	// Write all the voronoi vertices which are points in the unstructured grid
-	for (int i = 0; i < nActiveNodes; i++) {
-		for (int k = 0; k < tresamp->nPoints[i]; k++) {
-			BinaryWrite(geomofs, (float) tresamp->vXs[i][k]);
-			BinaryWrite(geomofs, (float) tresamp->vYs[i][k]);
-		}
-	}
-
-	// Write the edges per cell (polygon)
-	for (int i = 0; i < nActiveNodes; i++)
-		BinaryWrite(geomofs, tresamp->nPoints[i]);
-
-	// Write the centroid points per cell
-	for (cn = ni.FirstP(); ni.IsActive(); cn = ni.NextP())
-		BinaryWrite(geomofs, (float) cn->getX());
-	for (cn = ni.FirstP(); ni.IsActive(); cn = ni.NextP())
-		BinaryWrite(geomofs, (float) cn->getY());
-
-	// Centroid z is the elevation
-	for (cn = ni.FirstP(); ni.IsActive(); cn = ni.NextP())
-		BinaryWrite(geomofs, (float) cn->getZ());
-
-	// Write the boundary flag per cell
-	for (cn = ni.FirstP(); ni.IsActive(); cn = ni.NextP())
-		BinaryWrite(geomofs, (float) cn->getBoundaryFlag());
-
-	// WRite the reach number per cell
-	for (cn = ni.FirstP(); ni.IsActive(); cn = ni.NextP())
-		BinaryWrite(geomofs, (float) cn->getReach());
-
-	// Write the flood status per cell
-	for (cn = ni.FirstP(); ni.IsActive(); cn = ni.NextP())
-		BinaryWrite(geomofs, (float) cn->getFloodStatus());
-
-	// Write the flow width per cell
-	for (cn = ni.FirstP(); ni.IsActive(); cn = ni.NextP())
-		BinaryWrite(geomofs, (float) cn->getFlowEdg()->getVEdgLen());
-
-	// Write the flow length per cell
-	for (cn = ni.FirstP(); ni.IsActive(); cn = ni.NextP())
-		BinaryWrite(geomofs, (float) cn->getFlowEdg()->getLength());
-
-	// Write the contributing area per cell
-	for (cn = ni.FirstP(); ni.IsActive(); cn = ni.NextP())
-		BinaryWrite(geomofs, (float) cn->getContrArea());
-
-	// Write the slope per cell
-	for (cn = ni.FirstP(); ni.IsActive(); cn = ni.NextP())
-		BinaryWrite(geomofs, (float) cn->getFlowEdg()->getSlope());
-
-	geomofs.close();
 }
 
 /*************************************************************************
@@ -1110,119 +1361,247 @@ void tCOutput<tSubNode>::WritePixelInfo( double time )
 					if (cos_slope < 1E-9) cos_slope = 1.E-9; 
 				}
 				
-				this->pixinfo[i]<<setw(8)<<this->nodeList[i]
-				<<setw(13)<<extension<<" "
-				/* 3 */   <<setw(10)<<(this->uzel[i]->getNwtNew() / cos_slope)<<" "
-				
-				<<setprecision(7)
-				<<setw(6)<<this->uzel[i]->getNfNew() / cos_slope<<" "
-				/* 5 */	  <<setw(6)<<this->uzel[i]->getNtNew() / cos_slope<<" "
-				
-				<<setprecision(7)
-				<<setw(7)<<this->uzel[i]->getMuNew() / cos_slope<<" "
-				<<setw(7)<<this->uzel[i]->getMiNew() / cos_slope<<"   "
-				
-				<<setprecision(7)
-				<<setw(10)<<this->uzel[i]->getQpout()*1.E-6/this->uzel[i]->getVArea()<<"  "
-				<<setw(10)<<this->uzel[i]->getQpin() *1.E-6/this->uzel[i]->getVArea()<<"   "   
-				/* 10 */  <<setw(10)<<this->uzel[i]->getTransmiss()*1.E-6<<"    "
-				<<setw(10)<<this->uzel[i]->getGwaterChng()*1.E-9<<"  "
-				
-				<<setprecision(7)
-				<<setw(8) <<this->uzel[i]->getSrf()<<"  "//WR debug 02062024, this is a total not a rate--and its reset every loop so every 3.75 minutes in sim time
-				<<setw(10)<<this->uzel[i]->getRain()<<"  "
-				<<setw(10)<<this->uzel[i]->getSoilMoistureSC()<<"  "
-				/* 15 */  <<setw(10)<<this->uzel[i]->getRootMoistureSC()<<" "
-				
-				<<setprecision(7)
-				<<this->uzel[i]->getAirTemp()<<" "
-				<<this->uzel[i]->getDewTemp()<<" "
-				<<this->uzel[i]->getSurfTemp()<<" "
-				<<this->uzel[i]->getSoilTemp()<<" "
-				
-				/* 20 */  <<this->uzel[i]->getAirPressure()<<" "
-				<<this->uzel[i]->getRelHumid()<<" "
-				<<this->uzel[i]->getSkyCover()<<" "
-				<<this->uzel[i]->getWindSpeed()<<" "
-				<<this->uzel[i]->getNetRad()<<" "
-				
-				/* 25 */  <<this->uzel[i]->getShortRadIn()<< " "
-                << this->uzel[i]->getShortRadSlope() << " "  // JB2025 @ ASU
-				<<this->uzel[i]->getShortRadIn_dir()<< " "
-				<<this->uzel[i]->getShortRadIn_dif()<< " "
-				<<this->uzel[i]->getShortAbsbVeg()<< " "
-				<<this->uzel[i]->getShortAbsbSoi()<< " "
-				
-				/* 30 */  <<this->uzel[i]->getLongRadIn()<< " "
-				<<this->uzel[i]->getLongRadOut()<< " "
-				<<this->uzel[i]->getPotEvap()<<" "
-				<<this->uzel[i]->getActEvap()<<" "
-				<<this->uzel[i]->getEvapoTrans()<<" "
-				
-				/* 35 */  <<this->uzel[i]->getEvapWetCanopy()<<" "
-				<<this->uzel[i]->getEvapDryCanopy()<<" "
-				<<this->uzel[i]->getEvapSoil()<<" "
-				<<this->uzel[i]->getGFlux()<<" "
-				<<this->uzel[i]->getHFlux()<<" "
-				/* 40 */  <<this->uzel[i]->getLFlux()<<" "
-				
-				<<this->uzel[i]->getNetPrecipitation()<<" "
+				this->pixinfo[i]<<this->nodeList[i]
+				<<","<<extension
+				/* 3 */   << "," << (this->uzel[i]->getNwtNew() / cos_slope) << ","
 
+				<<setprecision(4)
+				<< this->uzel[i]->getNfNew() / cos_slope << ","
+				/* 5 */   << this->uzel[i]->getNtNew() / cos_slope << ","
+
+				<< this->uzel[i]->getMuNew() / cos_slope << ","
+				<< this->uzel[i]->getMiNew() / cos_slope << ","
+				<< this->uzel[i]->getQpout()*1.E-6/this->uzel[i]->getVArea() << ","
+				<< this->uzel[i]->getQpin() *1.E-6/this->uzel[i]->getVArea() << ","
+				/* 10 */  << this->uzel[i]->getTransmiss()*1.E-6 << ","
+
+				<< this->uzel[i]->getGwaterChng()*1.E-9 << ","
+				<< this->uzel[i]->getSrf_Hr() << ","
+				<< this->uzel[i]->getRain() << ","
+				<< this->uzel[i]->getSoilMoistureSC() << ","
+				/* 15 */  << this->uzel[i]->getRootMoistureSC() << ","
+
+				<< this->uzel[i]->getAirTemp() << ","
+				<< this->uzel[i]->getDewTemp() << ","
+				<< this->uzel[i]->getSurfTemp() << ","
+				<< this->uzel[i]->getSoilTemp() << ","
+				/* 20 */  << this->uzel[i]->getAirPressure() << ","
+
+				<< this->uzel[i]->getRelHumid() << ","
+				<< this->uzel[i]->getSkyCover() << ","
+				<< this->uzel[i]->getWindSpeed() << ","
+				<< this->uzel[i]->getNetRad() << ","
+				/* 25 */  << this->uzel[i]->getShortRadIn() << ","
+
+				<< this->uzel[i]->getShortRadSlope() << "," // JB2025 @ ASU
+				<< this->uzel[i]->getShortRadIn_dir() << ","
+				<< this->uzel[i]->getShortRadIn_dif() << ","
+				<< this->uzel[i]->getShortAbsbVeg() << ","
+				/* 30 */  << this->uzel[i]->getShortAbsbSoi() << ","
+
+				<< this->uzel[i]->getLongRadIn() << ","
+				<< this->uzel[i]->getLongRadOut() << ","
+				<< this->uzel[i]->getPotEvap() << ","
+				/* 34 */  << this->uzel[i]->getEvapoTrans() << ","
+
+				<< this->uzel[i]->getEvapWetCanopy() << ","
+				<< this->uzel[i]->getEvapDryCanopy() << ","
+				<< this->uzel[i]->getEvapSoil() << ","
+				<< this->uzel[i]->getGFlux() << ","
+				/* 39 */  << this->uzel[i]->getHFlux() << ","
+
+				<< this->uzel[i]->getLFlux() << ","
+				<< this->uzel[i]->getNetPrecipitation() << ","
 				// SKY2008Snow from AJR2007
-				<<this->uzel[i]->getLiqWE()<<" "	//added by AJR 2007 @ NMT
-				<<this->uzel[i]->getIceWE()<<" "	//added by AJR 2007 @ NMT
-				<<(this->uzel[i]->getLiqWE()+this->uzel[i]->getIceWE())<<" "    //added by AJR 2007 @ NMT
-				/* 45 */ << this->uzel[i]->getSnSub()<<" "	// added by CJC2020
-				<< this->uzel[i]->getSnEvap()<<" "	// added by CJC2020
-				<<this->uzel[i]->getUnode()<<" "	//added by AJR 2007 @ NMT
-				<<this->uzel[i]->getLiqRouted()<<" "	//added by AJR 2007 @ NMT
-				<<this->uzel[i]->getSnTempC()<<" "	//added by AJR 2007 @ NMT
-				/* 50 */ <<this->uzel[i]->getCrustAge()<<" "	//added by AJR 2007 @ NMT
-				<<this->uzel[i]->getDU()<<" "		//added by AJR 2007 @ NMT
-				<<this->uzel[i]->getSnLHF()<<" "	//added by AJR 2007 @ NMT
-				<<this->uzel[i]->getSnSHF()<<" "	//added by AJR 2007 @ NMT
-				<<this->uzel[i]->getSnGHF()<<" "	//added by AJR 2007 @ NMT
-				/* 55 */ <<this->uzel[i]->getSnPHF()<<" "	//added by AJR 2007 @ NMT
-				<<this->uzel[i]->getSnRLout()<<" "	//added by AJR 2007 @ NMT
-				<<this->uzel[i]->getSnRLin()<<" "	//added by AJR 2007 @ NMT
-				<<this->uzel[i]->getSnRSin()<<" "	//added by AJR 2007 @ NMT
-				<<this->uzel[i]->getUerror()<<" "	//added by AJR 2007 @ NMT
-				/* 60 */ <<this->uzel[i]->getIntSWE()<<" "	//added by AJR 2007 @ NMT
-				<<this->uzel[i]->getIntSub()<<" "	//added by AJR 2007 @ NMT
-				<<this->uzel[i]->getIntSnUnload()<<" " //added by AJR 2007 @ NMT
-			
-				<<this->uzel[i]->getCanStorage()<<" "
-				<<this->uzel[i]->getCumIntercept()<<" "
-				/* 65 */ <<this->uzel[i]->getInterceptLoss()<<" "
-				<<this->uzel[i]->getRecharge()<<" "
-				<<this->uzel[i]->getRunOn()<<" "
-				<<this->uzel[i]->getSrf_Hr()<<" ";
-				/* 69 */ 
+				<< this->uzel[i]->getLiqWE() << ","        //added by AJR 2007 @ NMT
+				<< this->uzel[i]->getIceWE() << ","        //added by AJR 2007 @ NMT
+				/* 44 */  << (this->uzel[i]->getLiqWE()+this->uzel[i]->getIceWE()) << "," //added by AJR 2007 @ NMT
+
+				<< this->uzel[i]->getSnSub() << ","        // added by CJC2020
+				<< this->uzel[i]->getSnEvap() << ","       // added by CJC2020
+				<< this->uzel[i]->getUnode() << ","        //added by AJR 2007 @ NMT
+				<< this->uzel[i]->getLiqRouted() << ","    //added by AJR 2007 @ NMT
+				/* 49 */  << this->uzel[i]->getSnTempC() << ","    //added by AJR 2007 @ NMT
+
+				<< this->uzel[i]->getCrustAge() << ","     //added by AJR 2007 @ NMT
+				<< this->uzel[i]->getSnDepth() << ","      // added by CJC2025
+				<< this->uzel[i]->getRhoSn() << ","        // added by CJC2025
+				<< this->uzel[i]->getDU() << ","           //added by AJR 2007 @ NMT
+				/* 54 */  << this->uzel[i]->getSnLHF() << ","      //added by AJR 2007 @ NMT
+
+				<< this->uzel[i]->getSnSHF() << ","        //added by AJR 2007 @ NMT
+				<< this->uzel[i]->getSnGHF() << ","        //added by AJR 2007 @ NMT
+				<< this->uzel[i]->getSnPHF() << ","        //added by AJR 2007 @ NMT
+				<< this->uzel[i]->getSnRLout() << ","      //added by AJR 2007 @ NMT
+				/* 59 */  << this->uzel[i]->getSnRLin() << ","     //added by AJR 2007 @ NMT
+
+				<< this->uzel[i]->getSnRSin() << ","       //added by AJR 2007 @ NMT
+				<< this->uzel[i]->getUerror() << ","       //added by AJR 2007 @ NMT
+				<< this->uzel[i]->getIntSWE() << ","       //added by AJR 2007 @ NMT
+				<< this->uzel[i]->getIntSub() << ","       //added by AJR 2007 @ NMT
+				/* 64 */  << this->uzel[i]->getIntSnUnload() << "," //added by AJR 2007 @ NMT
+
+				<< this->uzel[i]->getCanStorage() << ","
+				<< this->uzel[i]->getCumIntercept() << ","
+				<< this->uzel[i]->getInterceptLoss() << ","
+				/* 68 */  << this->uzel[i]->getRecharge() << ","
+				<< this->uzel[i]->getRunOn() << ",";
+
 				if (this->uzel[i]->getBoundaryFlag() == kStream)
-					this->pixinfo[i]<<setw(10)<<this->uzel[i]->getQstrm()<<" "
-						//<<setw(6)<<this->uzel[i]->getHlevel()<<endl<<flush;
-						<<setw(6)<<this->uzel[i]->getHlevel()<<" ";// SKYnGM2008LU
+					this->pixinfo[i]<<this->uzel[i]->getQstrm() << ","
+					<< this->uzel[i]->getHlevel() << ",";
 				else
-					//this->pixinfo[i]<<"0.0 0.0"<<endl<<flush;
-					this->pixinfo[i]<<"0.0 0.0 "; // SKYnGM2008LU
-				
+					this->pixinfo[i]<<"0.0,0.0,";
+
 				// SKYnGM2008LU
-				this->pixinfo[i]<<setprecision(7)
-				<<setw(10)<<this->uzel[i]->getCanStorParam()<<" "
-				<< this->uzel[i]->getIntercepCoeff()<<" "
-				<< this->uzel[i]->getThroughFall()<<" "
-				<< this->uzel[i]->getCanFieldCap()<<" "
-				/* 75 */ << this->uzel[i]->getDrainCoeff()<<" "
-				<< this->uzel[i]->getDrainExpPar()<<" "
-				<< this->uzel[i]->getLandUseAlb()<<" "
-				<< this->uzel[i]->getVegHeight()<<" "
-				<< this->uzel[i]->getOptTransmCoeff()<<" "
-				/* 80 */ << this->uzel[i]->getStomRes()<<" "
-				<< this->uzel[i]->getVegFraction()<<" "
-				<< this->uzel[i]->getLeafAI()<<endl<< flush;
+				this->pixinfo[i]<<setprecision(4)
+				<< this->uzel[i]->getThroughFall() << ","
+				<< this->uzel[i]->getCanFieldCap() << ","
+				/* 74 */ << this->uzel[i]->getDrainCoeff() << ","
+				<< this->uzel[i]->getDrainExpPar() << ","
+				<< this->uzel[i]->getLandUseAlb() << ","
+				<< this->uzel[i]->getVegHeight() << ","
+				<< this->uzel[i]->getOptTransmCoeff() << ","
+				/* 79 */ << this->uzel[i]->getStomRes() << ","
+				<< this->uzel[i]->getVegFraction() << ","
+				<< this->uzel[i]->getLeafAI() << ","
+				/* 82 */ << this->uzel[i]->getRootZoneDepth() <<
+				"\n" << flush; 
 
 			}
 		}
+	}
+}
+
+/*************************************************************************
+**
+**  tCOutput::ReadDynVarFile()
+**
+**  Parses a single-row CSV file of column names into 'selection'.
+**  On any error the set is left empty and the caller uses all columns.
+**
+*************************************************************************/
+template< class tSubNode >
+void tCOutput<tSubNode>::ReadDynVarFile(const char *path,
+                                        std::set<std::string> &selection)
+{
+	ifstream f(path);
+	if (!f) {
+		cerr << "\nWarning: DYNVARFILE '" << path
+		     << "' not found. Using default dynamic output.\n";
+		return;
+	}
+	string line;
+	if (!getline(f, line) || line.empty()) {
+		cerr << "\nWarning: DYNVARFILE '" << path
+		     << "' is empty. Using default dynamic output.\n";
+		return;
+	}
+	stringstream ss(line);
+	string token;
+	while (getline(ss, token, ',')) {
+		size_t s = token.find_first_not_of(" \t\r\n");
+		size_t e = token.find_last_not_of(" \t\r\n");
+		if (s != string::npos)
+			selection.insert(token.substr(s, e - s + 1));
+	}
+	Cout << "\n\tDynamic output filtered to " << selection.size()
+	     << " variable(s) from: " << path << endl;
+}
+
+/*************************************************************************
+**
+**  tCOutput::BuildDynVarTable()
+**
+**  Populates activeDynCols with the full column set filtered by 'selection'.
+**  An empty selection means all columns are included (default behavior).
+**
+*************************************************************************/
+template< class tSubNode >
+void tCOutput<tSubNode>::BuildDynVarTable(const std::set<std::string> &selection)
+{
+	std::vector<DynVarCol> all = {
+		{"Nwt", 5, [](tSubNode *cn) {
+			double cs = cos(atan(cn->getFlowEdg()->getSlope()));
+			return cn->getNwtNew() / (cs < 1e-9 ? 1e-9 : cs);
+		}},
+		{"Mu", 5, [](tSubNode *cn) {
+			double cs = cos(atan(cn->getFlowEdg()->getSlope()));
+			return cn->getMuNew() / (cs < 1e-9 ? 1e-9 : cs);
+		}},
+		{"Mi", 5, [](tSubNode *cn) {
+			double cs = cos(atan(cn->getFlowEdg()->getSlope()));
+			return cn->getMiNew() / (cs < 1e-9 ? 1e-9 : cs);
+		}},
+		{"Nf", 5, [](tSubNode *cn) {
+			double cs = cos(atan(cn->getFlowEdg()->getSlope()));
+			return cn->getNfNew() / (cs < 1e-9 ? 1e-9 : cs);
+		}},
+		{"Nt", 5, [](tSubNode *cn) {
+			double cs = cos(atan(cn->getFlowEdg()->getSlope()));
+			return cn->getNtNew() / (cs < 1e-9 ? 1e-9 : cs);
+		}},
+		{"Qpout",        5, [](tSubNode *cn) { return cn->getQpout() * 1.e-6 / cn->getVArea(); }},
+		{"Qpin",         5, [](tSubNode *cn) { return cn->getQpin()  * 1.e-6 / cn->getVArea(); }},
+		{"Srf",          4, [](tSubNode *cn) { return cn->getSrf_Hr(); }},
+		{"Rain",         3, [](tSubNode *cn) { return cn->getRain(); }},
+		{"ST",           3, [](tSubNode *cn) { return cn->getSnTempC(); }},
+		{"IWE",          5, [](tSubNode *cn) { return cn->getIceWE(); }},
+		{"LWE",          5, [](tSubNode *cn) { return cn->getLiqWE(); }},
+		{"SnSub",        7, [](tSubNode *cn) { return cn->getSnSub(); }},
+		{"SnEvap",       7, [](tSubNode *cn) { return cn->getSnEvap(); }},
+		{"SnMelt",       7, [](tSubNode *cn) { return cn->getLiqRouted(); }},
+		{"SnDepth",      5, [](tSubNode *cn) { return cn->getSnDepth(); }},
+		{"Upack",        5, [](tSubNode *cn) { return cn->getUnode(); }},
+		{"sLHF",         5, [](tSubNode *cn) { return cn->getSnLHF(); }},
+		{"sSHF",         5, [](tSubNode *cn) { return cn->getSnSHF(); }},
+		{"sGHF",         5, [](tSubNode *cn) { return cn->getSnGHF(); }},
+		{"sPHF",         5, [](tSubNode *cn) { return cn->getSnPHF(); }},
+		{"sRLo",         5, [](tSubNode *cn) { return cn->getSnRLout(); }},
+		{"sRLi",         5, [](tSubNode *cn) { return cn->getSnRLin(); }},
+		{"sRSi",         5, [](tSubNode *cn) { return cn->getSnRSin(); }},
+		{"Uerr",         5, [](tSubNode *cn) { return cn->getUerror(); }},
+		{"IntSWE",       5, [](tSubNode *cn) { return cn->getIntSWE(); }},
+		{"IntSub",       5, [](tSubNode *cn) { return cn->getIntSub(); }},
+		{"IntUnl",       5, [](tSubNode *cn) { return cn->getIntSnUnload(); }},
+		{"SoilMoist",    3, [](tSubNode *cn) { return cn->getSoilMoistureSC(); }},
+		{"RootMoist",    3, [](tSubNode *cn) { return cn->getRootMoistureSC(); }},
+		{"CanStorage",   3, [](tSubNode *cn) { return cn->getCanStorage(); }},
+		{"TransDryCan",  5, [](tSubNode *cn) { return cn->getEvapDryCanopy(); }},
+		{"EvpSoil",      5, [](tSubNode *cn) { return cn->getEvapSoil(); }},
+		{"ET",           5, [](tSubNode *cn) { return cn->getEvapoTrans(); }},
+		{"GFlux",        3, [](tSubNode *cn) { return cn->getGFlux(); }},
+		{"HFlux",        3, [](tSubNode *cn) { return cn->getHFlux(); }},
+		{"LFlux",        3, [](tSubNode *cn) { return cn->getLFlux(); }},
+		{"Qstrm",        3, [](tSubNode *cn) { return cn->getQstrm(); }},
+		{"Hlev",         3, [](tSubNode *cn) { return cn->getHlevel(); }},
+		{"FlwVlc",       3, [](tSubNode *cn) { return cn->getFlowVelocity(); }},
+		{"ThroughFall",  5, [](tSubNode *cn) { return cn->getThroughFall(); }},
+		{"CanFieldCap",  5, [](tSubNode *cn) { return cn->getCanFieldCap(); }},
+		{"DrainCoeff",   5, [](tSubNode *cn) { return cn->getDrainCoeff(); }},
+		{"DrainExpPar",  5, [](tSubNode *cn) { return cn->getDrainExpPar(); }},
+		{"LandUseAlb",   5, [](tSubNode *cn) { return cn->getLandUseAlb(); }},
+		{"VegHeight",    5, [](tSubNode *cn) { return cn->getVegHeight(); }},
+		{"OptTransmCoeff",5,[](tSubNode *cn) { return cn->getOptTransmCoeff(); }},
+		{"StomRes",      5, [](tSubNode *cn) { return cn->getStomRes(); }},
+		{"VegFraction",  5, [](tSubNode *cn) { return cn->getVegFraction(); }},
+		{"LeafAI",       5, [](tSubNode *cn) { return cn->getLeafAI(); }},
+	};
+
+	if (selection.empty()) {
+		activeDynCols = std::move(all);
+		return;
+	}
+
+	for (const auto &col : all) {
+		if (selection.count(col.name))
+			activeDynCols.push_back(col);
+	}
+
+	if (activeDynCols.empty()) {
+		cerr << "\nWarning: No valid variable names matched in DYNVARFILE. "
+		     << "Using default dynamic output.\n";
+		activeDynCols = std::move(all);
 	}
 }
 
@@ -1253,149 +1632,93 @@ void tCOutput<tSubNode>::WriteDynamicVars( double time )
 	hour   = (int)floor(time);
 	minute = (int)floor((time-hour)*60);
 
-	// SKY2008Snow from AJR2007
-	if(simCtrl->Header_label=='Y'){
-		cout<<"\n\tHOUR = "<<hour<<"\tMINUTE = "<<minute<<"\n";
-		//cout<<"\ttCOutput:     Time to write vars; nActiveNodes = "
-		//   <<nActiveNodes<<";  nTotalNodes = "<<nnodes<<"\n";
-	}
+	// Write Header. Cout, not cout: every rank reaches this line at the same
+	// timestep, so raw cout printed one identical copy per processor.
+	Cout<<"\n\tHOUR = "<<hour<<"\tMINUTE = "<<minute<<"\n";
 
     snprintf(extension,sizeof(extension),".%04d_%02dd", hour, minute);
-	this->CreateAndOpenFile( &arcofs, extension);  //Opens file for writing
 
-    if (simCtrl->Header_label == 'Y') {
-        arcofs
-                << "ID" << ',' // 1
-                << "Nwt" << ',' // 2
-                << "Mu" << ',' // 3
-                << "Mi" << ',' // 4
-                << "Nf" << ',' // 5
-                << "Nt" << ',' // 6
-                << "Qpout" << ',' // 7
-                << "Qpin" << ',' // 8
-                << "Srf" << ',' // 9
-                << "Rain" << ',' // 10
-                << "ST" << ',' // 11
-                << "IWE" << ',' // 12
-                << "LWE" << ',' // 13
-                << "SnSub" << ',' // 14 note snow states and fluxes are in cm
-                << "SnEvap" << ',' // 15
-                << "SnMelt" << ',' // 16
-                << "Upack" << ',' // 17
-                << "sLHF" << ',' // 18
-                << "sSHF" << ',' // 19
-                << "sGHF" << ',' // 20
-                << "sPHF" << ',' // 21
-                << "sRLo" << ',' // 22
-                << "sRLi" << ',' // 23
-                << "sRSi" << ',' // 24
-                << "Uerr" << ',' // 25
-                << "IntSWE" << ',' // 26
-                << "IntSub" << ',' // 27
-                << "IntUnl" << ',' // 28
-                << "SoilMoist" << ',' // 29
-                << "RootMoist" << ',' // 30
-                << "CanStorage" << ',' // 31
-                << "ActEvp" << ',' // 32
-                << "EvpSoil" << ',' // 33 //
-                << "ET" << ',' // 34 //
-                << "GFlux" << ',' // 35
-                << "HFlux" << ',' // 36
-                << "LFlux" << ',' // 37
-                << "Qstrm" << ',' // 38
-                << "Hlev" << ',' // 39
-                << "FlwVlc" << ',' // 40
-                << "CanStorParam" << ',' // 41
-                << "IntercepCoeff" << ',' // 42
-                << "ThroughFall" << ',' // 43
-                << "CanFieldCap" << ',' // 44
-                << "DrainCoeff" << ',' // 45
-                << "DrainExpPar" << ',' // 46
-                << "LandUseAlb" << ',' // 47
-                << "VegHeight" << ',' // 48
-                << "OptTransmCoeff" << ',' // 49
-                << "StomRes" << ',' // 50
-                << "VegFraction" << ',' // 51
-                << "LeafAI"; // 52
+	ostringstream buf;
+	ostream *pout;
 
-        if (time == 0)
-            arcofs << ',' << "SoilID" << ',' << "LUseID" << endl << flush;
-        else
-            arcofs << "\n";
-    }
+#ifdef PARALLEL_TRIBS
+	if (tParallel::isMaster()) {
+		buf << "ID";
+		for (const auto &col : activeDynCols)
+			buf << ',' << col.name;
+		if (time == 0)
+			buf << ',' << "SoilID" << ',' << "LUseID";
+		buf << '\n';
+	}
+	pout = &buf;
+#else
+	this->CreateAndOpenFile( &arcofs, extension );  //Opens file for writing
 
-	
+    // Write header
+	arcofs << "ID";
+	for (const auto &col : activeDynCols)
+		arcofs << ',' << col.name;
+	if (time == 0)
+		arcofs << ',' << "SoilID" << ',' << "LUseID" << endl << flush;
+	else
+		arcofs << '\n';
+	pout = &arcofs;
+#endif
+
 	cn = ni.FirstP();
-    while (ni.IsActive()) {
+	while (ni.IsActive()) {
+		*pout << cn->getID();
+		for (const auto &col : activeDynCols)
+			*pout << ',' << setprecision(col.prec) << col.get(cn);
+		if (time == 0)
+			*pout << ',' << setprecision(0) << cn->getSoilID()
+			      << ',' << setprecision(0) << cn->getLandUse();
+		*pout << '\n';
+		cn = ni.NextP();
+	}
 
-    // --- START FIX ---
-    tEdge *flowEdge = cn->getFlowEdg();
-    double slope_rad = atan(flowEdge->getSlope());
-    double cos_slope = cos(slope_rad);
-    if (cos_slope < 1E-9) cos_slope = 1.E-9;
-    // --- END FIX ---
-        arcofs << cn->getID() << ',' // 1
-               << setprecision(5) << cn->getNwtNew() / cos_slope << ',' // 2
-               << setprecision(5) << cn->getMuNew() / cos_slope << ',' // 3
-               << setprecision(5) << cn->getMiNew() / cos_slope << ',' // 4
-               << setprecision(5) << cn->getNfNew() / cos_slope << ',' // 5
-               << setprecision(5) << cn->getNtNew() / cos_slope << ',' // 6
-               << setprecision(5) << cn->getQpout() * 1.E-6 / cn->getVArea() << ',' // 7
-               << cn->getQpin() * 1.E-6 / cn->getVArea() << ',' // 8
-               << setprecision(4) << cn->getSrf_Hr()  << ',' // 9 in mm (mm of runoff reset to 0 every hour)
-               << setprecision(3) << cn->getRain() << ',' // 10
-               << setprecision(3) << cn->getSnTempC() << ',' // 11
-               << setprecision(5) << cn->getIceWE() << ',' // 12 SWE = this column + next
-               << setprecision(5) << cn->getLiqWE() << ',' // 13
-               << setprecision(7) << cn->getSnSub()  << ',' // 14
-               << setprecision(7) << cn->getSnEvap() << ',' // 15
-               << setprecision(7) << cn->getLiqRouted() << ',' // 16
-               << setprecision(5) << cn->getUnode() << ',' // 17
-               << setprecision(5) << cn->getSnLHF() << ',' // 18
-               << setprecision(5) << cn->getSnSHF() << ',' // 19
-               << setprecision(5) << cn->getSnGHF() << ',' // 20
-               << setprecision(5) << cn->getSnPHF() << ',' // 21
-               << setprecision(5) << cn->getSnRLout() << ',' // 22
-               << setprecision(5) << cn->getSnRLin() << ',' // 23
-               << setprecision(5) << cn->getSnRSin() << ',' // 24
-               << setprecision(5) << cn->getUerror() << ',' // 25
-               << setprecision(5) << cn->getIntSWE() << ',' // 26
-               << setprecision(5) << cn->getIntSub() << ',' // 27
-               << setprecision(5) << cn->getIntSnUnload() << ',' // 28
-               << setprecision(3) << cn->getSoilMoistureSC() << ',' // 29
-               << setprecision(3) << cn->getRootMoistureSC() << ',' // 30
-               << setprecision(3) << cn->getCanStorage() << ',' // 31
-               << setprecision(3) << cn->getActEvap() << ',' // 32
-               << setprecision(5) << cn->getEvapSoil() << ',' // 33
-               << setprecision(5) << cn->getEvapoTrans() << ',' // 34
-               << setprecision(3) << cn->getGFlux() << ',' // 35
-               << setprecision(3) << cn->getHFlux() << ',' // 36
-               << setprecision(3) << cn->getLFlux() << ',' // 37
-               << setprecision(3) << cn->getQstrm() << ',' //  38
-               << setprecision(3) << cn->getHlevel() << ',' // 39
-               << setprecision(3) << cn->getFlowVelocity() << ',' // 40
-               << setprecision(5) << cn->getCanStorParam() << ',' // 41
-               << setprecision(5) << cn->getIntercepCoeff() << ',' // 42 , meaning of life?
-               << setprecision(5) << cn->getThroughFall() << ',' // 43
-               << setprecision(5) << cn->getCanFieldCap() << ',' // 44
-               << setprecision(5) << cn->getDrainCoeff() << ',' // 45
-               << setprecision(5) << cn->getDrainExpPar() << ',' // 46
-               << setprecision(5) << cn->getLandUseAlb() << ',' // 47
-               << setprecision(5) << cn->getVegHeight() << ',' // 48
-               << setprecision(5) << cn->getOptTransmCoeff() << ',' // 49
-               << setprecision(5) << cn->getStomRes() << ',' // 50
-               << setprecision(5) << cn->getVegFraction() << ',' // 51
-               << setprecision(5) << cn->getLeafAI(); // 52
-
-        if (time == 0)
-            arcofs << ',' << setprecision(0) << cn->getSoilID() << ','
-                   << setprecision(0) << cn->getLandUse() << endl;
-        else
-            arcofs << "\n";
-
-        cn = ni.NextP();
-    }
-    arcofs.close();
+#ifdef PARALLEL_TRIBS
+	{
+		string localStr = buf.str();
+		int localLen = (int)localStr.size();
+		int nprocs = tParallel::getNumProcs();
+		vector<int> lengths(nprocs), offsets(nprocs);
+		MPI_Gather(&localLen, 1, MPI_INT,
+		           lengths.data(), 1, MPI_INT, MASTER_PROC, MPI_COMM_WORLD);
+		if (tParallel::isMaster()) {
+			int total = 0;
+			for (int i = 0; i < nprocs; i++) { offsets[i] = total; total += lengths[i]; }
+			vector<char> combined(total);
+			MPI_Gatherv((char*)localStr.data(), localLen, MPI_CHAR,
+			            combined.data(), lengths.data(), offsets.data(), MPI_CHAR,
+			            MASTER_PROC, MPI_COMM_WORLD);
+			string combinedStr(combined.data(), total);
+			size_t headerEnd = combinedStr.find('\n');
+			string header = combinedStr.substr(0, headerEnd + 1);
+			vector<string> rows;
+			size_t pos = headerEnd + 1;
+			while (pos < (size_t)total) {
+				size_t end = combinedStr.find('\n', pos);
+				if (end == string::npos) break;
+				rows.push_back(combinedStr.substr(pos, end - pos + 1));
+				pos = end + 1;
+			}
+			sort(rows.begin(), rows.end(), [](const string &a, const string &b) {
+				return stoi(a) < stoi(b);
+			});
+			this->CreateAndOpenFileSingle(&arcofs, extension);
+			arcofs << header;
+			for (const auto &row : rows) arcofs << row;
+			arcofs.close();
+		} else {
+			MPI_Gatherv((char*)localStr.data(), localLen, MPI_CHAR,
+			            nullptr, nullptr, nullptr, MPI_CHAR,
+			            MASTER_PROC, MPI_COMM_WORLD);
+		}
+	}
+#else
+	arcofs.close();
+#endif
 
 
 	
@@ -1403,292 +1726,7 @@ void tCOutput<tSubNode>::WriteDynamicVars( double time )
 	// and end of simulation
 	if ( time == 0.0 || this->timer->IsFinished() )
 		WriteIntegrVars( time );
-
-	// Write binary information that varies with time step for visualizer
-	if (this->vizOption == 1)
-		WriteDynamicVarsBinary(time);
 	
-	return;
-}
-
-template< class tSubNode >
-void tCOutput<tSubNode>::WriteDynamicVarsBinary( double time )
-{
-	tSubNode* cn;
-	tMeshListIter<tCNode> niter(this->g->getNodeList());
-	int hour = (int)floor(time);
-    int nActiveNodes = this->g->getNodeList()->getActiveSize(); // Get number of nodes for array sizing
-
-    // Create temporary arrays to hold the corrected vertical depths for all nodes.
-    float* nwt_vert = new float[nActiveNodes];
-    float* nf_vert = new float[nActiveNodes];
-    float* nt_vert = new float[nActiveNodes];
-    float* mu_vert = new float[nActiveNodes];
-
-    // Loop through the nodes once to populate all temporary arrays.
-    int i = 0;
-    for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP(), i++) {
-        // Calculate cos_slope just once per node in this single loop.
-        tEdge *flowEdge = cn->getFlowEdg();
-        double slope_rad = atan(flowEdge->getSlope());
-        double cos_slope = cos(slope_rad);
-        if (cos_slope < 1E-9) cos_slope = 1.E-9;
-
-        // Apply correction and store in the corresponding temporary array.
-        nwt_vert[i] = (float)(cn->getNwtNew() / cos_slope);
-        nf_vert[i]  = (float)(cn->getNfNew()  / cos_slope);
-        nt_vert[i]  = (float)(cn->getNtNew()  / cos_slope);
-        mu_vert[i]  = (float)(cn->getMuNew()  / cos_slope);
-    }
-
-	char extension[20];
-	snprintf(extension,sizeof(extension), "_dyn.%04d", hour);
-
-	ofstream ostr;
-	this->CreateAndOpenVizFile(&ostr, extension);
-
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) nwt_vert[i]);
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) nf_vert[i]);
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) nt_vert[i]);
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) mu_vert[i]);
-
-    // 4. Clean up the memory allocated for the temporary arrays.
-    delete[] nwt_vert;
-    delete[] nf_vert;
-    delete[] nt_vert;
-    delete[] mu_vert;
-
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getQpout());
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getQpin());
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getGwaterChng());
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getSrf());
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getRain());
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getSoilMoistureSC());
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getRootMoistureSC());
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getAirTemp());
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getDewTemp());
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getSurfTemp());
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getSoilTemp());
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getAirPressure());
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getRelHumid());
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getSkyCover());
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getWindSpeed());
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getNetRad());
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getActEvap());
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getEvapoTrans());
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getEvapSoil());
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getGFlux());
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getHFlux());
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getLFlux());
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getNetPrecipitation());
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getRecharge());
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getQstrm());
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getHlevel());
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getCanStorage());
-	for (cn = niter.FirstP(); niter.IsActive(); cn = niter.NextP())
-		BinaryWrite(ostr, (float) cn->getFlowVelocity());
-}
-
-/*************************************************************************
-**
-**  WriteDynamicVar( double time )
-**
-**  Writes files containing various dynamic variables for all the nodes
-**  The option is turned on with the '-R' option in the command line
-**  
-*************************************************************************/
-template< class tSubNode >
-void tCOutput<tSubNode>::WriteDynamicVar( double time )
-{
-	if (this->g->getNodeList()->getActiveSize() < 0) {
-		
-		int hour, minute;
-		char extension[20];
-		
-		tSubNode *cn;
-		tMeshListIter<tSubNode> ni( this->g->getNodeList() );
-		
-		hour   = (int)floor(time);
-		minute = (int)(time-hour)*100;
-        snprintf(extension,sizeof(extension),"%04d.%02d", hour, minute);
-		
-		//for (int i = 0; i < 19; i++) {
-		for (int i = 0; i < 36; i++) {  // SKY2008Snow from AJR2007
-			this->dynvars[i]<<extension<<" ";
-
-			// Begin fix converting soil state variables into vertical depths CJC 2025
-			// Code is very inefcient, grabbing slope for each variable but this function is for debugging only
-			if (i == 0) { // _Nwt
-				for ( cn=ni.FirstP(); ni.IsActive(); cn=ni.NextP() ) {
-                    tEdge *flowEdge = cn->getFlowEdg();
-                    double cos_slope = cos(atan(flowEdge->getSlope()));
-                    if (cos_slope < 1E-9) cos_slope = 1.E-9;
-					this->dynvars[i]<<setprecision(5)<<(cn->getNwtNew() / cos_slope)<<" ";
-                }
-            }
-			else if (i == 1) { // _Nf
-				for ( cn=ni.FirstP(); ni.IsActive(); cn=ni.NextP() ) {
-                    tEdge *flowEdge = cn->getFlowEdg();
-                    double cos_slope = cos(atan(flowEdge->getSlope()));
-                    if (cos_slope < 1E-9) cos_slope = 1.E-9;
-					this->dynvars[i]<<setprecision(5)<<(cn->getNfNew() / cos_slope)<<" ";
-                }
-            }
-			else if (i == 2) { // _Nt
-				for ( cn=ni.FirstP(); ni.IsActive(); cn=ni.NextP() ) {
-                    tEdge *flowEdge = cn->getFlowEdg();
-                    double cos_slope = cos(atan(flowEdge->getSlope()));
-                    if (cos_slope < 1E-9) cos_slope = 1.E-9;
-					this->dynvars[i]<<setprecision(5)<<(cn->getNtNew() / cos_slope)<<" ";
-                }
-            }
-			else if (i == 3) { // _Mu
-				for ( cn=ni.FirstP(); ni.IsActive(); cn=ni.NextP() ) {
-                    tEdge *flowEdge = cn->getFlowEdg();
-                    double cos_slope = cos(atan(flowEdge->getSlope()));
-                    if (cos_slope < 1E-9) cos_slope = 1.E-9;
-					this->dynvars[i]<<setprecision(5)<<(cn->getMuNew() / cos_slope)<<" ";
-                }
-            }
-			else if (i == 4) { // _Mi
-				for ( cn=ni.FirstP(); ni.IsActive(); cn=ni.NextP() ) {
-                    tEdge *flowEdge = cn->getFlowEdg();
-                    double cos_slope = cos(atan(flowEdge->getSlope()));
-                    if (cos_slope < 1E-9) cos_slope = 1.E-9;
-					this->dynvars[i]<<setprecision(5)<<(cn->getMiNew() / cos_slope)<<" ";
-                }
-            }
-			else if (i == 5)
-				for ( cn=ni.FirstP(); ni.IsActive(); cn=ni.NextP() )
-					this->dynvars[i]<<setprecision(8)<<cn->getQpout()*1.E-6/cn->getVArea()<<" ";
-			else if (i == 6)
-				for ( cn=ni.FirstP(); ni.IsActive(); cn=ni.NextP() )
-					this->dynvars[i]<<setprecision(8)<<cn->getQpin()*1.E-6/cn->getVArea()<<" ";
-			else if (i == 7)
-				for ( cn=ni.FirstP(); ni.IsActive(); cn=ni.NextP() )
-					this->dynvars[i]<<setprecision(7)<<cn->getRuNew()<<" ";
-			else if (i == 8)
-				for ( cn=ni.FirstP(); ni.IsActive(); cn=ni.NextP() )
-					this->dynvars[i]<<setprecision(7)<<cn->getTransmiss()*1.E-6<<" ";
-			else if (i == 9)
-				for ( cn=ni.FirstP(); ni.IsActive(); cn=ni.NextP() )
-					this->dynvars[i]<<setprecision(7)<<cn->getGwaterChng()*1E-9<<" ";
-			else if (i == 10)
-				for ( cn=ni.FirstP(); ni.IsActive(); cn=ni.NextP() )
-					this->dynvars[i]<<setprecision(7)<<cn->getSrf()<<" ";
-			else if (i == 11)
-				for ( cn=ni.FirstP(); ni.IsActive(); cn=ni.NextP() )
-					this->dynvars[i]<<setprecision(5)<<cn->getSoilMoistureSC()<<" ";
-			else if (i == 12)
-				for ( cn=ni.FirstP(); ni.IsActive(); cn=ni.NextP() )
-					this->dynvars[i]<<setprecision(5)<<cn->getRootMoisture()<<" ";
-			else if (i == 13)
-				for ( cn=ni.FirstP(); ni.IsActive(); cn=ni.NextP() )
-					this->dynvars[i]<<setprecision(5)<<cn->getEvapoTrans()<<" ";
-			else if (i == 14)
-				for ( cn=ni.FirstP(); ni.IsActive(); cn=ni.NextP() )
-					this->dynvars[i]<<setprecision(5)<<cn->getEvapDryCanopy()<<" ";
-			else if (i == 15)
-				for ( cn=ni.FirstP(); ni.IsActive(); cn=ni.NextP() )
-					this->dynvars[i]<<setprecision(5)<<cn->getEvapWetCanopy()<<" ";
-			else if (i == 16)
-				for ( cn=ni.FirstP(); ni.IsActive(); cn=ni.NextP() )
-					this->dynvars[i]<<setprecision(5)<<cn->getEvapSoil()<<" ";
-			else if (i == 17)
-				for ( cn=ni.FirstP(); ni.IsActive(); cn=ni.NextP() )
-					this->dynvars[i]<<setprecision(5)<<cn->getNetPrecipitation();
-			else if (i == 18)
-
-			// SKY2008Snow from AJR2007
-				for ( cn=ni.FirstP(); ni.IsActive(); cn=ni.NextP() )
-	  				this->dynvars[i]<<setprecision(5)<<cn->getIceWE()+cn->getLiqWE();//added by AJR 2007 @ NMT
-      			else if (i == 19)
-				for ( cn=ni.FirstP(); ni.IsActive(); cn=ni.NextP() )
-	  				this->dynvars[i]<<setprecision(5)<<cn->getSnTempC();//added by AJR 2007 @ NMT
-      			else if (i == 20)
-				for ( cn=ni.FirstP(); ni.IsActive(); cn=ni.NextP() )
-	  				this->dynvars[i]<<setprecision(5)<<cn->getIceWE();//added by AJR 2007 @ NMT
-      			else if (i == 21)
-				for ( cn=ni.FirstP(); ni.IsActive(); cn=ni.NextP() )
-	  				this->dynvars[i]<<setprecision(5)<<cn->getLiqWE();//added by AJR 2007 @ NMT
-      			else if (i == 22)
-				for ( cn=ni.FirstP(); ni.IsActive(); cn=ni.NextP() )
-	  				this->dynvars[i]<<setprecision(5)<<cn->getDU();//added by AJR 2007 @ NMT
-      			else if (i == 23)
-				for ( cn=ni.FirstP(); ni.IsActive(); cn=ni.NextP() )
-	  				this->dynvars[i]<<setprecision(5)<<cn->getUnode();//added by AJR 2007 @ NMT
-      			else if (i == 24)
-				for ( cn=ni.FirstP(); ni.IsActive(); cn=ni.NextP() )
-	  				this->dynvars[i]<<setprecision(5)<<cn->getSnLHF();//added by AJR 2007 @ NMT
-      			else if (i == 25)
-				for ( cn=ni.FirstP(); ni.IsActive(); cn=ni.NextP() )
-	  				this->dynvars[i]<<setprecision(5)<<cn->getSnSHF();//added by AJR 2007 @ NMT
-      			else if (i == 26)
-				for ( cn=ni.FirstP(); ni.IsActive(); cn=ni.NextP() )
-	  				this->dynvars[i]<<setprecision(5)<<cn->getSnGHF();//added by AJR 2007 @ NMT
-      			else if (i == 27)
-				for ( cn=ni.FirstP(); ni.IsActive(); cn=ni.NextP() )
-					this->dynvars[i]<<setprecision(5)<<cn->getSnPHF();//added by AJR 2007 @ NMT
-			else if (i == 28)
-				for ( cn=ni.FirstP(); ni.IsActive(); cn=ni.NextP() )
-	  				this->dynvars[i]<<setprecision(5)<<cn->getSnRLout();//added by AJR 2007 @ NMT
-			else if (i == 29)
-				for ( cn=ni.FirstP(); ni.IsActive(); cn=ni.NextP() )
-					this->dynvars[i]<<setprecision(5)<<cn->getSnRLin();//added by AJR 2007 @ NMT
-			else if (i == 30)
-				for ( cn=ni.FirstP(); ni.IsActive(); cn=ni.NextP() )
-					this->dynvars[i]<<setprecision(5)<<cn->getSnRSin();//added by AJR 2007 @ NMT
-			else if (i == 31)
-				for ( cn=ni.FirstP(); ni.IsActive(); cn=ni.NextP() )
-					this->dynvars[i]<<setprecision(5)<<cn->getUerror();//added by AJR 2007 @ NMT
-			else if (i == 32)
-				for ( cn=ni.FirstP(); ni.IsActive(); cn=ni.NextP() )
-					this->dynvars[i]<<setprecision(5)<<cn->getIntSWE();//added by AJR 2007 @ NMT
-			else if (i == 33)
-				for ( cn=ni.FirstP(); ni.IsActive(); cn=ni.NextP() )
-					this->dynvars[i]<<setprecision(5)<<cn->getIntSub();//added by AJR 2007 @ NMT
-			else if (i == 34)
-				for ( cn=ni.FirstP(); ni.IsActive(); cn=ni.NextP() )
-					this->dynvars[i]<<setprecision(5)<<cn->getIntSnUnload();//added by AJR 2007 @ NMT
-			else if (i == 35)
-
-
-				for ( cn=ni.FirstP(); ni.IsActive(); cn=ni.NextP() )
-					this->dynvars[i]<<setprecision(5)<<cn->getRiNew()<<" ";
-			this->dynvars[i]<<"\n";
-		}
-	}
 	return;
 }
 
@@ -1714,228 +1752,354 @@ void tCOutput<tSubNode>::WriteIntegrVars( double time )
 	minute = (int)floor((time-hour)*60);
 	
 	snprintf(extension, sizeof(extension), ".%04d_%02di", hour, minute);
-	this->CreateAndOpenFile(&intofs, extension);
 
-    if (simCtrl->Header_label == 'Y') {
-        intofs << "ID" << ','    // 1
-               << "BndCd" << ','    // 2
-               << "Z" << ','    // 3
-               << "VAr" << ','    // 4
-               << "CAr" << ','    // 5
-               << "Curv" << ','    // 6
-               << "EdgL" << ','    // 7
-               << "Slp" << ','    // 8
-               << "FWidth" << ','    // 9
-               << "Aspect" << ','    // 10
-               << "SV" << ','    // 11
-               << "LV" << ','    // 12
-               << "AvSM" << ','    // 13
-               << "AvRtM" << ','    // 14
-               << "HOccr" << ','    // 15
-               << "HRt" << ','    // 16
-               << "SbOccr" << ','    // 17
-               << "SbRt" << ','    // 18
-               << "POccr" << ','    // 19
-               << "PRt" << ','    // 20
-               << "SatOccr" << ','    // 21
-               << "SatRt" << ','    // 22
-               << "SoiSatOccr" << ','    // 23
-               << "RchDsch" << ','    // 24
-               << "AvET" << ','    // 25
-               << "EvpFrct" << ','    // 26
-               << "cET" << ','  // 27
-               << "cEsoil" << ',' // 28
-               << "cLHF" << ','    // 29
-               << "cMelt" << ','    // 30
-               << "cSHF" << ','    // 31
-               << "cPHF" << ','    // 32
-               << "cRLIn" << ','    // 33
-               << "cRLo" << ','    // 34
-               << "cRSIn" << ','    // 35
-               << "cGHF" << ','    // 36
-               << "cUErr" << ','    // 37
-               << "cHrsSun" << ','    // 38
-               << "cHrsSnow" << ','    // 39
-               << "persTime" << ','    // 40
-               << "peakWE" << ','    // 41
-               << "initTime" << ','    // 42
-               << "peakTime" << ','    // 43
-               << "cIntSub" << ','    // 44
-               << "cSnSub" << ','    // 45
-               << "cSnEvap" << ','    // 46
-               << "cIntUnl" << ','    // 47
-               << "AvCanStorParam" << ','    // 48
-               << "AvIntercCoeff" << ','    // 49
-               << "AvTF" << ','    // 50
-               << "AvCanFieldCap" << ','    // 51
-               << "AvDrainCoeff" << ','    // 52
-               << "AvDrainExpPar" << ','    // 53
-               << "AvLUAlb" << ','    // 54
-               << "AvVegHeight" << ','    // 55
-               << "AvOTCoeff" << ','    // 56
-               << "AvStomRes" << ','    // 57
-               << "AvVegFract" << ','    // 58
-               << "AvLeafAI" << ','    // 59
-               << "AvEvapThresh" << ','    // 60
-               << "AvTransThresh"    // 61
-               << ',' << "Bedrock_Depth_mm"    // 62
-               << ',' << "Ks"    // 63
-               << ',' << "ThetaS"    // 64
-               << ',' << "ThetaR"    // 65
-               << ',' << "PoreSize"    // 66
-               << ',' << "AirEBubPress"    // 67
-               << ',' << "DecayF"    // 67
-               << ',' << "SatAnRatio"    // 69
-               << ',' << "UnsatAnRatio"    // 70
-               << ',' << "Porosity"    // 71
-               << ',' << "VolHeatCond"    // 72
-               << ',' << "SoilHeatCap"    // 73
-               << ',' << "SoilID"    // 74
-               << ',' << "LandUseID"    // 75
-               << "\n";
-    }
-	
+	ostringstream buf;
+	ostream *pout;
+
+#ifdef PARALLEL_TRIBS
+	if (tParallel::isMaster()) {
+		buf << "ID" << ','                                     // 1
+		    << "BndCd" << ','                                  // 2
+		    << "Proc" << ','                                   // 3
+		    << "Z" << ','                                      // 4
+		    << "VAr" << ','                                    // 5
+		    << "CAr" << ','                                    // 6
+		    << "Curv" << ','                                   // 7
+		    << "EdgL" << ','                                   // 8
+		    << "Slp" << ','                                    // 9
+		    << "FWidth" << ','                                 // 10
+		    << "Aspect" << ','                                 // 11
+		    << "SV" << ','                                     // 12
+		    << "LV" << ','                                     // 13
+		    << "AvSM" << ','                                   // 14
+		    << "AvRtM" << ','                                  // 15
+		    << "HOccr" << ','                                  // 16
+		    << "HRt" << ','                                    // 17
+		    << "SbOccr" << ','                                 // 18
+		    << "SbRt" << ','                                   // 19
+		    << "POccr" << ','                                  // 20
+		    << "PRt" << ','                                    // 21
+		    << "SatOccr" << ','                                // 22
+		    << "SatRt" << ','                                  // 23
+		    << "SoiSatOccr" << ','                             // 24
+		    << "RchDsch" << ','                                // 25
+		    << "AvET" << ','                                   // 26
+		    << "EvpFrct" << ','                                // 27
+		    << "cET" << ','                                    // 28
+		    << "cEsoil" << ','                                 // 29
+		    << "cLHF" << ','                                   // 30
+		    << "cMelt" << ','                                  // 31
+		    << "cSHF" << ','                                   // 32
+		    << "cPHF" << ','                                   // 33
+		    << "cRLIn" << ','                                  // 34
+		    << "cRLo" << ','                                   // 35
+		    << "cRSIn" << ','                                  // 36
+		    << "cGHF" << ','                                   // 37
+		    << "cUErr" << ','                                  // 38
+		    << "cHrsSun" << ','                                // 39
+		    << "cHrsSnow" << ','                               // 40
+		    << "persTime" << ','                               // 41
+		    << "peakWE" << ','                                 // 42
+		    << "initTime" << ','                               // 43
+		    << "peakTime" << ','                               // 44
+		    << "cIntSub" << ','                                // 45
+		    << "cSnSub" << ','                                 // 46
+		    << "cSnEvap" << ','                                // 47
+		    << "cIntUnl" << ','                                // 48
+		    << "AvTF" << ','                                   // 49
+		    << "AvCanFieldCap" << ','                          // 50
+		    << "AvDrainCoeff" << ','                           // 51
+		    << "AvDrainExpPar" << ','                          // 52
+		    << "AvLUAlb" << ','                                // 53
+		    << "AvVegHeight" << ','                            // 54
+		    << "AvOTCoeff" << ','                              // 55
+		    << "AvStomRes" << ','                              // 56
+		    << "AvVegFract" << ','                             // 57
+		    << "AvLeafAI" << ','                               // 58
+		    << "AvEvapThresh" << ','                           // 59
+		    << "AvTransThresh" << ','                          // 60
+		    << "Bedrock_Depth_mm" << ','                       // 61
+		    << "Ks" << ','                                     // 62
+		    << "ThetaS" << ','                                 // 63
+		    << "ThetaR" << ','                                 // 64
+		    << "PoreSize" << ','                               // 65
+		    << "AirEBubPress" << ','                           // 66
+		    << "DecayF" << ','                                 // 67
+		    << "SatAnRatio" << ','                             // 68
+		    << "UnsatAnRatio" << ','                           // 69
+		    << "Porosity" << ','                               // 70
+		    << "VolHeatCond" << ','                            // 71
+		    << "SoilHeatCap" << ','                            // 72
+		    << "SoilID" << ','                                 // 73
+		    << "LandUseID" << ','                              // 74
+		    << "AvRootZoneDepth"                               // 75
+		    << '\n';
+	}
+	pout = &buf;
+#else
+	this->CreateAndOpenFile(&intofs, extension);
+	intofs << "ID" << ','                                     // 1
+		   << "BndCd" << ','                                  // 2
+		   << "Proc" << ','                                   // 3
+		   << "Z" << ','                                      // 4
+		   << "VAr" << ','                                    // 5
+		   << "CAr" << ','                                    // 6
+		   << "Curv" << ','                                   // 7
+		   << "EdgL" << ','                                   // 8
+		   << "Slp" << ','                                    // 9
+		   << "FWidth" << ','                                 // 10
+		   << "Aspect" << ','                                 // 11
+		   << "SV" << ','                                     // 12
+		   << "LV" << ','                                     // 13
+		   << "AvSM" << ','                                   // 14
+		   << "AvRtM" << ','                                  // 15
+		   << "HOccr" << ','                                  // 16
+		   << "HRt" << ','                                    // 17
+		   << "SbOccr" << ','                                 // 18
+		   << "SbRt" << ','                                   // 19
+		   << "POccr" << ','                                  // 20
+		   << "PRt" << ','                                    // 21
+		   << "SatOccr" << ','                                // 22
+		   << "SatRt" << ','                                  // 23
+		   << "SoiSatOccr" << ','                             // 24
+		   << "RchDsch" << ','                                // 25
+		   << "AvET" << ','                                   // 26
+		   << "EvpFrct" << ','                                // 27
+		   << "cET" << ','                                    // 28
+		   << "cEsoil" << ','                                 // 29
+		   << "cLHF" << ','                                   // 30
+		   << "cMelt" << ','                                  // 31
+		   << "cSHF" << ','                                   // 32
+		   << "cPHF" << ','                                   // 33
+		   << "cRLIn" << ','                                  // 34
+		   << "cRLo" << ','                                   // 35
+		   << "cRSIn" << ','                                  // 36
+		   << "cGHF" << ','                                   // 37
+		   << "cUErr" << ','                                  // 38
+		   << "cHrsSun" << ','                                // 39
+		   << "cHrsSnow" << ','                               // 40
+		   << "persTime" << ','                               // 41
+		   << "peakWE" << ','                                 // 42
+		   << "initTime" << ','                               // 43
+		   << "peakTime" << ','                               // 44
+		   << "cIntSub" << ','                                // 45
+		   << "cSnSub" << ','                                 // 46
+		   << "cSnEvap" << ','                                // 47
+		   << "cIntUnl" << ','                                // 48
+		   << "AvTF" << ','                                   // 49
+		   << "AvCanFieldCap" << ','                          // 50
+		   << "AvDrainCoeff" << ','                           // 51
+		   << "AvDrainExpPar" << ','                          // 52
+		   << "AvLUAlb" << ','                                // 53
+		   << "AvVegHeight" << ','                            // 54
+		   << "AvOTCoeff" << ','                              // 55
+		   << "AvStomRes" << ','                              // 56
+		   << "AvVegFract" << ','                             // 57
+		   << "AvLeafAI" << ','                               // 58
+		   << "AvEvapThresh" << ','                           // 59
+		   << "AvTransThresh" << ','                          // 60
+		   << "Bedrock_Depth_mm" << ','                       // 61
+		   << "Ks" << ','                                     // 62
+		   << "ThetaS" << ','                                 // 63
+		   << "ThetaR" << ','                                 // 64
+		   << "PoreSize" << ','                               // 65
+		   << "AirEBubPress" << ','                           // 66
+		   << "DecayF" << ','                                 // 67
+		   << "SatAnRatio" << ','                             // 68
+		   << "UnsatAnRatio" << ','                           // 69
+		   << "Porosity" << ','                               // 70
+		   << "VolHeatCond" << ','                            // 71
+		   << "SoilHeatCap" << ','                            // 72
+		   << "SoilID" << ','                                 // 73
+		   << "LandUseID" << ','                              // 74
+		   << "AvRootZoneDepth"                               // 75
+		   << "\n";
+	pout = &intofs;
+#endif
+
+	// Processor rank owning each node (0 in serial). Each processor writes
+	// only its own local nodes here, so the rank is simply its own id.
+#ifdef PARALLEL_TRIBS
+	int prank = tParallel::getMyProc();
+#else
+	int prank = 0;
+#endif
+
 	cn = ni.FirstP();
 	while (ni.IsActive()) {
-		
-		intofs<<cn->getID()<<','// 1
-        <<cn->getBoundaryFlag()<<',' // 2
-		<<setprecision(4)<<cn->getZ()<<',' // 3
-		<<setprecision(7)<<cn->getVArea()<<',' // 4
-		<<setprecision(7)<<cn->getContrArea()*1.E-6<<',' //5
-		<<setprecision(6)<<cn->getCurvature()<<',' //6
-		<<cn->getFlowEdg()->getLength()<<',' //7
-		<<cn->getFlowEdg()->getSlope()<<',' // 8
-		<<cn->getFlowEdg()->getVEdgLen()<<',' //9
-		<<setprecision(4)<<cn->getAspect()<<',' // 10
-		<<setprecision(7)<<cn->getSheltFact()<<',' // 11
-		<<cn->getLandFact()<<','<<setprecision(4); // 12
 
+		// CJC2025: bedrock is stored slope-normal; report vertical depth
+		double cos_slope = cn->getCosSlope();
 
+		*pout<<cn->getID()<<','                              //1
+		     <<cn->getBoundaryFlag()<<','                    //2
+		     <<prank<<','                                    //3
+		     <<setprecision(4)<<cn->getZ()<<','              //4
+		     <<setprecision(7)<<cn->getVArea()<<','          //5
+		     <<setprecision(7)<<cn->getContrArea()*1.E-6<<',' //6
+		     <<setprecision(6)<<cn->getCurvature()<<','      //7
+		     <<cn->getFlowEdg()->getLength()<<','            //8
+		     <<cn->getFlowEdg()->getSlope()<<','             //9
+		     <<cn->getFlowEdg()->getVEdgLen()<<','           //10
+		     <<setprecision(4)<<cn->getAspect()<<','         //11
+		     <<setprecision(7)<<cn->getSheltFact()<<','      //12
+		     <<cn->getLandFact()<<','<<setprecision(4);      //13
 
-		tmp1 = floor(cn->getAvSoilMoisture())*1.E-4; 
+		tmp1 = floor(cn->getAvSoilMoisture())*1.E-4;
 		tmp2 = (cn->getAvSoilMoisture()-floor(cn->getAvSoilMoisture()))*1.E+1;
-		intofs<<tmp1<<','<< // 13
-        tmp2<<','; //14
-		
-		// -----------  seperate runoff mechanism occurrence and rate
+		*pout<<tmp1<<','<<                                   //14
+		     tmp2<<',';                                      //15
+
+		// -----------  separate runoff mechanism occurrence and rate
 		Occur = (int)((cn->hsrfOccur-floor(cn->hsrfOccur))*1.E+6);
 		if (Occur > 0) {
 			avRate = floor(cn->hsrfOccur)/1000.0/Occur;
 			prec = 3;
-			if (avRate>100.0) 
-				prec++;
-		}
-		else {
+			if (avRate>100.0) prec++;
+		} else {
 			avRate = 0.0;
 			prec = 0;
 		}
-		intofs<<setprecision(6)<<Occur<< // 15
-        setprecision(prec)<<','<<avRate<<','; //16
-		
+		*pout<<setprecision(6)<<Occur<<                      //16
+		     setprecision(prec)<<','<<avRate<<',';           //17
+
 		// -----------
 		Occur = (int)((cn->sbsrfOccur-floor(cn->sbsrfOccur))*1.E+6);
 		if (Occur > 0) {
 			avRate = floor(cn->sbsrfOccur)/1000.0/Occur;
 			prec = 3;
-			if (avRate>100.) 
-				prec++;
-		}
-		else {
+			if (avRate>100.) prec++;
+		} else {
 			avRate = 0.0;
 			prec = 0;
 		}
-		intofs<<setprecision(6)<<Occur<< //17
-        setprecision(prec)<<','<<avRate<<','; // 18
-		
+		*pout<<setprecision(6)<<Occur<<                      //18
+		     setprecision(prec)<<','<<avRate<<',';           //19
+
 		// -----------
 		Occur = (int)((cn->psrfOccur-floor(cn->psrfOccur))*1.E+6);
 		if (Occur > 0) {
 			avRate = floor(cn->psrfOccur)/1000./Occur;
 			prec = 3;
-			if (avRate>100.) 
-				prec++;
-		}
-		else {
+			if (avRate>100.) prec++;
+		} else {
 			avRate = 0.0;
 			prec = 0;
 		}
-		intofs<<setprecision(6)<<Occur<< //19
-        setprecision(prec)<<','<<avRate<<','; //20
-		
+		*pout<<setprecision(6)<<Occur<<                      //20
+		     setprecision(prec)<<','<<avRate<<',';           //21
+
 		// -----------
 		Occur = (int)((cn->satsrfOccur-floor(cn->satsrfOccur))*1.E+6);
 		if (Occur > 0) {
 			avRate = floor(cn->satsrfOccur)/1000./Occur;
 			prec = 3;
-			if (avRate>100.) 
-				prec++;
-		}
-		else {
+			if (avRate>100.) prec++;
+		} else {
 			avRate = 0.0;
 			prec = 0;
 		}
-		intofs<<setprecision(6)<<Occur<<',' //21
-			<<setprecision(prec)<<avRate<<',' //22
-			<<setprecision(6)<<cn->satOccur<<',' //23
-			<<setprecision(3)<<cn->RechDisch<<',' //24
-			<<setprecision(4)<<cn->getAvET()<<',' //25
-			<<setprecision(4)<<cn->getAvEvapFract()<<',' //26
-            <<setprecision(4)<<cn->getCumTotEvap() <<',' //27
-            <<setprecision(4)<<cn->getCumBarEvap()<<',' //28
-            <<setprecision(7)<<cn->getCumLHF()<<','//29
-			<<setprecision(7)<<cn->getCumMelt()<<','//30
-			<<setprecision(7)<<cn->getCumSHF()<<','//31
-			<<setprecision(7)<<cn->getCumPHF()<<','//32
-			<<setprecision(7)<<cn->getCumRLin()<<','//33
-			<<setprecision(7)<<cn->getCumRLout()<<','//34
-			<<setprecision(7)<<cn->getCumRSin()<<','//35
-			<<setprecision(7)<<cn->getCumGHF()<<','//36
-			<<setprecision(7)<<cn->getCumUerror()<<','//37
-			<<setprecision(7)<<cn->getCumHrsSun()<<','//38
-			<<setprecision(7)<<cn->getCumHrsSnow()<<','//39
-			<<setprecision(7)<<cn->getPersTimeMax()<<',' //40
-			<<setprecision(7)<<cn->getPeakSWE()<<',' //41
-			<<setprecision(7)<<cn->getInitPackTime()<<',' //42
-			<<setprecision(7)<<cn->getPeakPackTime()<<',' //43
-			<<setprecision(7)<<cn->getCumIntSub()<<','//44
-			<<setprecision(7)<<cn->getCumSnSub()<<','//45
-			<<setprecision(7)<<cn->getCumSnEvap()<<','//46
-			<<setprecision(7)<<cn->getCumIntUnl()<<','//47
-			<<setprecision(7)<<cn->getAvCanStorParam()<<',' //48
-			<<setprecision(7)<<cn->getAvIntercepCoeff()<<',' //49
-			<<setprecision(7)<<cn->getAvThroughFall()<<',' //50
-			<<setprecision(7)<<cn->getAvCanFieldCap()<<',' //51
-			<<setprecision(7)<<cn->getAvDrainCoeff()<<',' //52
-			<<setprecision(7)<<cn->getAvDrainExpPar()<<',' //53
-			<<setprecision(7)<<cn->getAvLandUseAlb()<<',' //54
-			<<setprecision(7)<<cn->getAvVegHeight()<<','  //55
-			<<setprecision(7)<<cn->getAvOptTransmCoeff()<<',' //56
-			<<setprecision(7)<<cn->getAvStomRes()<<',' // 57
-			<<setprecision(7)<<cn->getAvVegFraction()<<',' //58
-			<<setprecision(7)<<cn->getAvLeafAI()<<',' //59
-			<<setprecision(7)<<cn->getAvEvapThresh()<<',' //60
-			<<setprecision(7)<<cn->getAvTransThresh()<<',' //61
-            <<setprecision(7)<<cn->getBedrockDepth()<<',' //62 bedrock depth mm
-           << setprecision(7) << cn->getKs() << ',' // 63
-           << setprecision(7) << cn->getThetaS() << ',' // 64
-           << setprecision(7) << cn->getThetaR() << ',' // 65
-           << setprecision(7) << cn->getPoreSize() << ',' // 66
-           << setprecision(7) << cn->getAirEBubPres() << ',' // 67
-           << setprecision(7) << cn->getDecayF() << ',' // 68
-           << setprecision(7) << cn->getSatAnRatio() << ',' // 69
-           << setprecision(7) << cn->getUnsatAnRatio() << ',' // 70
-           << setprecision(7) << cn->getPorosity() << ',' // 71
-           << setprecision(7) << cn->getVolHeatCond() << ',' // 72
-           << setprecision(7) << cn->getSoilHeatCap() << ',' // 73
-           << setprecision(7) << cn->getSoilID() << ',' //74
-           << setprecision(7) << cn->getLandUse(); // 75
+		*pout<<setprecision(6)<<Occur<<','                   //22
+		     << setprecision(prec)<<avRate<<','              //23
+		     << setprecision(6)<<cn->satOccur<<','           //24
+		     << setprecision(3)<<cn->RechDisch<<','          //25
+		     << setprecision(4)<<cn->getAvET()<<','          //26
+		     << setprecision(4)<<cn->getAvEvapFract()<<','   //27
+		     << setprecision(4)<<cn->getCumTotEvap() <<','   //28
+		     << setprecision(4)<<cn->getCumBarEvap()<<','    //29
+		     << setprecision(7)<<cn->getCumLHF()<<','        //30
+		     << setprecision(7)<<cn->getCumMelt()<<','       //31
+		     << setprecision(7)<<cn->getCumSHF()<<','        //32
+		     << setprecision(7)<<cn->getCumPHF()<<','        //33
+		     << setprecision(7)<<cn->getCumRLin()<<','       //34
+		     << setprecision(7)<<cn->getCumRLout()<<','      //35
+		     << setprecision(7)<<cn->getCumRSin()<<','       //36
+		     << setprecision(7)<<cn->getCumGHF()<<','        //37
+		     << setprecision(7)<<cn->getCumUerror()<<','     //38
+		     << setprecision(7)<<cn->getCumHrsSun()<<','     //39
+		     << setprecision(7)<<cn->getCumHrsSnow()<<','    //40
+		     << setprecision(7)<<cn->getPersTimeMax()<<','   //41
+		     << setprecision(7)<<cn->getPeakSWE()<<','       //42
+		     << setprecision(7)<<cn->getInitPackTime()<<','  //43
+		     << setprecision(7)<<cn->getPeakPackTime()<<','  //44
+		     << setprecision(7)<<cn->getCumIntSub()<<','     //45
+		     << setprecision(7)<<cn->getCumSnSub()<<','      //46
+		     << setprecision(7)<<cn->getCumSnEvap()<<','     //47
+		     << setprecision(7)<<cn->getCumIntUnl()<<','     //48
+		     << setprecision(7)<<cn->getAvThroughFall()<<',' //49
+		     << setprecision(7)<<cn->getAvCanFieldCap()<<',' //50
+		     << setprecision(7)<<cn->getAvDrainCoeff()<<','  //51
+		     << setprecision(7)<<cn->getAvDrainExpPar()<<',' //52
+		     << setprecision(7)<<cn->getAvLandUseAlb()<<','  //53
+		     << setprecision(7)<<cn->getAvVegHeight()<<','   //54
+		     << setprecision(7)<<cn->getAvOptTransmCoeff()<<',' //55
+		     << setprecision(7)<<cn->getAvStomRes()<<','     //56
+		     << setprecision(7)<<cn->getAvVegFraction()<<',' //57
+		     << setprecision(7)<<cn->getAvLeafAI()<<','      //58
+		     << setprecision(7)<<cn->getAvEvapThresh()<<','  //59
+		     << setprecision(7)<<cn->getAvTransThresh()<<',' //60
+		     << setprecision(7)<<cn->getBedrockDepth()/cos_slope<<','  //61
+		     << setprecision(7)<<cn->getKs()<<','            //62
+		     << setprecision(7)<<cn->getThetaS()<<','        //63
+		     << setprecision(7)<<cn->getThetaR()<<','        //64
+		     << setprecision(7)<<cn->getPoreSize()<<','      //65
+		     << setprecision(7)<<cn->getAirEBubPres()<<','   //66
+		     << setprecision(7)<<cn->getDecayF()<<','        //67
+		     << setprecision(7)<<cn->getSatAnRatio()<<','    //68
+		     << setprecision(7)<<cn->getUnsatAnRatio()<<',' //69
+		     << setprecision(7)<<cn->getPorosity()<<','      //70
+		     << setprecision(7)<<cn->getVolHeatCond()<<','   //71
+		     << setprecision(7)<<cn->getSoilHeatCap()<<','   //72
+		     << setprecision(7)<<cn->getSoilID()<<','        //73
+		     << setprecision(7)<<cn->getLandUse()<<','       //74
+		     << setprecision(7)<<cn->getAvRootZoneDepth()    //75
+		     << '\n';
 
-        intofs<<"\n";
-		
 		cn = ni.NextP();
 	}
+
+#ifdef PARALLEL_TRIBS
+	{
+		string localStr = buf.str();
+		int localLen = (int)localStr.size();
+		int nprocs = tParallel::getNumProcs();
+		vector<int> lengths(nprocs), offsets(nprocs);
+		MPI_Gather(&localLen, 1, MPI_INT,
+		           lengths.data(), 1, MPI_INT, MASTER_PROC, MPI_COMM_WORLD);
+		if (tParallel::isMaster()) {
+			int total = 0;
+			for (int i = 0; i < nprocs; i++) { offsets[i] = total; total += lengths[i]; }
+			vector<char> combined(total);
+			MPI_Gatherv((char*)localStr.data(), localLen, MPI_CHAR,
+			            combined.data(), lengths.data(), offsets.data(), MPI_CHAR,
+			            MASTER_PROC, MPI_COMM_WORLD);
+			string combinedStr(combined.data(), total);
+			size_t headerEnd = combinedStr.find('\n');
+			string header = combinedStr.substr(0, headerEnd + 1);
+			vector<string> rows;
+			size_t pos = headerEnd + 1;
+			while (pos < (size_t)total) {
+				size_t end = combinedStr.find('\n', pos);
+				if (end == string::npos) break;
+				rows.push_back(combinedStr.substr(pos, end - pos + 1));
+				pos = end + 1;
+			}
+			sort(rows.begin(), rows.end(), [](const string &a, const string &b) {
+				return stoi(a) < stoi(b);
+			});
+			this->CreateAndOpenFileSingle(&intofs, extension);
+			intofs << header;
+			for (const auto &row : rows) intofs << row;
+			intofs.close();
+		} else {
+			MPI_Gatherv((char*)localStr.data(), localLen, MPI_CHAR,
+			            nullptr, nullptr, nullptr, MPI_CHAR,
+			            MASTER_PROC, MPI_COMM_WORLD);
+		}
+	}
+#else
 	intofs.close();
+#endif
 	return;
 }
 
@@ -1958,9 +2122,9 @@ void tCOutput<tSubNode>::WriteOutletInfo( double time )
 			if ( Outlets[i] && OutletList[i] < this->g->getNodeList()->getActiveSize()) {
 #endif
 				// CJC2025: Use fixed format with 4 decimal places for time
-				outletinfo[i] << std::fixed << std::setprecision(4) << time << "\t"
-				              << setw(10) << Outlets[i]->getQstrm() << "\t"
-				              << setw(6)  << Outlets[i]->getHlevel() << "\n";
+				outletinfo[i] << std::fixed << std::setprecision(4) << time << ","
+				              << Outlets[i]->getQstrm() << ","
+				              << Outlets[i]->getHlevel() << "\n";
 			}
 		}
 	}
@@ -1971,10 +2135,11 @@ void tCOutput<tSubNode>::WriteOutletInfo( double time )
 **
 **  tCOutput::ReadOutletList()
 **
-**  Opens and Reads the node list from a *.oul file whose structure is:
-**
-**  Number of Outlet Nodes
-**  NodeID1 NodeID2 NodeID3 NodeID4 NodeID5 ...
+**  Opens and reads the outlet list from a *.oul CSV file. The format mirrors
+**  the node output list (see tOutput::ReadNodeOutputList): a header flag line
+**  ("ID" or "X,Y") followed by one record per row, with no count line. In
+**  "X,Y" mode each coordinate is resolved to the nearest *stream* node, since
+**  streamflow outlets are only meaningful on the channel network.
 **
 *************************************************************************/
 template< class tSubNode >
@@ -1987,21 +2152,53 @@ void tCOutput<tSubNode>::ReadOutletNodeList(char *nodeFileO)
 		numOutlets = 0;
 		return;
 	}
-	
-	readOUL>>numOutlets;
+
+	// First line is the header flag: a comma signals coordinate ("X,Y") mode,
+	// otherwise rows are interpreted as node IDs.
+	string header;
+	getline(readOUL, header);
+	bool coordMode = (header.find(',') != string::npos);
+
+	vector<int> ids;
+	vector<double> xs, ys;
+	string line;
+	while (getline(readOUL, line)) {
+		for (char &c : line) if (c == ',') c = ' ';   // CSV -> whitespace
+		istringstream iss(line);
+		if (coordMode) {
+			double x, y;
+			if (iss >> x >> y) { xs.push_back(x); ys.push_back(y); }
+		} else {
+			int id;
+			if (iss >> id) ids.push_back(id);
+		}
+	}
+	readOUL.close();
+
+	numOutlets = coordMode ? (int)xs.size() : (int)ids.size();
 	OutletList  = new int[numOutlets];
 	Outlets     = new tSubNode*[numOutlets];
 	outletinfo  = new ofstream[numOutlets];
-	for (int i = 0; i < numOutlets; i++)
-		readOUL>>OutletList[i]; 
-	
+
+	for (int i = 0; i < numOutlets; i++) {
+		if (coordMode) {
+			// Outlets must lie on the channel network: restrict to stream nodes.
+			double snapDist;
+			OutletList[i] = this->FindNearestNodeID(xs[i], ys[i], true, snapDist);
+			Cout<<"\nOutlet coordinate ("<<xs[i]<<", "<<ys[i]
+				<<") resolved to nearest stream node ID "<<OutletList[i]
+				<<" ("<<snapDist<<" meters away)"<<endl;
+		} else {
+			OutletList[i] = ids[i];
+		}
+	}
+
 #ifdef PARALLEL_TRIBS
   // Initialize Outlets to NULL, used to determine local Outlets
   for (int i = 0; i < numOutlets; i++)
     Outlets[i] = NULL;
 #endif
 
-	readOUL.close();
 	return;
 }
 
@@ -2040,17 +2237,9 @@ void tCOutput<tSubNode>::CreateAndOpenOutlet()
 				
 					if ( !outletinfo[i].good() )
 						cerr<<"File "<<fullName<<"can not be created.";
-					else
-/*SMM
-						Cout<<"Creating Output File: \t '"<<fullName<<"' "<<endl;
-*/
 					
-					if (simCtrl->Header_label=='Y') {
-						outletinfo[i]<<"1-Time,hr\t "
-						<<"2-Qstrm,m3/s\t"
-						<<"3-Hlev,m"
-						<<"\n";
-					}
+					// Write Header
+					outletinfo[i] << "Time_hr,Qstrm_m3_s,Hlev_m\n";
 				}
 			}
 		}
@@ -2088,74 +2277,6 @@ void tCOutput<tSubNode>::SetInteriorOutlet()
 			}
 		}
 	}
-	return;
-}
-
-//=========================================================================
-//
-//
-//                  Section 5: Update for New Run
-//
-//
-//=========================================================================
-
-
-/*************************************************************************
-**
-**  tCOutput::UpdateForNewRun( tInputFile &infile )
-**
-**  Used to update data members of tOutput when a new simulation run
-**  is to be carried out (option -ON of the command line)
-** 
-**  Input: infile -- reference to an open input file, assumed valid
-**
-*************************************************************************/
-template< class tSubNode >
-void tCOutput<tSubNode>::UpdateForNewRun( tInputFile &infile )
-{
-	int j;
-	char nodeFileO[kMaxNameSize];
-	
-	infile.ReadItem( this->baseName, "OUTFILENAME" ); 
-	infile.ReadItem( outletName, "OUTHYDROFILENAME" );
-	infile.ReadItem( this->nodeFile, "NODEOUTPUTLIST" );  
-	infile.ReadItem( nodeFileO, "OUTLETNODELIST" );
-	
-	cout<<"\ntOutput basename: \t"<<this->baseName<<endl<<endl;
-	
-	this->nodeofs.close();
-	this->edgofs.close();
-	this->triofs.close();
-	this->zofs.close();
-	
-	if (this->numNodes > 0) {
-		for (j=0; j < this->numNodes; j++)
-			this->pixinfo[j].close();
-		delete [] this->nodeList;
-		delete [] this->uzel;
-		delete [] this->pixinfo;
-	}
-	this->numNodes = 0;
-	
-	if (numOutlets > 0) {
-		for (j=0; j < numOutlets; j++)
-			outletinfo[j].close();
-		delete [] OutletList;
-		delete [] Outlets;
-		delete [] outletinfo;
-	}
-	numOutlets = 0;
-	
-	// Open pixel files
-	this->ReadNodeOutputList(); 
-	this->CreateAndOpenPixel();
-	this->SetInteriorNode();
-	
-	// Open outlet files
-	ReadOutletNodeList(nodeFileO);
-	CreateAndOpenOutlet();
-	SetInteriorOutlet();
-	
 	return;
 }
 

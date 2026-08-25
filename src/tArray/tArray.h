@@ -2,7 +2,7 @@
  * TIN-based Real-time Integrated Basin Simulator (tRIBS)
  * Distributed Hydrologic Model
  *
- * Copyright (c) 2025. tRIBS Developers
+ * Copyright (c) tRIBS Developers
  *
  * See LICENSE file in the project root for full license information.
  ******************************************************************************/
@@ -24,28 +24,9 @@
 #ifndef TARRAY_H
 #define TARRAY_H
 
-
-#ifdef ALPHA_64
-  #include <iostream.h>
-  #include <fstream.h>
-  #include <assert.h>
-#elif defined LINUX_32
-  #include <iostream>
-  #include <fstream>
-  #include <cassert>
-#elif defined MAC
-  #include <iostream>
-  #include <fstream>
-  #include <cassert>
-#elif defined WIN
-  #include <iostream.h>
-  #include <fstream.h>
-  #include <assert.h>
-#else 
-  #include <iostream.h>
-  #include <fstream.h>
-  #include <assert.h>
-#endif
+#include <iostream>
+#include <fstream>
+#include <cassert>
 
 using namespace std;
 

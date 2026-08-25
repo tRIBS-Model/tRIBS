@@ -2,7 +2,7 @@
  * TIN-based Real-time Integrated Basin Simulator (tRIBS)
  * Distributed Hydrologic Model
  *
- * Copyright (c) 2025. tRIBS Developers
+ * Copyright (c) tRIBS Developers
  *
  * See LICENSE file in the project root for full license information.
  ******************************************************************************/
@@ -14,13 +14,18 @@
 **
 ***************************************************************************/
 
+#include <cmath>
+#include <cstdint>
 #include <sstream>
+#include <vector>
 #include "src/tSimulator/tSimul.h"
 #include "src/Headers/TemplDefinitions.h"
 #include "src/Headers/globalIO.h"
 
 #ifdef PARALLEL_TRIBS
 #include "src/tGraph/tGraph.h"
+#include "src/tParallel/tParallel.h"
+#include <mpi.h>
 #endif
 
 //=========================================================================
@@ -44,9 +49,6 @@ Simulator::Simulator(SimulationControl *simctrlptr, tRainfall *rainptr,
 	// Time tag of initial time, hour
 	begin_hour = timer->getCurrentTime(); 
 	
-	// For forecasted rainfall, turned off
-	lfr_hour = 0; 
-	
 	// Counter of time, used for GW model
 	GW_label = 0.;
 
@@ -54,10 +56,8 @@ Simulator::Simulator(SimulationControl *simctrlptr, tRainfall *rainptr,
 	outp->WriteOutput( 0 );
 	
 	// Get rainsearch if rainfall used
-	if (rainIn->getoptStorm() == 0) {
-		if (rainIn->rainfallType == 1 || rainIn->rainfallType == 2) {
-			searchRain = rainIn->searchRain;     // Rainfall search threshold
-		}
+	if (rainIn->rainfallType == 1) {
+		searchRain = rainIn->searchRain;     // Rainfall search threshold
 	}
 	count = 0;
 }
@@ -97,8 +97,6 @@ void Simulator::initialize_simulation(tEvapoTrans *EvapoTrans, tSnowPack *SnowPa
     /*  removed command line arguments that should be specified in input file
     "OPTGROUNDWATER" -G    Run groundwater model: GW_model_label
     "OPTSPATIAL" -R    Write intermediate states (spatial output): inter_results
-    "OPTINTERHYDRO")-H    Write intermediate hydrographs (.mrf): hydrog_results
-    "OPTHEADER"); -M    Do NOT Write headers in pixel/hydrograph/voronoi output files: : Header_label
     */
 
     if (InFl.IsItemIn( "OPTGROUNDWATER" ))
@@ -111,11 +109,6 @@ void Simulator::initialize_simulation(tEvapoTrans *EvapoTrans, tSnowPack *SnowPa
     else
         simCtrl->inter_results = false; //Default option
 
-    if (InFl.IsItemIn( "OPTINTERHYDRO" ))
-        simCtrl->hydrog_results = InFl.ReadItem(simCtrl->hydrog_results, "OPTINTERHYDRO");
-    else
-        simCtrl->hydrog_results = false; //Default option
-
 	// Ouput pre-processing
 	if (simCtrl->inter_results)
 		outp->CreateAndOpenDynVar();
@@ -125,65 +118,50 @@ void Simulator::initialize_simulation(tEvapoTrans *EvapoTrans, tSnowPack *SnowPa
 	//outp->WriteDynamicVars( timer->getCurrentTime() );
 	//outp->WritePixelInfo(   timer->getCurrentTime() );
 
-	// Prepare rainfall input if stochastic rainfall Off
-	if ( !rainIn->getoptStorm()) {
-		if (rainIn->rainfallType == 1 || rainIn->rainfallType == 2) {
-			
-			// Check if time for rainfall forecast 
-			if (fmod(timer->getCurrentTime(), timer->getRainDT())==0 &&
-				timer->getoptForecast()!=0)
-				fState = checkForecast();
-			
-			// Compose rainfall file name
-			while ( !(rainIn->Compose_In_Mrain_Name(timer)) ) { 
-				if (count == 0) {
-					Cout<<"\nWarning: Next rainfall file "<<rainIn->mrainfileIn
-					<<" is missing..."<<endl;
-				}
-				Cout<<"File "<<rainIn->mrainfileIn<<" was not found..."<<endl;
-				
-				timer->addRainTime();
-				
-				if ( timer->getRainTime()-timer->getEndTime() > searchRain ) {
-					Cout<<"\nRainfall search threshold exceeded... "<<endl;
-					Cout<<count+1<<" rainfall input files are missing..."<<endl; 
-					Cout<<"Exiting Program..."<<endl<<endl<<endl;
-					exit(2);
-				}
-				count++;
+	// Prepare rainfall input
+	if (rainIn->rainfallType == 1) {
+		
+		// Compose rainfall file name
+		while ( !(rainIn->Compose_In_Mrain_Name(timer)) ) { 
+			if (count == 0) {
+				Cout<<"\nWarning: Next rainfall file "<<rainIn->mrainfileIn
+				<<" is missing..."<<endl;
 			}
+			Cout<<"File "<<rainIn->mrainfileIn<<" was not found..."<<endl;
 			
-			lmr_hour = timer->getRainTime();     //Time tag of LAST measured rain hour
-			dt_rain  = timer->getRainDT();   
+			timer->addRainTime();
 			
-			//rainIn->NewRain(timer); //WR debug 01032024: this was effectively truncating the rainfall vector, shifting all values by one hour toward the initial runtime
-			
-			if (simCtrl->Verbose_label == 'Y') {
-				Cout<<"\nNext rainfall input: "<<lmr_hour<<" hours in simulation."<<endl;
-				Cout<<"Unsaturated zone time steps for interval: ";
-				Cout<<timer->getElapsedSteps(lmr_hour)<<endl;
-			}
-			
-			if ( dt_rain < timer->getTimeStep() ) {
-				Cout <<"\nComputation DT for unsaturated zone must be ";
-				Cout <<"less/equal to DT of Rainfall input data"<<endl;
-				Cout <<"Exiting Program..."<<endl;
+			if ( timer->getRainTime()-timer->getEndTime() > searchRain ) {
+				Cout<<"\nRainfall search threshold exceeded... "<<endl;
+				Cout<<count+1<<" rainfall input files are missing..."<<endl; 
+				Cout<<"Exiting Program..."<<endl<<endl<<endl;
 				exit(2);
 			}
-			count = 0;
-		} else {
-			// rainIn->callRainGauge(); 
-			// rainIn->callRainGauge(timer); // SKY2008Snow//WR debug 01032024: this was effectively truncating the rainfall vector, shifting all values by one hour toward the initial runtime
+			count++;
 		}
+		
+		lmr_hour = timer->getRainTime();     //Time tag of LAST measured rain hour
+		dt_rain  = timer->getRainDT();   
+		
+		//rainIn->NewRain(timer); //WR debug 01032024: this was effectively truncating the rainfall vector, shifting all values by one hour toward the initial runtime
+		
+		if (simCtrl->Verbose_label == 'Y') {
+			Cout<<"\nNext rainfall input: "<<lmr_hour<<" hours in simulation."<<endl;
+			Cout<<"Unsaturated zone time steps for interval: ";
+			Cout<<timer->getElapsedSteps(lmr_hour)<<endl;
+		}
+		
+		if ( dt_rain < timer->getTimeStep() ) {
+			Cout <<"\nComputation DT for unsaturated zone must be ";
+			Cout <<"less/equal to DT of Rainfall input data"<<endl;
+			Cout <<"Exiting Program..."<<endl;
+			exit(2);
+		}
+		count = 0;
+	} else {
+		// rainIn->callRainGauge(); 
+		// rainIn->callRainGauge(timer); // SKY2008Snow//WR debug 01032024: this was effectively truncating the rainfall vector, shifting all values by one hour toward the initial runtime
 	}
-	
-	// Stochastic Rainfall Initialization
-	else {
-		// Call storm generator, update time, and set rainfall
-		rainIn->GenerateStorm( timer->getCurrentTime() );
-		timer->UpdateStorm( rainIn->getStormDuration() + rainIn->interstormDur() );
-		rainIn->NewRain(rainIn->getRainrate());
-	} 
 	
 	met_hour = timer->getMetTime(1);
 	eti_hour = timer->getMetTime(2);
@@ -254,7 +232,7 @@ void Simulator::simulation_loop(tHydroModel *Moisture, tKinemat *Flow,
         }
 	
 		// Check if precipitation variables have to be updated
-		UpdatePrecipitationInput( rainIn->getoptStorm() );
+		UpdatePrecipitationInput();
 
 		// Simulate Interception, ET processes
 		SurfaceHydroProcesses( EvapoTrans, Intercept, SnowPack); // SKY2008Snow from AJR2007
@@ -279,14 +257,8 @@ void Simulator::simulation_loop(tHydroModel *Moisture, tKinemat *Flow,
       tGraph::resetOverlap();
 #endif
 
-		// End simulation beyond forecast interval
-		if ( !rainIn->getoptStorm() ) {
-			if (timer->getoptForecast() != 0 && fState == 3)
-				break; 
-		}
-
       // Write restart files
-      if ( optrestart > 0 && timer->getCurrentTime() == nextRestartDump) {
+      if ( (optrestart == 1 || optrestart == 3) && timer->getCurrentTime() >= nextRestartDump) {
           writeRestart(restartDir);
           nextRestartDump += restartIntrvl;
       }
@@ -303,9 +275,8 @@ void Simulator::simulation_loop(tHydroModel *Moisture, tKinemat *Flow,
 *****************************************************************************/
 void Simulator::end_simulation(tKinemat *Flow) 
 { 
-	if ( !simCtrl->hydrog_results )
-		Flow->getResultsPtr()->
-			writeAndUpdate( timer->getCurrentTime(), 0 );
+	Flow->getResultsPtr()->
+			writeAndUpdate( timer->getCurrentTime() );
 	
 	Flow->getResultsPtr()->
 		whenTimeIsOver( timer->getCurrentTime() );
@@ -360,49 +331,15 @@ void Simulator::PrintRunTimeVars(tHydroModel *Moisture, int opt)
 **  or stochastically created values
 **
 *****************************************************************************/
-void Simulator::UpdatePrecipitationInput(int opt)
+void Simulator::UpdatePrecipitationInput()
 {
-	// ==============================================
-	// For measured radar or raingauge rainfall input
-	if ( !opt ) { 
-		
-		// Check if time for rainfall forecast
-		if (fmod(timer->getCurrentTime(), timer->getRainDT())==0 && 
-			timer->getoptForecast()!=0)
-			fState = checkForecast();
-		
-		// Options for radar or rain gauges 
-		if (rainIn->rainfallType == 1 || rainIn->rainfallType == 2)
-			get_next_mrain(simCtrl->mode);
-		
-		else if (rainIn->rainfallType == 3) {
-			if ( timer->isGaugeTime(timer->getRainDT()) ) {
-				get_next_gaugerain();  // updates rain to nodes from station data
-			}
-		}
-	}
-	// ==============================================
-	// For stochastic rainfall input
-	else {  
-		
-		// Within Storm period
-		if (timer->getCurrentTime() <= 
-			(timer->getStormTime()-rainIn->interstormDur()))
-			rainIn->NewRain(rainIn->getRainrate());        //Set Rainfall to value
-		
-		// Within Intestorm period
-		else if (timer->getCurrentTime() > 
-				 (timer->getStormTime()-rainIn->interstormDur()) && 
-				 timer->getCurrentTime() <= timer->getStormTime()) {
-			rainIn->NewRain();                            //Set Rainfall to zero
-			rainIn->setRainrate(0.0);
-		}
-		
-		// After interstorm period: call storm generator, update time, set rainfall
-		else if (timer->getCurrentTime() >= timer->getStormTime()) {
-			rainIn->GenerateStorm( timer->getCurrentTime() );	
-			timer->UpdateStorm( rainIn->getStormDuration() + rainIn->interstormDur() );
-			rainIn->NewRain(rainIn->getRainrate());
+	// Options for radar or rain gauges
+	if (rainIn->rainfallType == 1)
+		get_next_mrain(simCtrl->mode);
+	
+	else if (rainIn->rainfallType == 2) {
+		if ( timer->isGaugeTime(timer->getRainDT()) ) {
+			get_next_gaugerain();  // updates rain to nodes from station data
 		}
 	}
 	return;
@@ -437,18 +374,11 @@ void Simulator::SurfaceHydroProcesses(tEvapoTrans *EvapoTrans,
 		}
 		// 2) Interception ON
 		if (EvapoTrans->getEToption() == 0 && Intercept->getIoption() != 0) {
-			if (Intercept->getIoption() == 1) {
-				if ( timer->getCurrentTime() == eti_hour )
-					EvapoTrans->callEvapoTrans( Intercept, 1 );
-			}
-			else {
-				Cout<<"\nInterception Option "<<Intercept->getIoption()
-				   <<" not valid if "<<endl;
-				Cout<<"Evaporation scheme turned off. \n\tPlease use:"<<endl;
-				Cout<<"\t\t(1) for Gray (1970) Method: Two Parameter Model"<<endl;
-				Cout<<"Exiting Program...\n\n"<<endl;
-				exit(1);
-			}
+			Cout<<"\nInterception Option "<<Intercept->getIoption()
+				<<" not valid if "<<endl;
+			Cout<<"Evaporation scheme turned off. \n"<<endl;
+			Cout<<"Exiting Program...\n\n"<<endl;
+			exit(1);
 		}
 		// 3) ET ON
 		if (EvapoTrans->getEToption() !=0 && Intercept->getIoption() == 0) {
@@ -469,7 +399,7 @@ void Simulator::SurfaceHydroProcesses(tEvapoTrans *EvapoTrans,
 		// Possible combinations of Evapotrans and Intercept on/off
 		// 1) BOTH ON
 		if (SnowPack->getEToption() !=0 && Intercept->getIoption() != 0) {
-			if ( timer->getCurrentTime() == met_hour ) {
+			if ( timer->getCurrentTime() == eti_hour ) {
 
 				SnowPack->callSnowPack(Intercept,1);
             }
@@ -485,7 +415,7 @@ void Simulator::SurfaceHydroProcesses(tEvapoTrans *EvapoTrans,
 		}
 		// 3) ET ON
 		if (SnowPack->getEToption() !=0 && Intercept->getIoption() == 0) {
-			if ( timer->getCurrentTime() == met_hour ) {
+			if ( timer->getCurrentTime() == eti_hour ) {
 				SnowPack->callSnowPack(Intercept,0);
 			}
 
@@ -528,9 +458,7 @@ void Simulator::SubSurfaceHydroProcesses(tHydroModel *Moisture)
 **
 *****************************************************************************/
 void Simulator::OutputSimulatedVars(tKinemat *Flow)
-{ 
-	int forenum;
-
+{
 	// If it's necessary -> Output PixelInfo
 	if ( ! (fmod(timer->getCurrentTime(), timer->getEtIStep())) ) {
 		if ( outp->nodeList )
@@ -540,22 +468,6 @@ void Simulator::OutputSimulatedVars(tKinemat *Flow)
 	// Write streamflow for interior outlets
 	// TODO: Need to change this later to get an average flow, i.e., 1-hr step
 	outp->WriteOutletInfo( timer->getCurrentTime() );
-	
-	// If it's time -> Output Hydrograph  
-	if ( timer->CheckOutputTime() ) {
-		if (simCtrl->fore_rain_label == 'N')
-			forenum=0;
-		else 
-			forenum=1;
-        if ((simCtrl->hydrog_results) && (timer->getCurrentTime())) {
-            Flow->getResultsPtr()->
-                    writeAndUpdate( timer->getCurrentTime(), forenum );
-        }
-		
-		// Write selected dynamic variables
-		// if ( simCtrl->inter_results == 'Y' )
-		//   outp->WriteDynamicVar( timer->getCurrentTime() );
-	}
 	
 	// Write spatial output
 	if ( timer->CheckSpatialOutputTime() ) {
@@ -691,234 +603,6 @@ void Simulator::get_next_gaugerain()
 	return;
 }
 
-/*****************************************************************************
-**  
-**  Simulator::checkForecast()
-**  
-**  Check the forecast state. Returns integer representing state:
-**  
-**  0 = Before and up to forecast time, Use QPE
-**  1 = In Forecast Period and up to lead time, Use QPF
-**  2 = In Forecast Period and after lead time, Use Average Rainfall
-**  3 = After Forecast Period, End simulation
-**
-*****************************************************************************/
-int Simulator::checkForecast() 
-{
-	int state;
-	
-	if (timer->getCurrentTime() < timer->getfTime())
-		state = 0;
-	else if (timer->getCurrentTime() < (timer->getfTime() + timer->getfLead()) &&
-			 timer->getCurrentTime() >= timer->getfTime())
-		state = 1;
-	else if (timer->getCurrentTime() < (timer->getfTime() + timer->getfLength()) &&
-			 timer->getCurrentTime() >= timer->getfLead())
-		state = 2;
-	else if (timer->getCurrentTime() >= (timer->getfTime() + timer->getfLength()))
-		state = 3;
-	
-	rainIn->setfState(state);
-	
-	return state;
-}
-
-/*****************************************************************************
-**  
-**  Simulator::check_mod_status()
-**  
-**  Checks if the model must stay on after a run by checking one of the 
-**  SimulationControl flags: 0 - 'NO', 1 - 'YES'
-**
-*****************************************************************************/
-int Simulator::check_mod_status() 
-{ 
-	if (simCtrl->mod_is_on == 'Y')
-		return 1;
-	else
-		return 0;
-}
-
-/*****************************************************************************
-**  
-**  Simulator:: RunItAgain()
-**
-**  To run the model using previously constructed mesh and assigned to it 
-**  various properties e.g. soils, landuse, etc.
-**  
-**  Algorithm: Re-initialize all the objects whithout deleting these
-**           objects, accessing their data members through the functions
-**           used in their constructors
-**
-*****************************************************************************/
-void Simulator::RunItAgain( tInputFile &InFl, tHydroModel *Moisture, 
-							tKinemat *Flow, tEvapoTrans *EvapoTrans, 
-							tIntercept *Intercept, tWaterBalance *Balance,
-							tPreProcess *PreProcessor, tSnowPack *SnowPack) // SKY2008Snow from AJR2007
-{ 
-	char wish = 'Z';
-	char keep = 'Z';
-	char filein[80];
-	char yesno[20];
-	
-	simCtrl->num_simul++;
-	
-	cerr<<"\n\n----------------------------------------------------"<<endl
-		<<"\tMODEL RUN #"<<simCtrl->num_simul <<" COMPLETED\n"<<endl
-		<<"\n\tDo you want to continue (type 'y' or 'n')?\n\tEnter Option: "<<flush;
-	
-	while ( wish == 'Z' ) {
-		cin>>yesno;
-		
-		if ((yesno[0] == 'n' || yesno[0] == 'N') && (yesno[1] == '\0')) {
-			cerr<<"\nProgram Finishing..."<<endl<<flush;
-			cerr<<"----------------------------------------------------"<<endl;
-			simCtrl->mod_is_on = 'N';
-			return;
-		}
-		else if ((yesno[0] == 'y' || yesno[0] == 'Y') && (yesno[1] == '\0'))
-			wish = 'y';
-		else {
-			wish = 'Z';
-			cerr<<"\n\tCommand not understood... \n\tEnter Option: "<<flush;
-		}
-	}
-	cerr<<"\n\tEnter input data filename: "; 
-	cin>>filein;
-	
-	ifstream source( filein );
-	while ( !source && simCtrl->mod_is_on == 'Y') {
-		cerr<<"\n\tFile does not exist... Check spelling...\n"
-		<<"\t (To Exit, please type 'n') \n"
-		<<"\n\tEnter input data filename: "; 
-		cin >> filein;
-		if ((filein[0] == 'n' || filein[0] == 'N') && (filein[1] == '\0')) {
-			simCtrl->mod_is_on = 'N';
-			cerr<<"\nProgram Finishing..."<<endl<<flush;     
-			cerr<<"----------------------------------------------------"<<endl;
-			return;
-		}
-		source.open( filein );
-	}
-	source.close();
-	simCtrl->infile = filein;
-	
-	cerr<<endl<<flush;
-	cerr<<"\tName of *.in file: '"<<simCtrl->infile<<"'"<<endl<<flush;
-	cerr<<endl<<flush;
-	cerr<<"\tPlease indicate if soil and landuse maps are changed\n"
-		<<"\t(if so, new resampling will need to be carried out)\n"
-		<<"\n\tPlease type ('y' or 'n'): "<<flush;
-	
-	wish = 'Z';
-	while ( wish == 'Z' ) {
-		cin>>yesno;
-		
-		if ((yesno[0] == 'n' || yesno[0] == 'N') && (yesno[1] == '\0'))
-			wish = 0;
-		else if ((yesno[0] == 'y' || yesno[0] == 'Y') && (yesno[1] == '\0'))
-			wish = 1;
-		else {
-			wish = 'Z';
-			cerr<<"\n\tCommand not understood. \n\tEnter Option: "<<flush;
-		}
-	}
-	
-	cerr<<endl<<flush;
-	cerr<<"\tPlease indicate if state of the system should be used\n"
-		<<"\tas initial condtion for the next run\n"
-		<<"\tPlease type ('y' or 'n'): "<<flush;
-	
-	keep = 'Z';
-	while ( keep == 'Z' ) {
-		cin>>yesno;
-		
-		if ((yesno[0] == 'n' || yesno[0] == 'N') && (yesno[1] == '\0'))
-			keep = 0;
-		else if ((yesno[0] == 'y' || yesno[0] == 'Y') && (yesno[1] == '\0'))
-			keep = 1;
-		else {
-			keep = 'Z';
-			cerr<<"\n\tCommand not understood. \n\tType 'y' or 'n': "<<flush;
-		}
-	}
-	cerr<<endl<<flush;
-	cerr<<"----------------------------------------------------"<<endl;
-	
-	if ( !wish ) {
-		cerr<<"\n\tNOTE: Previous soil and landuse maps are used. Continuing..."
-		<<endl<<flush;
-	}
-	
-	cout<<"\n---------------------------------------------------\n"
-		<<"\tA new tRIBS run has been initiated..."<<endl<<flush;
-	cout<<"-----------------------------------------------------\n";
-	
-	simCtrl->infile = filein;
-	cerr<<"\n\tName of *.in file: '"<<simCtrl->infile<<"'"<<endl<<flush;
-	
-	// Re-initializing tInputFile
-	InFl.CloseOldAndOpenNew( simCtrl->infile ); // Close previous IN file and startnew
-	
-	// Check validity of the input file 
-	PreProcessor->CheckInputFile( InFl );
-	
-	// Re-initializing tRunTimer 
-	timer->InitializeTimer( InFl );
-	
-	// Re-initializing tOutput 
-	outp->UpdateForNewRun( InFl );
-	
-	// Re-initialize tWaterBalance
-	Balance->DeleteWaterBalance();
-	Balance->SetWaterBalance( InFl );
-	
-	// Re-initializing tFlowNet 
-	Flow->SetFlowVariables( InFl );
-	Flow->setTravelVelocity( 0.0 );
-	Flow->initializeTravelTimeOnly();
-	Flow->UpdateForNewRun( InFl , keep);
-	
-	// Re-initializing tFlowResults 
-	Flow->getResultsPtr()->free_results();
-	Flow->getResultsPtr()->SetFlowResVariables( InFl, Flow->MaxTravel() );
-	
-	// Re-initializing tInvariant & tHydroModel 
-	Moisture->soilPtr->SetSoilParameters(rainIn->getMeshPtr(),rainIn->getRsmplPtr(),
-										 InFl, wish );
-	Moisture->landPtr->SetLtypeParameters(rainIn->getMeshPtr(),rainIn->getRsmplPtr(), 
-										  InFl, wish );
-	Moisture->SetHydroMVariables( InFl, rainIn->getRsmplPtr(), keep );
-	
-	// Re-initializing tRainfall 
-	rainIn->SetStormVariables( InFl );
-	if ( !rainIn->getoptStorm() )
-		rainIn->SetRainVariables( InFl );
-	
-	// Re-initializing tEvapoTrans 
-	EvapoTrans->DeleteEvapoTrans();
-	EvapoTrans->SetEvapTVariables( InFl, Moisture );
-	
-	// Re-initializing tIntercept 
-	Intercept->SetIntercpVariables( InFl, Moisture );
-	
-	// Re-initializing Simulator 
-	begin_hour = timer->getCurrentTime();
-	GW_label = 0.;
-	
-	// Initialize simulation
-	initialize_simulation(EvapoTrans, SnowPack, InFl ); 
-       //SMM 09252008 added parameters
-	
-	// Start simulation
-	simulation_loop( Moisture, Flow, EvapoTrans, Intercept, Balance, SnowPack, InFl); // SKY2008Snow from AJR2007
-	
-	// Finish simulation 
-	end_simulation( Flow );
-	
-	return;
-}
-
 /***************************************************************************
 **
 ** Simulator::writeRestart() Function
@@ -930,33 +614,106 @@ void Simulator::writeRestart(char* directory) const
 {
   Cout << "WRITE RESTART at time " << timer->getCurrentTime() << endl << endl;
 
-  fstream rStr;
+  double   ct     = timer->getCurrentTime();
+  int32_t  yr     = static_cast<int32_t>(timer->getYear());
+  int32_t  mo     = static_cast<int32_t>(timer->getMonth());
+  int32_t  dy     = static_cast<int32_t>(timer->getDay());
+  int32_t  hr     = static_cast<int32_t>(timer->getHour());
+  int32_t  snOpt  = static_cast<int32_t>(restart->getSnowOpt());
+
   stringstream sFile;
   sFile << directory << "/tRIBS_Rstrt_";
-  sFile << setw(5) << setfill('0') << (int) timer->getCurrentTime();
+  sFile << setw(5) << setfill('0') << (int) ct;
 
 #ifdef PARALLEL_TRIBS
-  sFile << "_" << tParallel::getMyProc();
-#endif 
+  // ---- PARALLEL PATH ----
+  // Each rank serializes its outlet records (nodeID+Hlev pairs) and node
+  // records to separate in-memory buffers, then rank 0 gathers both and
+  // writes a single flat file: header + all outlet records + all node records.
+  // On read, every rank opens the same file and filters by nodeID, so the
+  // file is completely rank-count-agnostic.
 
+  ostringstream outletBuf(ios::binary);
+  restart->writeRestartOutlets(outletBuf);
+  string outletData = outletBuf.str();
+  int outletLocalSize = static_cast<int>(outletData.size());
+
+  ostringstream nodeBuf(ios::binary);
+  restart->writeRestartNodes(nodeBuf);
+  string nodeData = nodeBuf.str();
+  int nodeLocalSize = static_cast<int>(nodeData.size());
+
+  int numProcs = tParallel::getNumProcs();
+  int32_t totalOutlets = static_cast<int32_t>(tParallel::sumBroadcast(restart->getNumOutlets()));
+  int32_t totalNodes   = static_cast<int32_t>(tParallel::sumBroadcast(restart->getNumNodes()));
+
+  // Gather outlet buffer sizes and bytes to rank 0.
+  vector<int> outletSizes(numProcs, 0);
+  MPI_Gather(&outletLocalSize, 1, MPI_INT, outletSizes.data(), 1, MPI_INT,
+             MASTER_PROC, MPI_COMM_WORLD);
+
+  vector<int> outletDispls(numProcs, 0);
+  int totalOutletBytes = 0;
+  if (tParallel::isMaster()) {
+    for (int i = 0; i < numProcs; i++) { outletDispls[i] = totalOutletBytes; totalOutletBytes += outletSizes[i]; }
+  }
+  vector<char> allOutletData;
+  if (tParallel::isMaster()) allOutletData.resize(totalOutletBytes);
+  MPI_Gatherv(outletData.data(), outletLocalSize, MPI_CHAR,
+              allOutletData.empty() ? nullptr : allOutletData.data(),
+              outletSizes.data(), outletDispls.data(), MPI_CHAR,
+              MASTER_PROC, MPI_COMM_WORLD);
+
+  // Gather node buffer sizes and bytes to rank 0.
+  vector<int> nodeSizes(numProcs, 0);
+  MPI_Gather(&nodeLocalSize, 1, MPI_INT, nodeSizes.data(), 1, MPI_INT,
+             MASTER_PROC, MPI_COMM_WORLD);
+
+  vector<int> nodeDispls(numProcs, 0);
+  int totalNodeBytes = 0;
+  if (tParallel::isMaster()) {
+    for (int i = 0; i < numProcs; i++) { nodeDispls[i] = totalNodeBytes; totalNodeBytes += nodeSizes[i]; }
+  }
+  vector<char> allNodeData;
+  if (tParallel::isMaster()) allNodeData.resize(totalNodeBytes);
+  MPI_Gatherv(nodeData.data(), nodeLocalSize, MPI_CHAR,
+              allNodeData.empty() ? nullptr : allNodeData.data(),
+              nodeSizes.data(), nodeDispls.data(), MPI_CHAR,
+              MASTER_PROC, MPI_COMM_WORLD);
+
+  if (tParallel::isMaster()) {
+    fstream rStr;
+    rStr.open(sFile.str().c_str(), ios::out|ios::binary);
+    uint32_t magic = 0x54524853u, schema = 2u, verMaj = 6u, verMin = 4u;
+    BinaryWrite(rStr, magic);   BinaryWrite(rStr, schema);
+    BinaryWrite(rStr, verMaj);  BinaryWrite(rStr, verMin);
+    BinaryWrite(rStr, ct);      BinaryWrite(rStr, yr);
+    BinaryWrite(rStr, mo);      BinaryWrite(rStr, dy);
+    BinaryWrite(rStr, hr);      BinaryWrite(rStr, snOpt);
+    BinaryWrite(rStr, totalNodes);
+    BinaryWrite(rStr, totalOutlets);
+    rStr.write(allOutletData.data(), totalOutletBytes);
+    rStr.write(allNodeData.data(), totalNodeBytes);
+    rStr.close();
+  }
+
+#else
+  // ---- SERIAL PATH ----
+  int32_t numN   = static_cast<int32_t>(restart->getNumNodes());
+  int32_t numOut = static_cast<int32_t>(restart->getNumOutlets());
+
+  fstream rStr;
   rStr.open(sFile.str().c_str(), ios::out|ios::binary);
-
-  // Dump local simulator information
-  BinaryWrite(rStr, count);
-  BinaryWrite(rStr, fState);
-  BinaryWrite(rStr, dt_rain);
-  BinaryWrite(rStr, lfr_hour);
-  BinaryWrite(rStr, lmr_hour);
-  BinaryWrite(rStr, begin_hour);
-  BinaryWrite(rStr, met_hour);
-  BinaryWrite(rStr, eti_hour);
-  BinaryWrite(rStr, GW_label);
-  BinaryWrite(rStr, searchRain);
-
-  // Dump information from objects controlled by tRestart
+  uint32_t magic = 0x54524853u, schema = 1u, verMaj = 6u, verMin = 4u;
+  BinaryWrite(rStr, magic);   BinaryWrite(rStr, schema);
+  BinaryWrite(rStr, verMaj);  BinaryWrite(rStr, verMin);
+  BinaryWrite(rStr, ct);      BinaryWrite(rStr, yr);
+  BinaryWrite(rStr, mo);      BinaryWrite(rStr, dy);
+  BinaryWrite(rStr, hr);      BinaryWrite(rStr, snOpt);
+  BinaryWrite(rStr, numN);    BinaryWrite(rStr, numOut);
   restart->writeRestart(rStr);
-
   rStr.close();
+#endif
 }
 
 /***************************************************************************
@@ -966,35 +723,93 @@ void Simulator::writeRestart(char* directory) const
 ***************************************************************************/
 void Simulator::readRestart(tInputFile &InFl)
 {
-  Cout << "READ RESTART at time " << timer->getCurrentTime() << endl << endl;
-
   char restartFile[kName];
   InFl.ReadItem(restartFile, "RESTARTFILE");
 
+  // All ranks (serial or parallel) open the same file and filter by nodeID.
+  // No rank suffix — the file is rank-count-agnostic.
   fstream rStr;
-  stringstream sFile;
-  sFile << restartFile;
+  rStr.open(restartFile, ios::binary|ios::in);
+  if (!rStr.is_open()) {
+    cerr << "ERROR: Cannot open restart file: " << restartFile << endl;
+    exit(1);
+  }
+
+  uint32_t magic, schema, verMaj, verMin;
+  BinaryRead(rStr, magic);
+  if (magic != 0x54524853u) {
+    cerr << "ERROR: Restart file is not a valid v6 format (bad magic number).\n"
+         << "  v5.x restart files are not compatible with v6.0.0." << endl;
+    exit(1);
+  }
+  BinaryRead(rStr, schema);
 
 #ifdef PARALLEL_TRIBS
-  sFile << "_" << tParallel::getMyProc();
+  if (schema != 2u) {
+    cerr << "ERROR: Restart file schema " << schema
+         << " is not a parallel v6 file (expected 2)." << endl;
+    exit(1);
+  }
+#else
+  if (schema != 1u) {
+    cerr << "ERROR: Restart file schema " << schema
+         << " is not supported (expected 1)." << endl;
+    exit(1);
+  }
 #endif
 
-  rStr.open(sFile.str().c_str(), ios::binary|ios::in);
+  BinaryRead(rStr, verMaj);
+  BinaryRead(rStr, verMin);
 
-  // Read local simulator information
-  BinaryRead(rStr, count);
-  BinaryRead(rStr, fState);
-  BinaryRead(rStr, dt_rain);
-  BinaryRead(rStr, lfr_hour);
-  BinaryRead(rStr, lmr_hour);
-  BinaryRead(rStr, begin_hour);
-  BinaryRead(rStr, met_hour);
-  BinaryRead(rStr, eti_hour);
-  BinaryRead(rStr, GW_label);
-  BinaryRead(rStr, searchRain);
+  double   fileCt;
+  int32_t  yr, mo, dy, hr, snOpt, totalN, totalOut;
+  BinaryRead(rStr, fileCt);
+  BinaryRead(rStr, yr);
+  BinaryRead(rStr, mo);
+  BinaryRead(rStr, dy);
+  BinaryRead(rStr, hr);
+  BinaryRead(rStr, snOpt);
+  BinaryRead(rStr, totalN);
+  BinaryRead(rStr, totalOut);
 
-  // Read information from objects controlled by tRestart
-  restart->readRestart(rStr);
+  if (snOpt != restart->getSnowOpt()) {
+    cerr << "WARNING: Restart file snowOpt=" << snOpt
+         << " differs from current config snowOpt=" << restart->getSnowOpt()
+         << ". Snow state may be inconsistent." << endl;
+  }
+
+  // Expected number of active-node records for this mesh. The read is keyed by
+  // node ID (records are matched into the mesh and unknown IDs are skipped), so
+  // a header count LARGER than the active count is harmless: the extra loop
+  // iterations run past EOF and are no-ops. A header count SMALLER than the
+  // active count means the file is missing records and cannot restore the mesh.
+  // Legacy restart files (written before the header carried the active count)
+  // advertise the full node count including boundary nodes; accept them with a
+  // warning rather than rejecting.
+#ifdef PARALLEL_TRIBS
+  int32_t expectedNodes = static_cast<int32_t>(tParallel::sumBroadcast(restart->getNumNodes()));
+#else
+  int32_t expectedNodes = static_cast<int32_t>(restart->getNumNodes());
+#endif
+  if (totalN < expectedNodes) {
+    cerr << "ERROR: Restart file node count (" << totalN
+         << ") is fewer than the mesh active nodes (" << expectedNodes
+         << "); the file is missing records." << endl;
+    exit(1);
+  }
+  if (totalN != expectedNodes) {
+    cerr << "WARNING: Restart file node count (" << totalN
+         << ") differs from mesh active nodes (" << expectedNodes
+         << "). Reading by node ID, extra records will be skipped."
+         << endl;
+  }
+
+  Cout << "\nRESTART FILE DETAILS: " << yr << "-" << mo << "-" << dy
+       << " hr=" << hr <<  ":00" << " at elasped simulation time of " << fileCt << " hrs" << endl << endl;
+
+  // Each rank reads the full outlet block and node block, applying only the
+  // records whose nodeIDs belong to this rank.
+  restart->readRestartGlobal(rStr, totalOut, totalN);
 
   rStr.close();
 }

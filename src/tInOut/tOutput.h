@@ -2,7 +2,7 @@
  * TIN-based Real-time Integrated Basin Simulator (tRIBS)
  * Distributed Hydrologic Model
  *
- * Copyright (c) 2025. tRIBS Developers
+ * Copyright (c) tRIBS Developers
  *
  * See LICENSE file in the project root for full license information.
  ******************************************************************************/
@@ -32,6 +32,10 @@
 #include "src/tSimulator/tRunTimer.h"
 #include "src/tRasTin/tResample.h"
 
+#include <functional>
+#include <set>
+#include <vector>
+
 using namespace std;
 
 class tResample;
@@ -56,19 +60,17 @@ public:
 
   void WriteOutput(double);
   void CreateAndOpenFile(ofstream*, char*);
-  void CreateAndOpenVizFile(ofstream*, char*);
+  void CreateAndOpenFileSingle(ofstream*, char*);
   void ReadNodeOutputList();
+  int  FindNearestNodeID(double x, double y, bool streamOnly, double &snapDist);
   void CreateAndOpenPixel();
   void CreateAndOpenDynVar();
   void end_simulation();
   void SetInteriorNode();
  
   virtual void WriteDynamicVars(double); 
-  virtual void WriteDynamicVarsBinary(double); 
-  virtual void WriteDynamicVar(double);
   virtual void WriteNodeData(double);    
   virtual void WriteNodeData(double, tResample*);
-  virtual void WriteGeometry(tResample*);
   virtual void WritePixelInfo(double);
 
 
@@ -83,9 +85,6 @@ protected:
 
   char baseName[kMaxNameSize]; 
   char nodeFile[kMaxNameSize];
-  char vizName[kMaxNameSize]; 
-
-  int vizOption;
    
   ofstream nodeofs;
   ofstream edgofs;
@@ -119,14 +118,10 @@ public:
   char outletName[kMaxNameSize];
 
   void WriteDynamicVars(double);
-  void WriteDynamicVarsBinary(double);
-  void WriteDynamicVar(double);
   void WriteIntegrVars(double);
   void WritePixelInfo(double);
   void WriteNodeData(double);
   void WriteNodeData(double, tResample*); 
-  void WriteGeometry(tResample*);
-  void UpdateForNewRun(tInputFile &); 
 
   void WriteOutletInfo(double);
   void ReadOutletNodeList(char *);
@@ -135,12 +130,21 @@ public:
 
 private:
   tSubNode **Outlets;    //Pointer to an array of tCNode objects
-  ofstream *outletinfo;     
+  ofstream *outletinfo;
   ofstream arcofs;
   ofstream vorofs;
   ofstream intofs;
   ofstream drareaofs;
   ofstream widthsofs;
+
+  struct DynVarCol {
+      std::string name;
+      int prec;
+      std::function<double(tSubNode*)> get;
+  };
+  std::vector<DynVarCol> activeDynCols;
+  void ReadDynVarFile(const char *path, std::set<std::string> &selection);
+  void BuildDynVarTable(const std::set<std::string> &selection);
 };
 
 #endif

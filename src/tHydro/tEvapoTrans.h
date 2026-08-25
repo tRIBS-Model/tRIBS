@@ -2,7 +2,7 @@
  * TIN-based Real-time Integrated Basin Simulator (tRIBS)
  * Distributed Hydrologic Model
  *
- * Copyright (c) 2025. tRIBS Developers
+ * Copyright (c) tRIBS Developers
  *
  * See LICENSE file in the project root for full license information.
  ******************************************************************************/
@@ -48,6 +48,7 @@ class tEvapoTrans
   void DeleteEvapoTrans(); 
   void deleteLUGrids();
   void SetEvapTVariables(tInputFile &, tHydroModel *);
+  void readRsMonthlyFactors(tInputFile &); // JB2025 @ ASU
   void CreateHydroMetAndLU(tInputFile &); // SKYnGM2008LU
   void SetSunVariables();
   void SetEnvironment();
@@ -57,20 +58,19 @@ class tEvapoTrans
   void assignStationToNode();
   void resampleGrids(tRunTimer *);
   void setCoeffs(tCNode *);
-  void setTime(int);
+  void setTime();
+  int  currentMetIndex() const; // station met record for the current sim time
   void readHydroMetData(int);
   void readHydroMetStat(char*);
   void readHydroMetGrid(char*);
   void readLUGrid(char*); // SKYnGM2008LU: added by AJR 2007
-  void newHydroMetData(int);
-  void newHydroMetStochData(int);
+  void newHydroMetData();
   void newHydroMetGridData(tCNode *);
   void newLUGridData(tCNode *); // SKYnGM2008LU: added by AJR 2007
   void createVariant();
   void createVariantLU(); // SKYnGM2008LU: added by AJR 2007
+  void createStaticVariantLU(); // CJC2025
   void EvapPenmanMonteith(tCNode *);
-  void EvapDeardorff(tCNode *);
-  void EvapPriestlyTaylor(tCNode *);
   void EvapPan();
   void robustNess(double *, int);
   void setToNode(tCNode *);
@@ -87,6 +87,7 @@ class tEvapoTrans
   void integratedLUVars(tCNode *, double);
 
   int  getEToption();
+  void flagRestartStart() { isRestartStart = true; }
   int  julianDay();
   void DirectDiffuse(double);
   double latentHeat();
@@ -112,7 +113,6 @@ class tEvapoTrans
   double getinShortWave() const;
   double getinLongWave() const;
   double getoutLongWave() const;
-  double getNetRad() const;
   double getDeltaT() const;
   double getSunRiseHour() const;
   double getSunSetHour() const;
@@ -123,10 +123,6 @@ class tEvapoTrans
   double rtsafe_mod_energy(tCNode*, double, double, double, 
 			   double, double, double *, int *);
 
-  void writeRestart(fstream &) const;
-  void readRestart(fstream &);
-
-  tHydroMetStoch *weatherSimul;
 
   // SKYnGM2008LU
   void SetGridTimeInfoVariables(tVariant *, char *);
@@ -149,22 +145,20 @@ class tEvapoTrans
   int evapotransOption{}, metdataOption{}, Ioption{};
   int snowOption{}; // NEW FOR SNOW.... SKY2008Snow from AJR2007
   int shelterOption{}; // NEW FOR SHELTERING... SKY2008Snow from AJR2007
-  int gFluxOption{}, dewHumFlag{}, ID{};
-  int gmt{}, nodeHour{}, thisStation{}, oldTimeStep{};
-  int numStations{}, arraySize{}, hourlyTimeStep{}, nParm{}, gridgmt{};
-  int LUgridgmt{}; //SKYnGM2008LU: added by AJR 2007
-  int vapOption{}, tsOption{}, nrOption{};
+  int gFluxOption{}, ID{};
+  int gmt{}, nodeHour{}, thisStation{};
+  int numStations{}, arraySize{}, hourlyTimeStep{}, nParm{};
+  bool isRestartStart{false};
+  int tsOption{};
   int luOption{}, nParmLU;  //SKYnGM2008LU: added by AJR 2007
   int luInterpOption{};  //SKYnGM2008LU
   int timeCount;
 
-  double timeStep{}, gridlat{}, gridlong{};
-  double IfNotFirstTStepLU{}; //SKYnGM2008LU: added by AJR 2007
+  double timeStep{};
   double metHour{}, etHour{}, rainInt{}; // SKY2008Snow from AJR2007
-  double LUgridlat{}, LUgridlong{}; //SKYnGM2008LU: added by AJR 2007
 
   double coeffH{}, coeffKt{}, coeffAl{}, coeffRs{}, coeffV{};
-  double coeffKs{}, coeffCs{}, coeffPan{};
+  double coeffKs{}, coeffCs{};
   // SKY2008Snow from AJR2007
   double coeffLAI{};
   double Rah{}, Rstm{};
@@ -172,7 +166,7 @@ class tEvapoTrans
   double potEvap{}, actEvap{}, panEvap{}, betaS{}, betaT{};
   double airTemp{}, dewTemp{}, surfTemp{}, Tso{}, Tlo{};
   double rHumidity{}, atmPress{}, windSpeed{}, skyCover{};
-  double netRad{}, latitude{}, longitude{}, vPress{};
+  double latitude{}, longitude{}, vPress{};
   double inLongR{}, inShortR{}, outLongR{};
   double Tlinke{};
   double Is{}, Ic{}, Ics{}, Id{}, Ids{};
@@ -184,6 +178,9 @@ class tEvapoTrans
   double RadDirObs{}, RadDifObs{};
   // CJC2025: New parameters
   double coeffSE{}, coeffST{};
+  // JB2025 @ ASU: optional monthly scaling of the minimum stomatal resistance.
+  // Defaults to 1.0 for every month (identity) unless an RSPARAMFILE is given.
+  double rsMonthlyFactor[12]{1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0};
   // SKY2008Snow from AJR2007
   //new for sheltering algorithm
   //	RMK: THE HA* VARIABLES SHOULD ACTUALLY BE HANDLED IN AN ARRAY
@@ -206,37 +203,41 @@ class tEvapoTrans
   char **gridParamNames, **gridBaseNames, **gridExtNames;
   char **LUgridParamNames, **LUgridBaseNames, **LUgridExtNames; // SKYnGM2008LU: added by AJR 2007
 
-  tVariant *airpressure, *dewtemperature, *skycover, *windspeed;
-  tVariant *airtemperature, *surftemperature, *netradiation, *incomingsolar; //E.R.V 3/6/2012
-  tVariant *evapotranspiration, *relhumidity, *vaporpressure;
+  tVariant *airpressure, *skycover, *windspeed;
+  tVariant *airtemperature, *surftemperature, *incomingsolar; //E.R.V 3/6/2012
+  tVariant *evapotranspiration, *relhumidity;
 
   // SKYnGM2008LU: added by AJR 2007
   tVariant *LandUseAlbGrid, *ThroughFallGrid, *VegHeightGrid; 
   tVariant *StomResGrid, *VegFractGrid; 
 
   // SKYnGM2008LU
-  tVariant *CanStorParamGrid; 
-  tVariant *IntercepCoeffGrid, *CanFieldCapGrid, *DrainCoeffGrid;
+  tVariant *CanFieldCapGrid, *DrainCoeffGrid;
   tVariant *DrainExpParGrid, *OptTransmCoeffGrid, *LeafAIGrid;
   tVariant *EvapThreshGrid, *TransThreshGrid; // CJC2025
+  tVariant *RootZoneDepthGrid;
 
   // SKYnGM2008LU
   int numALfiles{}, numTFfiles{}, numVHfiles{}, numSRfiles{};
-  int numVFfiles{}, numCSfiles{}, numICfiles{}, numCCfiles{};
+  int numVFfiles{}, numCCfiles{};
   int numDCfiles{}, numDEfiles{}, numOTfiles{}, numLAfiles{};
-  int numSEfiles{}, numSTfiles{}; // CJC2025 
+  int numSEfiles{}, numSTfiles{}; // CJC2025
+  int numRZfiles{};
   int *ALgridhours, *TFgridhours, *VHgridhours, *SRgridhours;
-  int *VFgridhours, *CSgridhours, *ICgridhours, *CCgridhours;
-  int *DCgridhours, *DEgridhours, *OTgridhours, *LAgridhours;  
+  int *VFgridhours, *CCgridhours;
+  int *DCgridhours, *DEgridhours, *OTgridhours, *LAgridhours;
   int *SEgridhours, *STgridhours; // CJC2025
+  int *RZgridhours;
   int NowTillWhichALgrid{}, NowTillWhichTFgrid{}, NowTillWhichVHgrid{}, NowTillWhichSRgrid{};
-  int NowTillWhichVFgrid{}, NowTillWhichCSgrid{}, NowTillWhichICgrid{}, NowTillWhichCCgrid{};
+  int NowTillWhichVFgrid{}, NowTillWhichCCgrid{};
   int NowTillWhichDCgrid{}, NowTillWhichDEgrid{}, NowTillWhichOTgrid{}, NowTillWhichLAgrid{};
   int NowTillWhichSEgrid{}, NowTillWhichSTgrid{}; // CJC2025
+  int NowTillWhichRZgrid{};
   char **ALgridFileNames, **TFgridFileNames, **VHgridFileNames, **SRgridFileNames;
-  char **VFgridFileNames, **CSgridFileNames, **ICgridFileNames, **CCgridFileNames;
+  char **VFgridFileNames, **CCgridFileNames;
   char **DCgridFileNames, **DEgridFileNames, **OTgridFileNames, **LAgridFileNames;
   char **SEgridFileNames, **STgridFileNames; // CJC2025
+  char **RZgridFileNames;
   int AtFirstTimeStepLUFlag{};
 
   int skycover_flag; // intended for when nodata is set for XC gridded data so that skycover is estimated.
@@ -253,7 +254,6 @@ inline double tEvapoTrans::getTauAngle()    const {return tau;}
 inline double tEvapoTrans::getinShortWave() const {return inShortR;}
 inline double tEvapoTrans::getinLongWave()  const {return inLongR;}
 inline double tEvapoTrans::getoutLongWave() const {return outLongR;}
-inline double tEvapoTrans::getNetRad()      const {return netRad;}
 
 
 #endif

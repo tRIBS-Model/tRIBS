@@ -2,7 +2,7 @@
  * TIN-based Real-time Integrated Basin Simulator (tRIBS)
  * Distributed Hydrologic Model
  *
- * Copyright (c) 2025. tRIBS Developers
+ * Copyright (c) tRIBS Developers
  *
  * See LICENSE file in the project root for full license information.
  ******************************************************************************/
@@ -41,6 +41,15 @@ tIntercept::tIntercept(SimulationControl *simCtrPtr, tMesh<tCNode> *gridRef,
 void tIntercept::SetIntercpVariables(tInputFile &inFile, tHydroModel *hydro)
 {
 	interceptOption = inFile.ReadItem(interceptOption,"OPTINTERCEPT");
+	if (interceptOption != 0 && interceptOption != 1) {
+	    Cout << "\nInterception Option " << interceptOption;
+	    Cout <<" not valid." << endl;
+	    Cout << "\tPlease use :" << endl;
+		cout << "\t\t(0) No Interception" << endl;
+		cout << "\t\t(1) Rutter (1971) Method: Four Parameter Model" << endl;
+	    Cout << "Exiting Program...\n\n"<<endl;
+		exit(1);
+	}
 	maxInterStormPeriod = inFile.ReadItem(maxInterStormPeriod, "INTSTORMMAX");
 	maxInterStormPeriod = maxInterStormPeriod/2;
 	metTime = inFile.ReadItem(metTime, "METSTEP");
@@ -52,7 +61,7 @@ void tIntercept::SetIntercpVariables(tInputFile &inFile, tHydroModel *hydro)
 		landPtr = hydro->landPtr;  
 
 		// SKYnGM2008LU 
-		if (luOption == 1) {
+		if (luOption == 1 || luOption == 2) {
 			inFile.ReadItem(luFile, "LUGRID"); 
 			readLUGrid(luFile);
 		}
@@ -62,8 +71,11 @@ void tIntercept::SetIntercpVariables(tInputFile &inFile, tHydroModel *hydro)
 
 tIntercept::~tIntercept()
 {
-	if (luOption ==1) { 
-		DeleteIntercept();
+    // Only attempt to delete grid info if interception was active in the first place
+	if (interceptOption != 0) { 
+		if (luOption == 1 || luOption == 2) { 
+			DeleteIntercept();
+		}
 	}
 
 	Cout<<"tIntercept Object has been destroyed..."<<endl;
@@ -96,10 +108,10 @@ void tIntercept::DeleteIntercept()
 **
 ** tIntercept::readLUGrid() Function
 **
-** Reads a file (*.gdf) from LUGRID keyword containing the base names of 
+** Reads a file (*.gdf) from LUGRID keyword containing the base names of
 ** the various input land use parameter grids along with the extension
 ** used for the filename. These follow a string that identifies the line
-** with the parameters (ie. AL,TF,VH,SR,VF,CS,IC,CC,DC,DE,OT,LA). If no data 
+** with the parameters (ie. AL,TF,VH,SR,VF,CC,DC,DE,OT,LA). If no data
 ** available for any parameters, the string NO_DATA should be input 
 ** instead of the path name and extension name. In this version, a single
 ** value of latitude, longitude and GMT is used for entire grids. The
@@ -118,38 +130,56 @@ void tIntercept::DeleteIntercept()
 ** VH NO_DATA NO_DATA
 **
 ***************************************************************************/
-void tIntercept::readLUGrid(char *gridFile) 
+void tIntercept::readLUGrid(char *gridFile)
 {
-	int numParameters;
-	double LUgridlat, LUgridlong;
-	int LUgridgmt;
-	
-	cout<<"\nReading Land-Use Data Grid File in tIntercept: "; 
-	cout<< gridFile<<"..."<<endl<<flush;
-	
-	ifstream readFile(gridFile); 
+	Cout<<"\nReading Land-Use Data Grid File in tIntercept: ";
+	Cout<< gridFile<<"..."<<endl<<flush;
+
+	ifstream readFile(gridFile);
 	if (!readFile) {
 		cout << "\nFile "<<gridFile<<" not found!" << endl;
 		cout << "Exiting Program...\n\n"<<endl;
-		exit(1);}
-	
-	readFile >> numParameters; 
+		exit(1);
+	}
+
+	std::string header;
+	std::getline(readFile, header);
+	int colCount = 1;
+	for (char c : header)
+		if (c == ',') ++colCount;
+	if (colCount != 3) {
+		cout << "\nError: LU grid file '" << gridFile << "' has " << colCount
+		     << " columns, expected 3 (Variable,BasePath,FileExtension)." << endl;
+		cout << "Exiting Program...\n\n" << endl;
+		exit(1);
+	}
+
+	std::vector<std::vector<std::string>> rows;
+	std::string line;
+	while (std::getline(readFile, line)) {
+		if (line.empty()) continue;
+		std::istringstream ss(line);
+		std::vector<std::string> row(3);
+		for (int j = 0; j < 3; j++)
+			std::getline(ss, row[j], ',');
+		rows.push_back(row);
+	}
+	readFile.close();
+
+	int numParameters = static_cast<int>(rows.size());
 	nParmLU = numParameters;
-	readFile >> LUgridlat;
-	readFile >> LUgridlong;
-	readFile >> LUgridgmt;
 
 	LUgridBaseNames = new char*[numParameters];
 	LUgridExtNames = new char*[numParameters];
 	LUgridParamNames = new char*[numParameters];
-	
+
 	for (int ct=0;ct<numParameters;ct++) {
 		LUgridParamNames[ct] = new char[10];
 		LUgridBaseNames[ct] = new char[kName];
 		LUgridExtNames[ct] = new char[10];
-		readFile >> LUgridParamNames[ct];
-		readFile >> LUgridBaseNames[ct];
-		readFile >> LUgridExtNames[ct];
+		strncpy(LUgridParamNames[ct], rows[ct][0].c_str(), 9);  LUgridParamNames[ct][9] = '\0';
+		strncpy(LUgridBaseNames[ct],  rows[ct][1].c_str(), kName - 1); LUgridBaseNames[ct][kName - 1] = '\0';
+		strncpy(LUgridExtNames[ct],   rows[ct][2].c_str(), 9);  LUgridExtNames[ct][9] = '\0';
 	}
 	return;
 }
@@ -166,24 +196,19 @@ void tIntercept::readLUGrid(char *gridFile)
 **
 ** tIntercept::callInterception() Function
 **
-** Sets the Interception Option in the Constructor
 ** Error message for non-valid options in InputFile
-** Calls the appropriate Method InterceptGray() or InterceptRutter()
+** Calls InterceptRutter()
 **
 ***************************************************************************/
 void tIntercept::callInterception(tCNode *cNode, double Ep)
 {
 	if(interceptOption == 1){
-		InterceptGray(cNode);
-	}
-	else if(interceptOption == 2){
 		InterceptRutter(cNode, Ep);
 	}
 	else{
 		cout << "\nInterception Option "<<interceptOption<<" not valid."<<endl;
 		cout << "\tPlease use :" << endl;
-		cout << "\t\t(1) for Gray (1970) Method: Two Parameter Model"<<endl;
-		cout << "\t\t(2) for Rutter (1971) Method: Four Parameter Model"<<endl;
+		cout << "\t\t(1) for Rutter (1971) Method: Four Parameter Model"<<endl;
 		cout << "Exiting Program...\n\n"<<endl;
 		exit(1);
 	}
@@ -199,58 +224,6 @@ void tIntercept::callInterception(tCNode *cNode, double Ep)
 //
 //=========================================================================
 
-
-/***************************************************************************
-**
-** tIntercept::InterceptGray() Function based on Gray(1970) 
-** 	(Also see Bras,1993, p233)
-**
-** Uses coeffA, coeffB as parameters read from Land Use Table
-**
-**    I(t) = R(t)          while cumI <= coeffA    (mm/hr)
-**    I(t) = coeffB*R(t)   while cumI >  coeff
-**
-***************************************************************************/
-void tIntercept::InterceptGray(tCNode *cNode)
-{ 
-	double cumIntercept, intercept, rainfall, interStormLength;
-	double netPrecipitation;
-	double minRainAmount = 1.0;
-	
-	SetIntercpParameters( cNode );
-	
-	
-	
-	rainfall = cNode->getRain();
-	
-	if (rainfall <= minRainAmount)                //Modify InterStorm Length
-		cNode->setStormLength(1, timer->getEtIStep());
-	else
-		cNode->setStormLength(0, 0);
-	
-	cumIntercept = cNode->getCumIntercept();      //Calculate Interception
-	
-	if (cumIntercept <= coeffA)
-		intercept = rainfall;   
-	else
-		intercept = rainfall*coeffB;
-	
-	cNode->setInterceptLoss(intercept);           //For the _VEGETATED_ fract
-	
-	interStormLength = cNode->getStormLength();   //Set Cumulative Interception
-	
-	if (interStormLength < maxInterStormPeriod)   //For the _VEGETATED_ fract
-		cNode->setCumIntercept(cumIntercept+intercept*timer->getEtIStep());
-	else
-		cNode->setCumIntercept(0.0);
-	
-	// Rate for the _ENTIRE_ cell:
-	netPrecipitation = coeffV*(rainfall-intercept) + (1-coeffV)*rainfall;
-	
-	cNode->setNetPrecipitation(netPrecipitation); //Assign Net Precipitation
-	
-	return;
-}
 
 /***************************************************************************
 **
@@ -474,55 +447,40 @@ double tIntercept::storageRungeKutta(double prevStore, double R, double Ep,
 void tIntercept::SetIntercpParameters(tCNode *cNode)
 {
 	landPtr->setLandPtr(cNode->getLandUse());
-	
+
 	if (interceptOption == 1) {
-		coeffA = landPtr->getLandProp(1);  //Storage Capacity
-		coeffB = landPtr->getLandProp(2);  //Interception Coefficient
-		coeffV = landPtr->getLandProp(11); //Vegetation Fraction 
-	}
-	else if (interceptOption == 2) {
-		coeffP = landPtr->getLandProp(3);          //Free Throughfall Coefficient
-		coeffS = landPtr->getLandProp(4);          //Canopy Storage Capacity
-		coeffK = landPtr->getLandProp(5);          //Drainage Coefficient
-		coeffb = landPtr->getLandProp(6);          //Drainage Exponential Parameter
-		coeffV = landPtr->getLandProp(11);         //Vegetation Fraction 
+		coeffP = landPtr->getLandProp(1);  //Free Throughfall Coefficient
+		coeffS = landPtr->getLandProp(2);  //Canopy Storage Capacity
+		coeffK = landPtr->getLandProp(3);  //Drainage Coefficient
+		coeffb = landPtr->getLandProp(4);  //Drainage Exponential Parameter
+		coeffV = landPtr->getLandProp(9);  //Vegetation Fraction
 	}
 
-	if (luOption == 1) {
-		for (int ct=0;ct<nParmLU;ct++) { 
-			if (strcmp(LUgridParamNames[ct],"CS")==0) {
-				if (interceptOption == 1) {
-					coeffA = cNode->getCanStorParam();  //Canopy Storage Parameter
-				}
-			}
-			if (strcmp(LUgridParamNames[ct],"IC")==0) {
-				if (interceptOption == 1) {
-					coeffB = cNode->getIntercepCoeff();  //Interception Coefficient
-				}
-			}
+	if (luOption == 1 || luOption == 2) {
+		for (int ct=0;ct<nParmLU;ct++) {
 			if (strcmp(LUgridParamNames[ct],"TF")==0) {
-				if (interceptOption == 2) {
+				if (interceptOption == 1) {
 					coeffP = cNode->getThroughFall();  //Free Throughfall Coefficient
 				}
 			}
 			if (strcmp(LUgridParamNames[ct],"CC")==0) {
-				if (interceptOption == 2) {
+				if (interceptOption == 1) {
 					coeffS = cNode->getCanFieldCap();  //Canopy Storage Capacity
 				}
 			}
 			if (strcmp(LUgridParamNames[ct],"DC")==0) {
-				if (interceptOption == 2) {
+				if (interceptOption == 1) {
 					coeffK = cNode->getDrainCoeff();  //Drainage Coefficient
 				}
 			}
 			if (strcmp(LUgridParamNames[ct],"DE")==0) {
-				if (interceptOption == 2) {
+				if (interceptOption == 1) {
 					coeffb = cNode->getDrainExpPar();  //Drainage Exponential Parameter
 				}
 			}
 			if (strcmp(LUgridParamNames[ct],"VF")==0) {
-				if ( (interceptOption == 1) || (interceptOption == 2) ) {
-					coeffV = cNode->getVegFraction();  //Vegetation Fraction 
+				if (interceptOption == 1) {
+					coeffV = cNode->getVegFraction();  //Vegetation Fraction
 				}
 			}
 		}
@@ -551,11 +509,9 @@ int tIntercept::getIoption()
 double tIntercept::getCtoS(tCNode *cNode)
 {
 	double ctos {};
-	if (interceptOption == 1)
-		ctos = 1;
-	else if (interceptOption == 2) {
+	if (interceptOption == 1) {
 		landPtr->setLandPtr(cNode->getLandUse());
-		coeffS = landPtr->getLandProp(4);          //Canopy Field Capacity
+		coeffS = landPtr->getLandProp(2);  //Canopy Field Capacity
 		ctos = cNode->getCanStorage()/coeffS;
 	}
 	return ctos;
@@ -571,57 +527,15 @@ double tIntercept::getCtoS(tCNode *cNode)
 int tIntercept::IsThereCanopy(tCNode *cNode)
 {
 	int answer {};
-	if (interceptOption == 1)
-		answer = 1;
-	else if (interceptOption == 2) {
+	if (interceptOption == 1) {
 		landPtr->setLandPtr(cNode->getLandUse());
-		coeffP = landPtr->getLandProp(3);       //Free Throughfall Coefficient
+		coeffP = landPtr->getLandProp(1);  //Free Throughfall Coefficient
 		if (coeffP < 0.999)
 			answer = 1;
-		else 
+		else
 			answer = 0;
 	}
 	return answer;
-}
-
-/***************************************************************************
-**
-** tIntercept::writeRestart() Function
-**
-** Called from tSimulator during simulation loop
-**
-***************************************************************************/
-void tIntercept::writeRestart(fstream & rStr) const
-{
-  BinaryWrite(rStr, interceptOption);
-  BinaryWrite(rStr, maxInterStormPeriod);
-  BinaryWrite(rStr, metTime);
-  BinaryWrite(rStr, coeffA);
-  BinaryWrite(rStr, coeffB);
-  BinaryWrite(rStr, coeffP);
-  BinaryWrite(rStr, coeffS);
-  BinaryWrite(rStr, coeffK);
-  BinaryWrite(rStr, coeffb);
-  BinaryWrite(rStr, coeffV);
-}
-
-/***************************************************************************
-**
-** tIntercept::readRestart() Function
-**
-***************************************************************************/
-void tIntercept::readRestart(fstream & rStr)
-{
-  BinaryRead(rStr, interceptOption);
-  BinaryRead(rStr, maxInterStormPeriod);
-  BinaryRead(rStr, metTime);
-  BinaryRead(rStr, coeffA);
-  BinaryRead(rStr, coeffB);
-  BinaryRead(rStr, coeffP);
-  BinaryRead(rStr, coeffS);
-  BinaryRead(rStr, coeffK);
-  BinaryRead(rStr, coeffb);
-  BinaryRead(rStr, coeffV);
 }
 
 //=========================================================================

@@ -2,7 +2,7 @@
  * TIN-based Real-time Integrated Basin Simulator (tRIBS)
  * Distributed Hydrologic Model
  *
- * Copyright (c) 2025. tRIBS Developers
+ * Copyright (c) tRIBS Developers
  *
  * See LICENSE file in the project root for full license information.
  ******************************************************************************/
@@ -15,6 +15,9 @@
 
 #include "src/tRasTin/tResample.h"
 #include "src/Headers/globalIO.h"
+#include <string>
+#include <algorithm>
+#include <cctype>
 
 //=========================================================================
 //
@@ -1054,6 +1057,114 @@ int* tResample::doIt(int *statID, double *XX, double *YY, int NN)
 	return varFromPoint;
 }
 
+#ifdef READ_GDAL
+/***************************************************************************
+**
+**  tResample::readInputGridGDAL(char *GridIn)
+**
+**  Reads raster data using the GDAL library.
+**  Populates gridIn, coorXG, coorYG, and extent variables.
+**
+***************************************************************************/
+void tResample::readInputGridGDAL(char *GridIn) 
+{
+    GDALAllRegister();
+
+    GDALDataset *poDataset = (GDALDataset *) GDALOpen(GridIn, GA_ReadOnly);
+    if( poDataset == NULL ) {
+        cout << "Error: GDAL could not open file " << GridIn << endl;
+        exit(2);
+    }
+
+    // 1. Get Dimensions
+    MR = poDataset->GetRasterXSize(); // Cols
+    NR = poDataset->GetRasterYSize(); // Rows
+
+    // 2. Get Geotransform (Positioning)
+    double adfGeoTransform[6];
+    if( poDataset->GetGeoTransform( adfGeoTransform ) == CE_None ) {
+        // [0] = Top-Left X
+        // [1] = W-E pixel resolution (Cell Size)
+        // [2] = 0
+        // [3] = Top-Left Y
+        // [4] = 0
+        // [5] = N-S pixel resolution (Negative value)
+        
+        xulcR = adfGeoTransform[0];
+        yulcR = adfGeoTransform[3];
+        dR = adfGeoTransform[1]; // Assuming square pixels
+        
+        // Calculate Lower Left (standard tRIBS internal) based on Top Left
+        // Note: adfGeoTransform[5] is usually negative.
+        xllcR = xulcR;
+        yllcR = yulcR + (NR * adfGeoTransform[5]); 
+    } else {
+        cout << "Warning: No GeoTransform found in " << GridIn << ". Assuming 0,0 origin." << endl;
+        xulcR = 0; yulcR = NR; xllcR = 0; yllcR = 0; dR = 1;
+    }
+
+    // 3. Get NoData Value
+    GDALRasterBand *poBand = poDataset->GetRasterBand(1);
+    int pbSuccess;
+    double noDataVal = poBand->GetNoDataValue(&pbSuccess);
+    if(pbSuccess) {
+        dummy = noDataVal;
+    } else {
+        dummy = -9999.0; // Default if not specified in file
+    }
+
+    // 4. Allocate Memory (Identical to original readInputGrid)
+    coorYG = new double [NR+1];
+    assert(coorYG != 0);
+    coorXG = new double [MR+1];
+    assert(coorXG != 0);
+
+    // Initialize Coordinate Arrays
+    double tempo = yulcR;
+    for (int i=0; i < NR+1; i++)  {
+        coorYG[i] = tempo;
+        tempo -= dR; // Moving down
+    }
+    double mott  = xulcR;
+    for (int j=0; j < MR+1; j++)  {
+        coorXG[j] = mott;
+        mott += dR; // Moving right
+    }
+
+    // 5. Allocate Grid Memory
+    gridIn = new double* [NR];
+    assert(gridIn != 0);
+
+    // 6. Read Data Row-by-Row
+    // We read directly into the row pointers to match tRIBS' expected memory layout.
+    for (int i=0; i < NR; i++) {
+        gridIn[i] = new double[MR];
+        assert(gridIn[i] != 0);
+
+        // GDAL RasterIO
+        // GF_Read, xOff, yOff, xSize, ySize, Buffer, BufXSize, BufYSize, Type, ...
+        CPLErr err = poBand->RasterIO(GF_Read, 
+                                      0, i,         // X offset 0, Y offset i (current row)
+                                      MR, 1,        // Read width MR, height 1
+                                      gridIn[i],    // Buffer: the current row pointer
+                                      MR, 1,        // Buffer dimensions
+                                      GDT_Float64,  // Read as Double
+                                      0, 0);
+        
+        if (err != CE_None) {
+            cout << "Error reading raster row " << i << endl;
+            exit(2);
+        }
+    }
+
+    GDALClose( (GDALDatasetH) poDataset );
+    
+    if (simCtrl->Verbose_label == 'Y') {
+        cout << "\tGDAL Load Complete: " << MR << "x" << NR << " CellSize: " << dR << endl;
+    }
+}
+#endif
+
 /***************************************************************************
 **
 **  tResample::readInputGrid(char *GridIn)
@@ -1065,6 +1176,39 @@ int* tResample::doIt(int *statID, double *XX, double *YY, int NN)
 ***************************************************************************/
 void tResample::readInputGrid(char *GridIn) 
 {
+    // --- STEP 1: DETECT FORMAT ---
+    bool isLegacyAscii = false;
+
+    // Open file just to peek at the first token
+    ifstream peekFile(GridIn);
+    if (!peekFile) {
+        // Let the legacy code handle the "File not found" error nicely below
+        // or handle it here if you prefer.
+    } else {
+        std::string firstToken;
+        peekFile >> firstToken; // Read first string (skips whitespace)
+        peekFile.close();
+
+        // Convert to uppercase for comparison
+        std::transform(firstToken.begin(), firstToken.end(), firstToken.begin(), 
+                       [](unsigned char c){ return std::toupper(c); });
+
+        // ArcInfo ASCII Grids must start with NCOLS (or rarely COLS)
+        if (firstToken == "NCOLS" || firstToken == "COLS") {
+            isLegacyAscii = true;
+        }
+    }
+
+	#ifdef READ_GDAL
+		// --- STEP 2: ROUTE TO GDAL IF NOT ASCII ---
+		if (!isLegacyAscii) {
+			// If it doesn't look like ASCII, we assume it's a format GDAL handles.
+			// If it's actually just a broken file, GDAL will throw the error.
+			readInputGridGDAL(GridIn);
+			return; 
+		}
+	#endif
+
 	int i,j;
 	double tempo, mott;
 	char lineIn[300];

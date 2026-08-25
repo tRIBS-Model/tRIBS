@@ -32,8 +32,6 @@ target_compile_definitions(${exe}
         PARALLEL_TRIBS
         PRIVATE
         GRAPH_TRIBS
-        PRIVATE
-        LINUX_32
         )
 
 target_sources(
@@ -73,8 +71,6 @@ target_sources(
         src/tHydro/tEvapoTrans.h
         src/tHydro/tHydroMet.cpp
         src/tHydro/tHydroMet.h
-        src/tHydro/tHydroMetConvert.cpp
-        src/tHydro/tHydroMetConvert.h
         src/tHydro/tHydroMetStoch.cpp
         src/tHydro/tHydroMetStoch.h
         src/tHydro/tHydroModel.cpp

@@ -2,7 +2,7 @@
  * TIN-based Real-time Integrated Basin Simulator (tRIBS)
  * Distributed Hydrologic Model
  *
- * Copyright (c) 2025. tRIBS Developers
+ * Copyright (c) tRIBS Developers
  *
  * See LICENSE file in the project root for full license information.
  ******************************************************************************/
@@ -19,37 +19,12 @@
 #ifndef MATHUTIL_H
 #define MATHUTIL_H
 
-
-#ifdef ALPHA_64
-  #include <math.h>
-  #include<iostream.h>
-  #include<iomanip.h>
-  #include<assert.h>
-#elif defined LINUX_32
-  #include <cmath>
-  #include <iostream>
-  #include <cstdlib>
-  #include <iomanip>
-  #include <cassert>
-  #include <cstdio>
-#elif defined MAC
-  #include <cmath>
-  #include <iostream>
-  #include <cstdlib>
-  #include <iomanip>
-  #include <cassert>
-  #include <cstdio>
-#elif defined WIN
-  #include <math.h>
-  #include<iostream.h>
-  #include<iomanip.h>
-  #include<assert.h>
-#else 
-  #include <math.h>
-  #include<iostream.h>
-  #include<iomanip.h>
-  #include<assert.h>
-#endif
+#include <cmath>
+#include <iostream>
+#include <cstdlib>
+#include <iomanip>
+#include <cassert>
+#include <cstdio>
 
 #ifndef M_PI
 #define M_PI    3.14159265358979323846

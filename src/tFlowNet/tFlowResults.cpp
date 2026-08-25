@@ -2,7 +2,7 @@
  * TIN-based Real-time Integrated Basin Simulator (tRIBS)
  * Distributed Hydrologic Model
  *
- * Copyright (c) 2025. tRIBS Developers
+ * Copyright (c) tRIBS Developers
  *
  * See LICENSE file in the project root for full license information.
  ******************************************************************************/
@@ -42,7 +42,6 @@
 **	Allocate memory for the hydrographs
 **	Initialize hydrographs to zero
 **
-**  ribsOutput used as flag for compatibility with RIBS user interphase
 **  visualization of the previous and current hydrograph. 
 **              0: current hydrograph only
 **              1: previous and current hydrograph
@@ -88,9 +87,9 @@ void tFlowResults::SetFlowResVariables(tInputFile &infile, double add_time)
 		tmp[i] = ' ';
 	}
 	
-	infile.ReadItem( baseHydroName,"OUTHYDROFILENAME"); 
-	ribsOutput = infile.ReadItem( ribsOutput, "RIBSHYDOUTPUT");
-	infile.ReadItem( Extension, "OUTHYDROEXTENSION");
+	infile.ReadItem( baseHydroName,"OUTFILENAME");
+	// The OUTHYDROEXTENSION option has been removed and is now hardcoded.
+	strcpy(Extension, "mrf");
 	
 	i=kMaxNameSize-1;
 	while (flag) {
@@ -196,9 +195,6 @@ void tFlowResults::SetFlowResVariables(tInputFile &infile, double add_time)
 	if ((frac = (double*)calloc(limit,sizeof(double)))==NULL)
 		cout<<"\ntFlowResults: frac failed..."<<endl;
 	
-	if ((fState = (int*)calloc(limit,sizeof(int)))==NULL)
-		cout<<"\ntFlowResults: fState failed..."<<endl;
-	
 	if ((qunsat = (double*)calloc(limit,sizeof(double)))==NULL) // CJC2025
 		cout<<"\ntFlowResults: qunsat failed..."<<endl;
 
@@ -210,7 +206,6 @@ void tFlowResults::SetFlowResVariables(tInputFile &infile, double add_time)
 		prr[i] = crr[i] = 0.0;
 		HsrfRout[i] = SbsrfRout[i] = 0.0;
 		PsrfRout[i] = SatsrfRout[i] = 0.0;
-		fState[i] = 0;
 		max[i]=sat[i]=msm[i]=mgw[i]=msmU[i]=msmRt[i]=met[i]=frac[i]=0.0;
 		      
 		// SKY2008Snow from AJR2007
@@ -256,7 +251,6 @@ void tFlowResults::free_results()
 	free(mgw);
 	free(met);
 	free(frac);
-	free(fState);
 	// SKY2008Snow from AJR2007
 	free(swe);
 	free(melt);
@@ -288,7 +282,6 @@ void tFlowResults::free_results()
 	SbsrfRout=NULL;
 	PsrfRout=NULL;
 	SatsrfRout=NULL;
-	fState=NULL;
 	max = NULL;
 	min = NULL;
 	msm = NULL;
@@ -333,95 +326,8 @@ void tFlowResults::free_results()
 //=========================================================================
 
 /***************************************************************************
-** 
-**  tFlowResults: read_prev_hyd(char *filename, int index)
 **
-**  Read hydrographs
-**
-**  Algorithm:
-**    open hydro file
-**    read headings
-**    until end of file:
-**     if type tag is index
-**        read streamflow corresponding to previous step
-**     else
-**        discard data
-**    close file
-**
-***************************************************************************/
-void tFlowResults::read_prev_hyd(char *filename, int index) 
-{ 
-	int j,ii,jl;
-	FILE *ifile;
-	char str[80];
-	float flt1, flt2;
-	
-	if ((ifile=fopen(filename,"r")) == NULL) {  
-		cout<<"\nError: Unable to open *.mrf file: "<<filename<<endl;
-		cout<<"Exiting Program..."<<endl;
-		exit(2);
-	}
-	
-	fscanf(ifile,"%d",&jl);
-	for (j=0;j<jl;j++) { 
-		fscanf(ifile,"%s",str);
-	}
-	
-	ii=0;
-	while (!feof(ifile)) { 
-		fscanf(ifile,"%d",&jl);
-		if (jl==index) { 
-			fscanf(ifile,"%s %f %f",str,&flt1,&flt2);
-			phydro[ii]=(double)flt1;
-			crr[ii]=prr[ii]=(double)flt2;
-			ii++;
-		}
-		else fscanf(ifile,"%s %f %f",str,&flt1,&flt2);
-	}
-	
-	iimax=ii;
-	fclose(ifile);
-	return;
-}
-
-/***************************************************************************
-** 
-**  tFlowResults: add_fore_hyd(filename, index)
-**
-**  Write hydrograph corresponding to forecasted rain
-**
-**  Algorithm:
-**    open hydro file
-**    get maximum range in array
-**    for index in array range:
-**      write streamflow corresponding to current step
-**
-***************************************************************************/
-void tFlowResults::add_fore_hyd(char *filename, int index) 
-{
-	FILE *ifile;
-	int ii;              	// Loop counter 
-	int it_hour,it_min;  	// Hours and minutes to print results
-	
-	if ((ifile=fopen(filename,"a")) == NULL) {
-		cout<<"\nError: Unable to open *.mrf file: "<<filename<<endl;
-		cout<<"Exiting Program..."<<endl;
-		exit(2);
-	}
-	for (ii=0; ii<iimax; ii++) { 
-		timer->res_time_mid(ii, &it_hour, &it_min);
-		fprintf(ifile," %d %d_%d %f %f\n",
-				index+2, it_hour, it_min,
-				phydro[ii]+mhydro[ii],
-				crr[ii]);
-	}
-	fclose(ifile);     
-	return;         
-}
-
-/***************************************************************************
-** 
-**  tFlowResults: writeAndUpdate(inter_hour, dt_rain)
+**  tFlowResults: writeAndUpdate(time)
 **
 **  Write basin state variables, output and result hydrographs
 **
@@ -433,16 +339,16 @@ void tFlowResults::add_fore_hyd(char *filename, int index)
 **	call network model to write state and outputAlgorithm:
 **
 ***************************************************************************/
-void tFlowResults::writeAndUpdate( double time, int forenum )
-{ 
+void tFlowResults::writeAndUpdate( double time )
+{
 	int  hour, minute;
 	char timetag[20];
 	writeFlag = 0;
-	
+
 	if (simCtrl->Verbose_label == 'Y')
 		cout<<"\n\ttFlowResults: Time to write hydrograph; time = "
 			<<time<<endl<<flush;
-	
+
 	hour   = (int)floor(time);
 	minute = (int)floor((time-hour)*60);
 
@@ -450,8 +356,8 @@ void tFlowResults::writeAndUpdate( double time, int forenum )
 	strcpy( currHydroName, baseHydroName );
 	strcat( currHydroName, timetag );
 	strcat( currHydroName, Extension);
-	
-	write_inter_hyd(currHydroName, outlet, forenum);
+
+	write_inter_hyd(currHydroName, outlet);
 	
 	update_prev_hyd();
 	
@@ -459,65 +365,34 @@ void tFlowResults::writeAndUpdate( double time, int forenum )
 }
 
 /***************************************************************************
-** 
+**
 **  tFlowResults: write_inter_hyd(char *filename, char *identification,
 **                               int foreNum)
 **
-**  Write hydrographs corresponding to measured rain
-** 
+**  Write the mean response file (*.mrf) containing basin-wide state 
+**  variables at each output time step as a CSV. In parallel mode, 
+**  distributed arrays are reduced across processors before the 
+**  master writes the file.
+**
 **  Algorithm:
-**	open hydro file
-**	get maximum range in array
-**	if forecasted rain is active
-**	   write headings for three variables
-**	else
-**	   write headings for two variables
-**	for index in array range:
-**	   write type tag 0
-**         write streamflow corresponding to previous step
-**      for index in array range:
-**	   write type tag 1
-**         write streamflowcorresponding to current step
-**      copy hydro file name as last hydro file
+**      [parallel] reduce all basin-state arrays across processors
+**                 (sum for fluxes/states, min/max for rainfall)
+**      [parallel] restrict file writing to master processor
+**      write CSV header (variable_unit format, 32 columns)
+**      for each output time step:
+**          write decimal time, outlet streamflow, mean areal
+**          precipitation with spatial min/max, 
+**          mean soil moisture at multiple depths, mean ET and
+**          groundwater level, saturation and rain coverage fractions,
+**          snow pack states and energy fluxes, snow interception,
+**          snow covered area, channel percolation, and unsaturated flow
 **
 ***************************************************************************/
-void tFlowResults::write_inter_hyd(char *filename, char *identification,
-								   int foreNum) 
-{ 
-	FILE *ifile;
+void tFlowResults::write_inter_hyd(char *filename, char *identification)
+{
 	int ii;              //Loop counter 
-	int it_hour,it_min;  //Hours and minutes to print results 
-	
-	if ((ifile=fopen(filename,"w")) == nullptr) {
-		cout<<"\nError: Unable to open *.mrf file: "<<filename<<endl;
-		cout<<"Exiting Program..."<<endl;
-		exit(2);
-	}
-	
-	// Assign Forecast State if Option != 0
-	if (timer->getoptForecast()!=0)
-		fState[count] = checkForecast();
-	
-	// RIBS Compatibility
-	
-	if (ribsOutput == 1) {
-		
-		// Previous hydrograph
-		for (ii=1; ii < iimax; ii++) {    
-			timer->res_time_begin(ii, &it_hour, &it_min);
-			fprintf(ifile,"0 %04d.%02d %f %f\n",
-					it_hour, it_min, phydro[ii], prr[ii-1]);
-		}
-		// Current hydrograph
-		for (ii=1; ii < iimax; ii++) {    
-			timer->res_time_begin(ii, &it_hour, &it_min);
-			fprintf(ifile," 1 %04d.%02d %f %f\n",
-					it_hour, it_min, phydro[ii]+mhydro[ii], crr[ii-1]);
-		}
-	}
-	
-	else if (ribsOutput == 0) {
-		
+	int it_hour, it_min;  //Hours and minutes to print results 
+
 #ifdef PARALLEL_TRIBS
 
    // Variables for sums, mins, and maxs
@@ -559,69 +434,128 @@ void tFlowResults::write_inter_hyd(char *filename, char *identification,
    pSca = tParallel::sum(sca, iimax);
    pPerc = tParallel::sum(Perc, iimax); //ASM percolation option
    pQunsat = tParallel::sum(qunsat, iimax);
-   
+
    // Master processor writes file
    if (tParallel::isMaster()) {
 #endif
 
-		// Print out header information
-		if (simCtrl->Header_label=='Y' && writeFlag == 0) {
-			
-			// fprintf(ifile,"%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
-			// SKY2008Snow from AJR2007
-			fprintf(ifile,"%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
-
-					"Time", "Srf","MAP","RainMax", "RainMin","FState", "MSM100", "MSMRt", 
-					// "MSMU", "MGW","MET", "%Sat", "%Rain");
-					// SKY2008Snow from AJR2007
-					"MSMU", "MDGW","MET", "SatPercent", "RainPercent",
-					"AvSWE" , "AvMelt" , "AvSnSub" , "AvSnEvap" , "AvSTC" , "AvDUInt" , "AvSLHF" , "AvSSHF" , "AvSPHF" , "AvSGHF" , //added by AJR 2007 @ NMT // Added "AvSnSub" , "AvSnEvap" CJC2020
-					"AvSRLI" , "AvSRLO" , "AvSRSI" , "AvInSn" , "AvInSu" , "AvInUn" , "SCA", "ChannelPercolation", "Qunsat");//added by AJR 2007 @ NMT
-			fprintf(ifile,"%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
-					"hr" , "m3/s" , "mm/hr" , "mm/hr" , "mm/hr" , "[]" , "[]" , "[]" , "[]" , "mm" , 
-	    				"mm" , "[]" , "[]" , "cm" , "cm" , "cm" , "cm" , "C" , "kJ/m2" , "kJ/m2" , "kJ/m2" , //added by AJR 2007 @ NMT // added "cm" , "cm" CJC2020
-	    				"kJ/m2" , "kJ/m2" , "kJ/m2" , "kJ/m2" , "kJ/m2" , "cm" , "cm" , "cm", "[]", "m3", "mm/hr" );//added by AJR 2007 @ NMT // removed extra header for kJ/m2 CJC2020 //akram: Need to confirm unit for Percolation
-
-			// fprintf(ifile,"%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
-			//		"hr","m3/s","mm/hr","mm/hr","mm/hr","[]", "[]", "[]", "[]",
-			//		"mm","mm", "[]", "[]");
-			writeFlag = 1;
+		ofstream ifile(filename);
+		if (!ifile.is_open()) {
+			cout<<"\nError: Unable to open *.mrf file: "<<filename<<endl;
+			cout<<"Exiting Program..."<<endl;
+			exit(2);
 		}
-		
-		for (ii=0; ii < iimax; ii++) {    
+		ifile << fixed << setprecision(3);
+
+		// Write header
+		ifile << "Time_hr,"          // 1
+		      << "Srf_m3_s,"         // 2
+		      << "MAP_mm_hr,"        // 3
+		      << "RainMax_mm_hr,"    // 4
+		      << "RainMin_mm_hr,"    // 5
+		      << "MSM100_[],"        // 6
+		      << "MSMRt_[],"         // 7
+		      << "MSMU_[],"          // 8
+		      << "MDGW_mm,"          // 9
+		      << "MET_mm,"           // 10
+		      << "SatPercent_[],"    // 11
+		      << "RainPercent_[],"   // 12
+		      << "AvSWE_cm,"         // 13
+		      << "AvMelt_cm,"        // 14
+		      << "AvSnSub_cm,"       // 15
+		      << "AvSnEvap_cm,"      // 16
+		      << "AvSTC_C,"          // 17
+		      << "AvDUInt_kJ_m2,"    // 18
+		      << "AvSLHF_kJ_m2,"     // 19
+		      << "AvSSHF_kJ_m2,"     // 20
+		      << "AvSPHF_kJ_m2,"     // 21
+		      << "AvSGHF_kJ_m2,"     // 22
+		      << "AvSRLI_kJ_m2,"     // 23
+		      << "AvSRLO_kJ_m2,"     // 24
+		      << "AvSRSI_kJ_m2,"     // 25
+		      << "AvInSn_cm,"        // 26
+		      << "AvInSu_cm,"        // 27
+		      << "AvInUn_cm,"        // 28
+		      << "SCA_[],"           // 29
+		      << "ChannelPerc_m3,"   // 30
+		      << "Qunsat_mm_hr\n";   // 31
+		writeFlag = 1;
+
+		for (ii=0; ii < iimax; ii++) {
 			timer->res_time_begin(ii+1, &it_hour, &it_min);
-			//fprintf(ifile,"%d.%d\t%f\t%f\t%f\t%f\t%d\t%f\t%f\t%f\t%f\t%f\t%f\t%f\n",
+			double time_hr = it_hour + it_min/60.0;
 
 #ifdef PARALLEL_TRIBS
-
-         // Print min, max, and summ variables from all processors
-         fprintf(ifile,"%d.%d\t%f\t%f\t%f\t%f\t%d\t%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\n",
-               it_hour, it_min, pPhydro[ii]+pMhydro[ii], pCrr[ii],
-               pMax[ii], pMin[ii], fState[ii], pMsm[ii], pMsmRt[ii],pMsmU[ii], 
-               pMgw[ii], pMet[ii], pSat[ii], pFrac[ii],
-               pSwe[ii], pMelt[ii], pSnSub[ii], pSnEvap[ii], pStC[ii], pDUint[ii], pSlhf[ii], pSshf[ii], // Added pSnSub[ii], pSnEvap[ii] CJC2020
-               pSphf[ii], pSghf[ii], pSrli[ii], pSrlo[ii], pSrsi[ii], pIntsn[ii],
-               pIntsub[ii], pIntunl[ii], pSca[ii], pPerc[ii], pQunsat[ii]);
-
+			ifile << time_hr                      << ","  // 1  Time_hr
+			      << pPhydro[ii]+pMhydro[ii]      << ","  // 2  Srf_m3_s
+			      << pCrr[ii]                     << ","  // 3  MAP_mm_hr
+			      << pMax[ii]                     << ","  // 4  RainMax_mm_hr
+			      << pMin[ii]                     << ","  // 5  RainMin_mm_hr
+			      << pMsm[ii]                     << ","  // 6  MSM100_[]
+			      << pMsmRt[ii]                   << ","  // 7  MSMRt_[]
+			      << pMsmU[ii]                    << ","  // 8  MSMU_[]
+			      << pMgw[ii]                     << ","  // 9  MDGW_mm
+			      << pMet[ii]                     << ","  // 10 MET_mm
+			      << pSat[ii]                     << ","  // 11 SatPercent_[]
+			      << pFrac[ii]                    << ","  // 12 RainPercent_[]
+			      << pSwe[ii]                     << ","  // 13 AvSWE_cm
+			      << pMelt[ii]                    << ","  // 14 AvMelt_cm
+			      << pSnSub[ii]                   << ","  // 15 AvSnSub_cm
+			      << pSnEvap[ii]                  << ","  // 16 AvSnEvap_cm
+			      << pStC[ii]                     << ","  // 17 AvSTC_C
+			      << pDUint[ii]                   << ","  // 18 AvDUInt_kJ_m2
+			      << pSlhf[ii]                    << ","  // 19 AvSLHF_kJ_m2
+			      << pSshf[ii]                    << ","  // 20 AvSSHF_kJ_m2
+			      << pSphf[ii]                    << ","  // 21 AvSPHF_kJ_m2
+			      << pSghf[ii]                    << ","  // 22 AvSGHF_kJ_m2
+			      << pSrli[ii]                    << ","  // 23 AvSRLI_kJ_m2
+			      << pSrlo[ii]                    << ","  // 24 AvSRLO_kJ_m2
+			      << pSrsi[ii]                    << ","  // 25 AvSRSI_kJ_m2
+			      << pIntsn[ii]                   << ","  // 26 AvInSn_cm
+			      << pIntsub[ii]                  << ","  // 27 AvInSu_cm
+			      << pIntunl[ii]                  << ","  // 28 AvInUn_cm
+			      << pSca[ii]                     << ","  // 29 SCA_[]
+			      << pPerc[ii]                    << ","  // 30 ChannelPerc_m3
+			      << pQunsat[ii]                  << "\n"; // 31 Qunsat_mm_hr
 #else
-			// SKY2008Snow from AJR2007
-			fprintf(ifile,"%d.%d\t%f\t%f\t%f\t%f\t%d\t%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\n",
-					it_hour, it_min, phydro[ii]+mhydro[ii], crr[ii], 
-					max[ii], min[ii], fState[ii], msm[ii], msmRt[ii],msmU[ii], mgw[ii], met[ii], sat[ii], frac[ii],
-					swe[ii], melt[ii], snsub[ii], snevap[ii], stC[ii], DUint[ii], slhf[ii], sshf[ii], sphf[ii], sghf[ii],//added by AJR 2007 @ NMT // Added snsub[ii], snevap[ii] CJC2020
-					srli[ii], srlo[ii], srsi[ii], intsn[ii], intsub[ii], intunl[ii], sca[ii], Perc[ii], qunsat[ii]);//added by AJR 2007 @ NMT
-
-
-					//it_hour, it_min, phydro[ii]+mhydro[ii], crr[ii], 
-					//max[ii], min[ii], fState[ii], msm[ii], msmRt[ii],
-					//msmU[ii], mgw[ii], met[ii], sat[ii], frac[ii]);
+			ifile << time_hr                      << ","  // 1  Time_hr
+			      << phydro[ii]+mhydro[ii]        << ","  // 2  Srf_m3_s
+			      << crr[ii]                      << ","  // 3  MAP_mm_hr
+			      << max[ii]                      << ","  // 4  RainMax_mm_hr
+			      << min[ii]                      << ","  // 5  RainMin_mm_hr
+			      << msm[ii]                      << ","  // 6  MSM100_[]
+			      << msmRt[ii]                    << ","  // 7  MSMRt_[]
+			      << msmU[ii]                     << ","  // 8  MSMU_[]
+			      << mgw[ii]                      << ","  // 9  MDGW_mm
+			      << met[ii]                      << ","  // 10 MET_mm
+			      << sat[ii]                      << ","  // 11 SatPercent_[]
+			      << frac[ii]                     << ","  // 12 RainPercent_[]
+			      << swe[ii]                      << ","  // 13 AvSWE_cm
+			      << melt[ii]                     << ","  // 14 AvMelt_cm
+			      << snsub[ii]                    << ","  // 15 AvSnSub_cm
+			      << snevap[ii]                   << ","  // 16 AvSnEvap_cm
+			      << stC[ii]                      << ","  // 17 AvSTC_C
+			      << DUint[ii]                    << ","  // 18 AvDUInt_kJ_m2
+			      << slhf[ii]                     << ","  // 19 AvSLHF_kJ_m2
+			      << sshf[ii]                     << ","  // 20 AvSSHF_kJ_m2
+			      << sphf[ii]                     << ","  // 21 AvSPHF_kJ_m2
+			      << sghf[ii]                     << ","  // 22 AvSGHF_kJ_m2
+			      << srli[ii]                     << ","  // 23 AvSRLI_kJ_m2
+			      << srlo[ii]                     << ","  // 24 AvSRLO_kJ_m2
+			      << srsi[ii]                     << ","  // 25 AvSRSI_kJ_m2
+			      << intsn[ii]                    << ","  // 26 AvInSn_cm
+			      << intsub[ii]                   << ","  // 27 AvInSu_cm
+			      << intunl[ii]                   << ","  // 28 AvInUn_cm
+			      << sca[ii]                      << ","  // 29 SCA_[]
+			      << Perc[ii]                     << ","  // 30 ChannelPerc_m3
+			      << qunsat[ii ]                   << "\n"; // 31 Qunsat_mm_hr
 #endif
 		}
 
 #ifdef PARALLEL_TRIBS
    }
 
-     delete [] pPhydro;
+   delete [] pPhydro;
    delete [] pMhydro;
    delete [] pCrr;
    delete [] pMax;
@@ -651,62 +585,17 @@ void tFlowResults::write_inter_hyd(char *filename, char *identification,
    delete [] pIntunl;
    delete [] pSca;
    delete [] pPerc; //ASM percolation option
-   delete [] pQunsat; // CJC2025
+   delete [] pQunsat; // CJC2020
 
 #endif
 
-	}
-	Cout<<"\nCreating Hydrograph Output: '"<<filename<<"'"<<endl;
-
-#ifdef PARALLEL_TRIBS
-  // If running parallel, Master closes file
-  if (tParallel::isMaster())
-#endif
-	fclose(ifile);                 
+	Cout<<"\nCreating Hydrograph Output: '"<<filename<<"'"<<endl;                 
 	
 	// Copy current rain hyetograph to previous
 	for (ii=0; ii < limit; ii++)
 		prr[ii] = crr[ii];
 	
 	count++;
-	return;
-}
-
-/***************************************************************************
-** 
-**  tFlowResults: write_extra_hyd(name, identification)
-**
-**  Write hydrographs for the extra gauge. The extra gauge is used to store
-**  virtual variables for the user interface. Values stored are not neccessarily
-**  hydrographs
-**
-**  Algorithm:
-**     open hydro file
-**     get maximum range in array
-**     write headings for one variable
-**     for index in array range:
-**       write streamflow corresponding to current step
-**
-***************************************************************************/
-void tFlowResults::write_extra_hyd(char *name, char *identification)
-{
-	FILE *ifile;
-	int ii;               // Loop counter 
-	int it_hour, it_min;  // Hours and minutes to print results 
-	
-	if ((ifile=fopen(name,"w")) == NULL) {
-		cout<<"\nError: Unable to open extra hydro file: "<<name<<endl;
-		cout<<"Exiting Program..."<<endl;
-		exit(2);
-	}
-	
-	fprintf(ifile,"  1  \n%s\n", identification);
-	for (ii=0; ii < iimax; ii++) {
-		timer->res_time_mid(ii, &it_hour, &it_min);
-		fprintf(ifile," 0 %04d.%02d %f %f\n",
-				it_hour, it_min, phydro[ii]+mhydro[ii], crr[ii]);
-	}
-	fclose(ifile);   
 	return;
 }
 
@@ -720,10 +609,9 @@ void tFlowResults::write_extra_hyd(char *name, char *identification)
 ***************************************************************************/
 void tFlowResults::write_Runoff_Types(char *filename, char *)
 {
-	FILE *ifile;
-	int ii;               
-	int it_hour, it_min;  
-	
+	int ii;
+	int it_hour, it_min;
+
 #ifdef PARALLEL_TRIBS
 
   // Sum hydrographs for each runoff type across processors
@@ -732,7 +620,6 @@ void tFlowResults::write_Runoff_Types(char *filename, char *)
   double* pr = tParallel::sum(PsrfRout, iimax);
   double* satr = tParallel::sum(SatsrfRout, iimax);
 
-
   if (tParallel::isMaster()) {
     for (int i = 0; i < iimax; i++) {
       HsrfRout[i] = hr[i];
@@ -740,7 +627,6 @@ void tFlowResults::write_Runoff_Types(char *filename, char *)
       PsrfRout[i] = pr[i];
       SatsrfRout[i] = satr[i];
     }
-
     delete [] hr;
     delete [] sbr;
     delete [] pr;
@@ -751,32 +637,31 @@ void tFlowResults::write_Runoff_Types(char *filename, char *)
   if (tParallel::isMaster()) {
 #endif
 
-	if ((ifile=fopen(filename,"w")) == NULL) {
+	ofstream ifile(filename);
+	if (!ifile.is_open()) {
 		cout<<"\nError: Unable to open *.rft file: "<<filename<<endl;
 		cout<<"Exiting Program..."<<endl;
 		exit(2);
 	}
-	
-	if (simCtrl->Header_label=='Y') {
-		fprintf(ifile,"%s\t","Time");
-		fprintf(ifile,"%s\t","Hsrf");
-		fprintf(ifile,"%s\t","Sbsrf");
-		fprintf(ifile,"%s\t","Psrf");
-		fprintf(ifile,"%s\n","Satsrf");
-		fprintf(ifile,"%s\t%s\t%s\t%s\t%s\n","hr","m3/s","m3/s","m3/s","m3/s");
-	}
-	
+	ifile << fixed << setprecision(3);
+
+	// Write header
+	ifile << "Time_hr,"      // 1
+	      << "Hsrf_m3_s,"    // 2
+	      << "Sbsrf_m3_s,"   // 3
+	      << "Psrf_m3_s,"    // 4
+	      << "Satsrf_m3_s\n"; // 5
+
 	// Current Hydrographs
-	for (ii=0; ii<iimax; ii++)  {      // Current
+	for (ii=0; ii<iimax; ii++) {
 		timer->res_time_begin(ii+1, &it_hour, &it_min);
-		fprintf(ifile,"%04d.%02d ", it_hour, it_min);
-		fprintf(ifile,"\t%f\t", HsrfRout[ii]);
-		fprintf(ifile,"%f\t", SbsrfRout[ii]);
-		fprintf(ifile,"%f\t", PsrfRout[ii]);
-		fprintf(ifile,"%f\n", SatsrfRout[ii]);
-	}   
+		ifile << it_hour + it_min/60.0 << ","  // 1 Time_hr
+		      << HsrfRout[ii]          << ","  // 2 Hsrf_m3_s
+		      << SbsrfRout[ii]         << ","  // 3 Sbsrf_m3_s
+		      << PsrfRout[ii]          << ","  // 4 Psrf_m3_s
+		      << SatsrfRout[ii]        << "\n"; // 5 Satsrf_m3_s
+	}
 	Cout<<"Creating Runoff Type Output: '"<<filename<<"'"<<endl;
-	fclose(ifile);   
 
 #ifdef PARALLEL_TRIBS
   }
@@ -1055,8 +940,13 @@ void tFlowResults::store_rain(double time, double value)
 	return;
 }
 
+void tFlowResults::store_rain(int init, double ratio, double value)
+{
+	crr[init] += value * ratio;
+}
+
 /***************************************************************************
-** 
+**
 **  tFlowResults: store_maxminrain(double time, double value)
 **
 ***************************************************************************/
@@ -1084,10 +974,23 @@ void tFlowResults::store_maxminrain(double time, double value, int flag)
 	return;
 }
 
+void tFlowResults::store_maxminrain(int init, double ratio, double value, int flag)
+{
+	if (flag == 0) {
+		if (value > max[init]) max[init] = value;
+		if (value <= min[init]) min[init] = value;
+	} else if (flag == 1) {
+		frac[init] += value * ratio;
+	}
+}
+
 /***************************************************************************
-** 
+**
 **  tFlowResults: store_saturation(double time, double value)
-** TODO is it possible to optimize this part of the code?
+**  TODO is it possible to optimize this part of the code?
+**  dcalc, dres, and init are invariant across all store_saturation calls
+**  in the node loop, could be computed once per time step in tFlowNet::SurfaceFlow()?
+**
 ***************************************************************************/
 void tFlowResults::store_saturation(double time, double value, int flag) 
 {   
@@ -1160,148 +1063,38 @@ void tFlowResults::store_saturation(double time, double value, int flag)
 	return;
 }
 
-/*****************************************************************************
-**  
-**  tFlowResults::checkForecast()
-**  
-**  Check the forecast state. Returns integer representing state:
-**  
-**  0 = Before and up to forecast time, Use QPE
-**  1 = In Forecast Period and up to lead time, Use QPF
-**  2 = In Forecast Period and after lead time, Use Average Rainfall
-**  3 = After Forecast Period, End simulation
-**
-*****************************************************************************/
-int tFlowResults::checkForecast() 
+void tFlowResults::store_saturation(int init, double ratio, double value, int flag)
 {
-	int state {};
-	
-	if (timer->getCurrentTime() < timer->getfTime())
-		state = 0;
-	else if (timer->getCurrentTime() < (timer->getfTime() + timer->getfLead()) &&
-			 timer->getCurrentTime() >= timer->getfTime())
-		state = 1;
-	else if (timer->getCurrentTime() < (timer->getfTime() + timer->getfLength()) &&
-			 timer->getCurrentTime() >= timer->getfLead())
-		state = 2;
-	else if (timer->getCurrentTime() >= (timer->getfTime() + timer->getfLength()))
-		state = 3;
-	
-	return state;
-}
-
-/***************************************************************************
-**
-** tFlowResults::writeRestart() Function
-**
-** Called from tSimulator during simulation loop
-**
-***************************************************************************/
-
-void tFlowResults::writeRestart(fstream & rStr) const
-{
-  BinaryWrite(rStr, limit);
-  BinaryWrite(rStr, iimax);
-  BinaryWrite(rStr, ribsOutput);
-  BinaryWrite(rStr, writeFlag);
-  BinaryWrite(rStr, count);
-  for (int i = 0; i < limit; i++)
-    BinaryWrite(rStr, fState[i]);
-
-  for (int i = 0; i < limit; i++) {
-    BinaryWrite(rStr, prr[i]);
-    BinaryWrite(rStr, crr[i]);
-    BinaryWrite(rStr, phydro[i]);
-    BinaryWrite(rStr, mhydro[i]);
-    BinaryWrite(rStr, HsrfRout[i]);
-    BinaryWrite(rStr, SbsrfRout[i]);
-    BinaryWrite(rStr, PsrfRout[i]);
-    BinaryWrite(rStr, SatsrfRout[i]);
-    BinaryWrite(rStr, max[i]);
-    BinaryWrite(rStr, min[i]);
-    BinaryWrite(rStr, msm[i]);
-    BinaryWrite(rStr, msmRt[i]);
-    BinaryWrite(rStr, msmU[i]);
-    BinaryWrite(rStr, mgw[i]);
-    BinaryWrite(rStr, met[i]);
-    BinaryWrite(rStr, sat[i]);
-    BinaryWrite(rStr, frac[i]);
-    BinaryWrite(rStr, swe[i]);
-    BinaryWrite(rStr, melt[i]);
-    BinaryWrite(rStr, snsub[i]); // CJC2020
-    BinaryWrite(rStr, snevap[i]); // CJC2020
-    BinaryWrite(rStr, stC[i]);
-    BinaryWrite(rStr, DUint[i]);
-    BinaryWrite(rStr, slhf[i]);
-    BinaryWrite(rStr, sshf[i]);
-    BinaryWrite(rStr, sghf[i]);
-    BinaryWrite(rStr, sphf[i]);
-    BinaryWrite(rStr, srli[i]);
-    BinaryWrite(rStr, srlo[i]);
-    BinaryWrite(rStr, srsi[i]);
-    BinaryWrite(rStr, intsn[i]);
-    BinaryWrite(rStr, intsub[i]);
-    BinaryWrite(rStr, intunl[i]);
-    BinaryWrite(rStr, sca[i]);
-    BinaryWrite(rStr, Perc[i]); //ASM Percolation option
-    BinaryWrite(rStr, qunsat[i]); // CJC2025
-  }
-}
-
-/***************************************************************************
-**
-** tFlowResults::readRestart() Function
-**
-***************************************************************************/
-
-void tFlowResults::readRestart(fstream & rStr)
-{
-  BinaryRead(rStr, limit);
-  BinaryRead(rStr, iimax);
-  BinaryRead(rStr, ribsOutput);
-  BinaryRead(rStr, writeFlag);
-  BinaryRead(rStr, count);
-  for (int i = 0; i < limit; i++)
-    BinaryRead(rStr, fState[i]);
-
-  for (int i = 0; i < limit; i++) {
-    BinaryRead(rStr, prr[i]);
-    BinaryRead(rStr, crr[i]);
-    BinaryRead(rStr, phydro[i]);
-    BinaryRead(rStr, mhydro[i]);
-    BinaryRead(rStr, HsrfRout[i]);
-    BinaryRead(rStr, SbsrfRout[i]);
-    BinaryRead(rStr, PsrfRout[i]);
-    BinaryRead(rStr, SatsrfRout[i]);
-    BinaryRead(rStr, max[i]);
-    BinaryRead(rStr, min[i]);
-    BinaryRead(rStr, msm[i]);
-    BinaryRead(rStr, msmRt[i]);
-    BinaryRead(rStr, msmU[i]);
-    BinaryRead(rStr, mgw[i]);
-    BinaryRead(rStr, met[i]);
-    BinaryRead(rStr, sat[i]);
-    BinaryRead(rStr, frac[i]);
-    BinaryRead(rStr, swe[i]);
-    BinaryRead(rStr, melt[i]);
-    BinaryRead(rStr, snsub[i]); // CJC2020
-    BinaryRead(rStr, snevap[i]); // CJC2020
-    BinaryRead(rStr, stC[i]);
-    BinaryRead(rStr, DUint[i]);
-    BinaryRead(rStr, slhf[i]);
-    BinaryRead(rStr, sshf[i]);
-    BinaryRead(rStr, sghf[i]);
-    BinaryRead(rStr, sphf[i]);
-    BinaryRead(rStr, srli[i]);
-    BinaryRead(rStr, srlo[i]);
-    BinaryRead(rStr, srsi[i]);
-    BinaryRead(rStr, intsn[i]);
-    BinaryRead(rStr, intsub[i]);
-    BinaryRead(rStr, intunl[i]);
-    BinaryRead(rStr, sca[i]);
-    BinaryRead(rStr, Perc[i]); //ASM Percolationoption
-    BinaryRead(rStr, qunsat[i]); // CJC2025
-  }
+	double scaled = value * ratio;
+	switch (flag) {
+		case  0: msm[init]    += scaled; break;
+		case  1: msmRt[init]  += scaled; break;
+		case  2: msmU[init]   += scaled; break;
+		case  3: sat[init]    += scaled; break;
+		case  4: mgw[init]    += scaled; break;
+		case  5: met[init]    += scaled; break;
+		case  6: swe[init]    += scaled; break;
+		case  7: melt[init]   += scaled; break;
+		case  8: stC[init]    += scaled; break;
+		case  9: DUint[init]  += scaled; break;
+		case 10: slhf[init]   += scaled; break;
+		case 11: sshf[init]   += scaled; break;
+		case 12: sghf[init]   += scaled; break;
+		case 13: sphf[init]   += scaled; break;
+		case 14: srli[init]   += scaled; break;
+		case 15: srlo[init]   += scaled; break;
+		case 16: srsi[init]   += scaled; break;
+		case 17: intsn[init]  += scaled; break;
+		case 18: intsub[init] += scaled; break;
+		case 19: intunl[init] += scaled; break;
+		case 20: sca[init]    += scaled; break;
+		case 21: snsub[init]  += scaled; break;
+		case 22: snevap[init] += scaled; break;
+		// ChannelPerc is a rate [m3/s]: integrate over the routing time step
+		// (getTimeStep() is in hours) to accumulate a volume [m3].
+		case 23: Perc[init]   += value * timer->getTimeStep() * 3600.; break;
+		case 24: qunsat[init] += scaled; break;
+	}
 }
 
 //=========================================================================

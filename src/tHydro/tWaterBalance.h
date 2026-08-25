@@ -2,7 +2,7 @@
  * TIN-based Real-time Integrated Basin Simulator (tRIBS)
  * Distributed Hydrologic Model
  *
- * Copyright (c) 2025. tRIBS Developers
+ * Copyright (c) tRIBS Developers
  *
  * See LICENSE file in the project root for full license information.
  ******************************************************************************/
@@ -52,8 +52,6 @@ public:
   void SaturatedBalance();
   void BasinStorage(double);
   void Print(double *);
-  void writeRestart(fstream &) const;
-  void readRestart(fstream &);
 
 protected:
   tMesh<tCNode> *gridPtr;      
@@ -61,6 +59,7 @@ protected:
 
   int finalTime;
   double metStep, unsStep, satStep; //WR 12192023: rounding errors converting from double in .in to int here
+  double etiStep;                   // Snow/ET step [hr]; see SetWaterBalance
   double *BasinStorages;
 };
 

@@ -2,7 +2,7 @@
  * TIN-based Real-time Integrated Basin Simulator (tRIBS)
  * Distributed Hydrologic Model
  *
- * Copyright (c) 2025. tRIBS Developers
+ * Copyright (c) tRIBS Developers
  *
  * See LICENSE file in the project root for full license information.
  ******************************************************************************/
@@ -19,7 +19,6 @@
 #define TRAINFALL_H
 
 #include "src/Headers/Inclusions.h"
-#include "src/tStorm/tStorm.h"
 
 using namespace std;
 
@@ -33,12 +32,12 @@ class tRunTimer;
 //
 //=========================================================================
 
-class tRainfall : public tStorm 
+class tRainfall
 {
 public:
   tRainfall();
   ~tRainfall();
-  tRainfall(SimulationControl*, tMesh<tCNode> *, tInputFile &, tResample *);
+  tRainfall(SimulationControl*, tMesh<tCNode> *, tInputFile &, tResample *, tRunTimer *);
   SimulationControl *simCtrl;    
   
   int  Compose_In_Mrain_Name(tRunTimer *);
@@ -47,7 +46,7 @@ public:
   void NewRain(double);
 
   void NewRain(tRunTimer *);
-  void NewRainData(int);
+  void NewRainData(int time, tRunTimer *timer); // CJC2025 Add tRunTimer to function elcaration for data validation
   void InitializeGauge();
   void readGaugeStat(char *);
   void readGaugeData(int);
@@ -55,9 +54,6 @@ public:
   void assignStationToNode();
   void callRainGauge(tRunTimer *);
   void setToNode();
-  void setfState(int);
-  void writeRestart(fstream &) const;
-  void readRestart(fstream &);
   
   char mrainfileIn[kMaxNameSize];
   int searchRain, rainfallType;
@@ -69,19 +65,19 @@ protected:
   tMesh<tCNode> *gridPtr;
   tResample     *respPtr;
   tRainGauge * rainGauges;
-  int numStations, arraySize, hourlyTimeStep, numRains;
+  int numStations, arraySize, hourlyTimeStep;
   int *assignedRain, *currentTime;
   double *curRain, *latitude, *longitude, *gaugeRain; 
+
+  tRunTimer *timer;
 
   // SKY2008Snow from AJR2007
   double precLapseRate;//AJR @ NMT 2007
 
   char inputname[kMaxNameSize];
-  char forecastname[kMaxNameSize];
   char stationFile[kName];
-  char extension[20]; 
-  double aveMAP, cumMAP, climate;   
-  int optForecast, fState, optMAP;
+  char extension[20];
+  int optMAP;
   ifstream infile; 
 };
 

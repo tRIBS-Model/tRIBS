@@ -2,7 +2,7 @@
  * TIN-based Real-time Integrated Basin Simulator (tRIBS)
  * Distributed Hydrologic Model
  *
- * Copyright (c) 2025. tRIBS Developers
+ * Copyright (c) tRIBS Developers
  *
  * See LICENSE file in the project root for full license information.
  ******************************************************************************/
@@ -46,35 +46,28 @@ template< class tSubNode >
 class tRestart {
 
 public:
-  /// Constructor
   tRestart(
         tRunTimer* t,
         tMesh<tSubNode>* m,
         tKinemat* f,
-        tWaterBalance* b,
-        tHydroModel* h,
-        tRainfall* r,
-        tEvapoTrans* e,
-        tIntercept* i,
         tSnowPack* s);
 
-  /// Destructor
   ~tRestart() {}
 
-  /// Write a restart dump
-  void writeRestart(fstream &);
-  /// Read a restart dump
-  void readRestart(fstream &);
+  void writeRestart(ostream &);
+  void writeRestartOutlets(ostream &);
+  void writeRestartNodes(ostream &);
+  void readRestart(istream &);
+  void readRestartGlobal(istream &, int32_t, int32_t);
+
+  int getSnowOpt() const;
+  int getNumNodes() const;
+  int getNumOutlets() const;
 
 private:
   tRunTimer*         timer;           //!< Run timer
   tMesh<tSubNode>*   mesh;            //!< Mesh
   tKinemat*          flow;            //!< Kinematic flow
-  tWaterBalance*     balance;         //!< Water balance
-  tHydroModel*       hydro;           //!< Hydro model
-  tRainfall*         rainfall;        //!< Rainfall
-  tEvapoTrans*       evap;            //!< Evapotranspiration
-  tIntercept*        intercept;       //!< Intercept structure
   tSnowPack*         snowpack;        //!< Snow pack structure
 };
 

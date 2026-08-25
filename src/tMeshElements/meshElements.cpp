@@ -2,7 +2,7 @@
  * TIN-based Real-time Integrated Basin Simulator (tRIBS)
  * Distributed Hydrologic Model
  *
- * Copyright (c) 2025. tRIBS Developers
+ * Copyright (c) tRIBS Developers
  *
  * See LICENSE file in the project root for full license information.
  ******************************************************************************/
@@ -43,8 +43,8 @@ int PointsCCW( tArray< double > &, tArray< double > &, tArray< double > & );
 **
 *************************************************************************/
 
-tArray< double > FindIntersectionCoords( tArray< double > xy1, tArray< double > xy2,
-                                         tArray< double > xy3, tArray< double > xy4 )
+tArray< double > FindIntersectionCoords( const tArray< double > &xy1, const tArray< double > &xy2,
+                                         const tArray< double > &xy3, const tArray< double > &xy4 )
 {
 	double dxa, dxb, dya, dyb, a, b, c, f, g, h;
 	

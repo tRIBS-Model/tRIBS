@@ -2,7 +2,7 @@
  * TIN-based Real-time Integrated Basin Simulator (tRIBS)
  * Distributed Hydrologic Model
  *
- * Copyright (c) 2025. tRIBS Developers
+ * Copyright (c) tRIBS Developers
  *
  * See LICENSE file in the project root for full license information.
  ******************************************************************************/
@@ -155,6 +155,43 @@ void tVariant::updateVariable(char *param)
 	return;
 }
 
+/***************************************************************************
+**
+** ValidateLandUseGridValue() Function
+**
+** Physical-range validation for a time-varying land-use grid value. Mirrors
+** the .ldt table checks in tInvariant (GenericLandData) so that an out-of-range
+** grid (e.g. VegFraction > 1) cannot silently corrupt the canopy water balance
+** by driving the rain partition (coeffV*netP_veg + (1-coeffV)*rainfall)
+** negative. Exits with a message naming the parameter, value, and node index.
+** The 9999.99 no-data sentinel is skipped (e.g. unused root-zone depth grids).
+**
+***************************************************************************/
+static void ValidateLandUseGridValue(const char *param, double value,
+                                     int nodeIndex, const char *gridFile)
+{
+	const double noData = 9999.99;
+	if (value == noData)
+		return;   // sentinel no-data; nothing to validate
+
+	// Fraction-type parameters must lie in [0,1]; all others must be >= 0.
+	bool isFraction = (strcmp(param,"AL") == 0 || strcmp(param,"TF") == 0 ||
+	                   strcmp(param,"VF") == 0 || strcmp(param,"OT") == 0);
+	bool bad = (value < 0.0) || (isFraction && value > 1.0);
+
+	if (bad) {
+		cout << "\nError: Land use grid '" << gridFile << "' parameter " << param
+		     << " = " << value << " at node index " << nodeIndex
+		     << " is out of physical range ";
+		if (isFraction)
+			cout << "[0, 1].";
+		else
+			cout << "(must be >= 0).";
+		cout << "\nExiting Program...\n\n" << endl;
+		exit(2);
+	}
+}
+
 // SKYnGM2008LU
 /***************************************************************************
 **
@@ -182,9 +219,10 @@ void tVariant::updateLUVarOfPrevGrid(const char *param, char *GridFileName)
 	id = 0;
 	cn = nodeIter.FirstP();
 	while( nodeIter.IsActive() ) {
-		if (strcmp(param,"AL") == 0) { 
+		ValidateLandUseGridValue(param, resample[id], id, GridFileName);
+		if (strcmp(param,"AL") == 0) {
 			cn->setLandUseAlbInPrevGrid( resample[id] );
-			cn->setLandUseAlb( resample[id] ); 
+			cn->setLandUseAlb( resample[id] );
 		}
 		else if (strcmp(param,"TF") == 0) {
 			cn->setThroughFallInPrevGrid( resample[id] );
@@ -201,14 +239,6 @@ void tVariant::updateLUVarOfPrevGrid(const char *param, char *GridFileName)
 		else if (strcmp(param,"VF") == 0) {
 			cn->setVegFractionInPrevGrid( resample[id] );
 			cn->setVegFraction( resample[id] );
-		}
-		else if (strcmp(param,"CS") == 0) {
-			cn->setCanStorParamInPrevGrid( resample[id] );
-			cn->setCanStorParam( resample[id] );
-		}
-		else if (strcmp(param,"IC") == 0) {
-			cn->setIntercepCoeffInPrevGrid( resample[id] );
-			cn->setIntercepCoeff( resample[id] );
 		}
 		else if (strcmp(param,"CC") == 0) {
 			cn->setCanFieldCapInPrevGrid( resample[id] );
@@ -239,9 +269,12 @@ void tVariant::updateLUVarOfPrevGrid(const char *param, char *GridFileName)
 			cn->setTransThreshInPrevGrid( resample[id] );
 			cn->setTransThresh( resample[id] );
 		}
+		else if (strcmp(param,"RZ") == 0) {
+			cn->setRootZoneDepthInPrevGrid( resample[id] );
+		}
 
 		cn = nodeIter.NextP();
-		id++; 
+		id++;
 	}
 	return;
 }
@@ -270,7 +303,8 @@ void tVariant::updateLUVarOfBothGrids(const char *param, char *GridFileName)
 	id = 0;
 	cn = nodeIter.FirstP();
 	while( nodeIter.IsActive() ) {
-		if (strcmp(param,"AL") == 0) { 
+		ValidateLandUseGridValue(param, resample[id], id, GridFileName);
+		if (strcmp(param,"AL") == 0) {
 			cn->setLandUseAlbInPrevGrid( cn->getLandUseAlbInUntilGrid() );
 			cn->setLandUseAlb(cn->getLandUseAlbInUntilGrid() ); 
 			cn->setLandUseAlbInUntilGrid( resample[id] );
@@ -294,16 +328,6 @@ void tVariant::updateLUVarOfBothGrids(const char *param, char *GridFileName)
 			cn->setVegFractionInPrevGrid( cn->getVegFractionInUntilGrid() );
 			cn->setVegFraction( cn->getVegFractionInUntilGrid() );
 			cn->setVegFractionInUntilGrid( resample[id] );
-		}
-		else if (strcmp(param,"CS") == 0) {
-			cn->setCanStorParamInPrevGrid( cn->getCanStorParamInUntilGrid() );
-			cn->setCanStorParam( cn->getCanStorParamInUntilGrid() );
-			cn->setCanStorParamInUntilGrid( resample[id] );
-		}
-		else if (strcmp(param,"IC") == 0) {
-			cn->setIntercepCoeffInPrevGrid( cn->getIntercepCoeffInUntilGrid() );
-			cn->setIntercepCoeff( cn->getIntercepCoeffInUntilGrid() );
-			cn->setIntercepCoeffInUntilGrid( resample[id] );
 		}
 		else if (strcmp(param,"CC") == 0) {
 			cn->setCanFieldCapInPrevGrid( cn->getCanFieldCapInUntilGrid() );
@@ -341,10 +365,13 @@ void tVariant::updateLUVarOfBothGrids(const char *param, char *GridFileName)
 			cn->setTransThresh( cn->getTransThreshInUntilGrid() );
 			cn->setTransThreshInUntilGrid( resample[id] );
 		}
-
+		else if (strcmp(param,"RZ") == 0) {
+			cn->setRootZoneDepthInPrevGrid( cn->getRootZoneDepthInUntilGrid() );
+			cn->setRootZoneDepthInUntilGrid( resample[id] );
+		}
 
 		cn = nodeIter.NextP();
-		id++; 
+		id++;
 	}
 	return;
 }

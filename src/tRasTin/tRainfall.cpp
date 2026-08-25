@@ -2,7 +2,7 @@
  * TIN-based Real-time Integrated Basin Simulator (tRIBS)
  * Distributed Hydrologic Model
  *
- * Copyright (c) 2025. tRIBS Developers
+ * Copyright (c) tRIBS Developers
  *
  * See LICENSE file in the project root for full license information.
  ******************************************************************************/
@@ -25,20 +25,20 @@
 //=========================================================================
 
 // Default Constructor
-tRainfall::tRainfall() 
+tRainfall::tRainfall()
 {
     gridPtr = 0;
 }
 
 // Constructor
-tRainfall::tRainfall(SimulationControl *simCtrPtr, tMesh<tCNode> *gridRef, 
-					 tInputFile &inFile, tResample *resamp) 
-: tStorm( simCtrPtr, inFile )
+tRainfall::tRainfall(SimulationControl *simCtrPtr, tMesh<tCNode> *gridRef,
+					 tInputFile &inFile, tResample *resamp, tRunTimer *timerPtr)
 {
 	gridPtr = gridRef;
 	respPtr = resamp;
 	simCtrl = simCtrPtr;
-	
+	timer   = timerPtr;
+
 	SetRainVariables( inFile );
 
 }
@@ -54,78 +54,55 @@ void tRainfall::SetRainVariables(tInputFile &inFile)
 { 
 	rainfallType = inFile.ReadItem(rainfallType, "RAINSOURCE");
 	rainDt = inFile.ReadItem(rainDt, "RAININTRVL");
-	fState = 0;     //Default values
-	optMAP = 0;  
-	climate = 0.0; 
-	optForecast = 0;  
-	
+	optMAP = 0;
+
 	// If data are used as the model forcing
-	if (!getoptStorm()) {
+	if (rainfallType == 1)
+		Cout<<"Rainfall Source: \t\tGridded Rainfall [mm/hr]\n";
+	
+	if (rainfallType == 1) { 
+		inFile.ReadItem(inputname, "RAINFILE");
+		inFile.ReadItem(extension, "RAINEXTENSION");
 		
-		if (rainfallType == 1)
-			Cout<<"Rainfall Source: \t\tNEXRAD StageIII/P1 Product [cm/hr]\n";
-		else if (rainfallType == 2)
-			Cout<<"Rainfall Source: \t\tWSI Product [mm/hr]\n";
-		
-		if (rainfallType == 1 || rainfallType == 2) { 
-			inFile.ReadItem(inputname, "RAINFILE");
-			inFile.ReadItem(extension, "RAINEXTENSION");
-			
-			// To make compatible with existing model setups
-			if (inFile.IsItemIn( "RAINSEARCH" ))
-				searchRain = inFile.ReadItem(searchRain, "RAINSEARCH");
-			else 
-				searchRain = 24; //Default value
-			optMAP = inFile.ReadItem(optMAP, "RAINDISTRIBUTION");
-			Cout<<"Rainfall Input Path: \t\t'"<<inputname<<"'"<<endl;
-			Cout<<"Rainfall File Extension: \t"<<extension<<endl;
-			NewRain();  
+		// To make compatible with existing model setups
+		if (inFile.IsItemIn( "RAINSEARCH" ))
+			searchRain = inFile.ReadItem(searchRain, "RAINSEARCH");
+		else 
+			searchRain = 24; //Default value
+		optMAP = inFile.ReadItem(optMAP, "RAINDISTRIBUTION");
+		Cout<<"Rainfall Input Path: \t\t'"<<inputname<<"'"<<endl;
+		Cout<<"Rainfall File Extension: \t"<<extension<<endl;
+		NewRain();
+	}
+	else if (rainfallType == 2) {
+		Cout<<"Rainfall Source: \t\tRaingauge Stations"<<endl;
+		inFile.ReadItem(stationFile, "GAUGESTATIONS");
+
+		// SKY2008Snow from AJR2007
+		if (inFile.IsItemIn("PRECLAPSE"))
+			precLapseRate = inFile.ReadItem(precLapseRate, "PRECLAPSE"); //AJR @ NMT 2007
+		else
+			precLapseRate = 0.0;
+
+		readGaugeStat(stationFile);
+		for (int ct=0;ct<numStations;ct++) {
+			readGaugeData(ct);
 		}
-		else if (rainfallType == 3) {
-			Cout<<"Rainfall Source: \t\tRaingauge Stations"<<endl;
-			inFile.ReadItem(stationFile, "GAUGESTATIONS");
 
-			// SKY2008Snow from AJR2007
-			if (inFile.IsItemIn("PRECLAPSE"))
-				precLapseRate = inFile.ReadItem(precLapseRate, "PRECLAPSE"); //AJR @ NMT 2007
-			else
-				precLapseRate = 0.0;
+		assignStationToNode();
+		InitializeGauge();
 
-			readGaugeStat(stationFile);
-			for (int ct=0;ct<numStations;ct++) {
-				readGaugeData(ct);
-			}
-
-			assignStationToNode();
-			InitializeGauge();
-
-		}
-		else {
-			Cout<<"\nRainfall Source Option " << rainfallType;
-			Cout<<" not valid." <<endl;
-			Cout<<"\tPlease use: "<<endl;
-			Cout<<"\t\t(1) NEXRAD Stage III Radar"<<endl;
-			Cout<<"\t\t(2) WSI Radar Rainfall"<<endl;
-			Cout<<"\t\t(3) Rain Gauge Station Rainfall"<<endl;
-			Cout << "Exiting Program...\n\n"<<endl;
-			exit(1);
-		}
+	}
+	else {
+		Cout<<"\nRainfall Source Option " << rainfallType;
+		Cout<<" not valid." <<endl;
+		Cout<<"\tPlease use: "<<endl;
+		Cout<<"\t\t(1) Gridded Rainfall"<<endl;
+		Cout<<"\t\t(2) Rain Gauge Station Rainfall"<<endl;
+		Cout << "Exiting Program...\n\n"<<endl;
+		exit(1);
 	}
 	
-	// Get Forecast File Directory, use same extension
-	optForecast = inFile.ReadItem(optForecast, "FORECASTMODE"); 
-
-	if (optForecast == 1) {
-		inFile.ReadItem(forecastname, "FORECASTFILE");
-	}
-	else if (optForecast == 3) {
-		climate = inFile.ReadItem(climate, "CLIMATOLOGY");
-	}
-	
-	// Re-initialize average, cumulative MAP and # rainfall files
-	numRains = 0;
-	aveMAP = 0.0;
-	cumMAP = 0.0;
 }
 
 // Destructor
@@ -135,22 +112,11 @@ tRainfall::~tRainfall()
 	respPtr = nullptr;
 	simCtrl = nullptr;
 	
-	if (rainfallType == 1 || rainfallType == 2) {
-#ifdef ALPHA_64
-		if ( infile )
-			infile.close();
-#elif defined LINUX_32
+	if (rainfallType == 1) {
 		if ( infile.is_open() )
 			infile.close();
-#elif defined WIN
-		if ( infile )
-			infile.close();
-#else 
-		if ( infile )
-			infile.close();
-#endif
 	}
-	if (rainfallType == 3) {
+	if (rainfallType == 2) {
 		delete [] currentTime; 
 		delete [] latitude;
 		delete [] longitude; 
@@ -178,70 +144,21 @@ tRainfall::~tRainfall()
 ***************************************************************************/
 int tRainfall::Compose_In_Mrain_Name(tRunTimer *t) 
 { 
-#ifdef ALPHA_64
-    if ( infile )
-		infile.close();
-#elif defined LINUX_32
     if ( infile.is_open() )
 		infile.close();
-#elif defined WIN
-    if ( infile )
-		infile.close();
-#else 
-    if ( infile )
-		infile.close();
-#endif
 	
-	// Read rainfall file depending on forecast state
-	if (fState == 0) {
-		
-		if (t->minuteRn || t->dtRain < 1) //If 'minute' is NOT equal to '0'  
-			snprintf(mrainfileIn,sizeof(mrainfileIn), "%s%02d%02d%04d%02d%02d.%s", inputname,
-					t->monthRn, t->dayRn, t->yearRn, t->hourRn, t->minuteRn, extension);//WR--09192023:'sprintf' is deprecated: This function is provided for compatibility reasons only.
-		else {           //If 'minute' IS equal to '0'
-			snprintf(mrainfileIn,sizeof(mrainfileIn),"%s%02d%02d%04d%02d.%s", inputname,
-					t->monthRn, t->dayRn, t->yearRn, t->hourRn, extension);//WR--09192023:'sprintf' is deprecated: This function is provided for compatibility reasons only.
-		}
-		infile.open(mrainfileIn);
+	if (t->minuteRn || t->dtRain < 1)
+		snprintf(mrainfileIn,sizeof(mrainfileIn), "%s%02d%02d%04d%02d%02d.%s", inputname,
+				t->monthRn, t->dayRn, t->yearRn, t->hourRn, t->minuteRn, extension);
+	else {
+		snprintf(mrainfileIn,sizeof(mrainfileIn),"%s%02d%02d%04d%02d.%s", inputname,
+				t->monthRn, t->dayRn, t->yearRn, t->hourRn, extension);
 	}
-	
-	else if (fState == 1) {
-		
-		if (t->getoptForecast() == 1) {
-			if (t->minuteRn || t->dtRain < 1) //If 'minute' is NOT equal to '0'  
-				snprintf(mrainfileIn,sizeof(mrainfileIn), "%s%02d%02d%04d%02d%02d.%s", forecastname,
-						t->monthRn, t->dayRn, t->yearRn, t->hourRn, t->minuteRn, extension); //WR--09192023:'sprintf' is deprecated: This function is provided for compatibility reasons only.
-			else {           //If 'minute' IS equal to '0'
-				snprintf(mrainfileIn,sizeof(mrainfileIn),"%s%02d%02d%04d%02d.%s", forecastname,
-						t->monthRn, t->dayRn, t->yearRn, t->hourRn, extension);//WR--09192023:'sprintf' is deprecated: This function is provided for compatibility reasons only.
-			}
-			infile.open(mrainfileIn);
-		}
-		else if (t->getoptForecast() == 2) {   //Persistence
-			infile.open(mrainfileIn);
-		}
-		else if (t->getoptForecast() == 3) {  //Climatology
-			return 1;
-		}
-	}
-	
-	else if (fState == 2)
-		return 1;
-	
+	infile.open(mrainfileIn);
+
 	// Check if file opened
-#ifdef ALPHA_64
-    if ( !infile )
-		return 0;
-#elif defined LINUX_32
     if ( !(infile.is_open()) )
 		return 0;
-#elif defined WIN
-    if ( !infile )
-		return 0;
-#else 
-    if ( !infile )
-		return 0;
-#endif
 	else {
 		infile.close();
 		return 1;
@@ -313,73 +230,27 @@ void tRainfall::NewRain(tRunTimer *t)
 	
 	id = 0;
 	cn = nodeIter.FirstP();
-	
-	// FSTATE == 0 OR 1
-	if (fState == 0 || fState == 1) {
-		
-		curRain = respPtr->doIt(mrainfileIn, 1);
-		
-		// Check Valid Rainfall and Compute MAP 
-		while( nodeIter.IsActive() ) {
-			if (curRain[id] < 0.0 || curRain[id] > maxRain*t->getRainDT())
-				curRain[id] = 0.0;
-			sumRain = sumRain + cn->getVArea()*curRain[id];   
-			sumArea = sumArea + cn->getVArea();
-			cn = nodeIter.NextP();
-			id++; 
-		}
-		
-		// Compute cum and ave MAPs over time prior to forecast
-		// conditioned on rain occuring (sumRain > 0)
-		if (fState == 0 && sumRain > 0) {
-			numRains++;
-			cumMAP += sumRain/sumArea;
-			aveMAP = cumMAP/numRains;
-		}
-		
-		// Assign Rainfall Values
-		id = 0;
-		cn = nodeIter.FirstP();
-		while( nodeIter.IsActive() ) { 
-			// Assign MAP to curRain for optMAP = 1
-			if (optMAP == 1)
-				curRain[id]=sumRain/sumArea;
-			
-			if (rainfallType == 1)
-				cn->setRain( curRain[id]*10.0/t->getRainDT()); //NEXRAD - cm/hour
-			else if (rainfallType == 2)
-				cn->setRain( curRain[id]/t->getRainDT());      //WSI - mm/hour
-			cn = nodeIter.NextP();
-			id++;
-		}
-		
-		// Climatological forecast for FState == 1
-		cn = nodeIter.FirstP();
-		if (fState == 1 && t->getoptForecast() == 3) {
-			while( nodeIter.IsActive() ) {
-				cn->setRain( climate ); 
-				cn = nodeIter.NextP();
-			}
-		}
+
+	curRain = respPtr->doIt(mrainfileIn, 1);
+
+	while( nodeIter.IsActive() ) {
+		if (curRain[id] < 0.0 || curRain[id] > maxRain*t->getRainDT())
+			curRain[id] = 0.0;
+		sumRain = sumRain + cn->getVArea()*curRain[id];
+		sumArea = sumArea + cn->getVArea();
+		cn = nodeIter.NextP();
+		id++;
 	}
-	
-	// FSTATE == 2
-	else if (fState == 2) {
-		if (t->getoptForecast() != 3) {
-			while( nodeIter.IsActive() ) {    
-				if (rainfallType == 1)
-					cn->setRain( aveMAP*10.0 ); //NEXRAD - cm/hour
-				else if (rainfallType == 2)
-					cn->setRain( aveMAP );      //WSI - mm/hour
-				cn = nodeIter.NextP();
-			}
-		}
-		else {    //Climatological forecast
-			while( nodeIter.IsActive() ) {    
-				cn->setRain( climate ); 
-				cn = nodeIter.NextP();
-			}
-		}
+
+	id = 0;
+	cn = nodeIter.FirstP();
+	while( nodeIter.IsActive() ) {
+		if (optMAP == 1)
+			curRain[id]=sumRain/sumArea;
+		if (rainfallType == 1)
+			cn->setRain( curRain[id]/t->getRainDT());
+		cn = nodeIter.NextP();
+		id++;
 	}
 
 	return;
@@ -433,7 +304,7 @@ void tRainfall::InitializeGauge()
 ***************************************************************************/
 void tRainfall::callRainGauge(tRunTimer *t) 
 {
-	NewRainData(hourlyTimeStep);
+	NewRainData(hourlyTimeStep, t);
 
 
 	tCNode * cNode;
@@ -460,12 +331,12 @@ void tRainfall::callRainGauge(tRunTimer *t)
 ** Assign the values from tRainGauge to tCNode.
 **
 ***************************************************************************/
-void tRainfall::NewRainData(int time) 
+void tRainfall::NewRainData(int time, tRunTimer *timer) 
 {  
-	currentTime[0] = rainGauges[0].getYear(time);
-	currentTime[1] = rainGauges[0].getMonth(time);
-	currentTime[2] = rainGauges[0].getDay(time);
-	currentTime[3] = rainGauges[0].getHour(time);
+    currentTime[0] = rainGauges[0].getYear(time);
+    currentTime[1] = rainGauges[0].getMonth(time);
+    currentTime[2] = rainGauges[0].getDay(time);
+    currentTime[3] = rainGauges[0].getHour(time);
 	
 	assignStationToNode();
 	
@@ -529,92 +400,83 @@ void tRainfall::NewRainData(int time)
 ** the raingauges used for rainfall input. Creates an array of tRainGauge
 ** for storing data. (see tRainGauge.h)
 **
-** Format for RainGaugeStation File:
+** Format for RainGaugeStation File (CSV):
 **
-** Header:
-** nStations nParams (6)
+** Header (required, 5 columns):
+** ID,DataFile,Northing,Easting,Elevation
 **
-** Body:
-** StationID# FilePath Latitude Longitude RecordLength NumParm
-**
-** The file should have N rows corresponding to the N number of stations.
-** and M columns corresponding to the data for each station.
-**
-** StationID  (int)         1->N
-** FilePath   (string)      File name and path for the station datafile
-** Reference Latitude  (double)  Station latitude  (basin projection)
-** Reference Longitude (double)  Station longitude (basin projection)
-** RecordLength  (int)      Number records for each station
-** NumParm (int)            Number of parameter in each station record
+** Body (one row per station):
+** ID        (int)     Station identifier
+** DataFile  (string)  Path to the station MDF data file
+** Northing  (double)  Station northing coordinate (basin projection)
+** Easting   (double)  Station easting coordinate (basin projection)
+** Elevation (double)  Station elevation in meters
 **
 ***************************************************************************/
-void tRainfall::readGaugeStat(char *stationfile) 
+void tRainfall::readGaugeStat(char *stationfile)
 {
-	int nStations, nParams;
-	int stationID, numTimes, numParams;
-	double rlat, rlong;
+	Cout<<"\nReading Rain Gauge Station File '"
+	    << stationfile <<"'..."<<endl<<flush;
 
-	// SKY2008Snow from AJR2007
-	double elevation; // AJR @ NMT 2007
-
-	char fileName[kName];
-
-	// SKY2008Snow from AJR2007
-	//assert(fileName != 0); //WR--09192023: comparison of array 'fileName' not equal to a null pointer is always true
-	
-	Cout<<"\nReading Rain Gauge Station File '";
-	Cout<< stationfile<<"'..."<<endl<<flush;
-	
-	ifstream readFile(stationfile); 
+	ifstream readFile(stationfile);
 	if (!readFile) {
 		cout << "File "<<stationfile<<" not found." << endl;
 		cout<<"Exiting Program...\n\n"<<endl;
 		exit(1);
 	}
-	
-	readFile >> nStations;
-	readFile >> nParams;
 
-	rainGauges = new tRainGauge[nStations];
-	assert(rainGauges != 0);
-	numStations = nStations;
-	
-	for (int count=0;count<nStations;count++) {
-		for (int ct=0;ct<nParams;ct++) {
-			if (ct==0) {
-				readFile >> stationID;
-				rainGauges[count].setStation(stationID);
-			}
-			if (ct==1) {
-				readFile >> fileName;
-				rainGauges[count].setFileName(fileName);
-			}
-			if (ct==2) {
-				readFile >> rlat;
-				rainGauges[count].setLat(rlat);
-			}
-			if (ct==3) {
-				readFile >> rlong;
-				rainGauges[count].setLong(rlong);
-			}
-			if (ct==4) {
-				readFile >> numTimes;
-				rainGauges[count].setTime(numTimes);
-			}
-			if (ct==5) {
-				readFile >> numParams;
-				rainGauges[count].setParm(numParams);
-			}
-
-			// SKY2008Snow from AJR2007
-			if(ct==6){
-				readFile >> elevation;
-				rainGauges[count].setElev(elevation);
-			}
-
+	// Validate CSV header: ID,DataFile,Northing,Easting,Elevation
+	std::string headerLine;
+	std::getline(readFile, headerLine);
+	if (!headerLine.empty() && headerLine.back() == '\r') headerLine.pop_back();
+	{
+		std::istringstream hss(headerLine);
+		std::string token;
+		int ncols = 0;
+		while (std::getline(hss, token, ',')) ncols++;
+		if (ncols != 5) {
+			cerr << "\nError: Rain gauge station file '" << stationfile
+			     << "' header must have 5 columns "
+			        "(ID,DataFile,Northing,Easting,Elevation)." << endl;
+			exit(1);
 		}
 	}
+
+	// Read all data rows
+	std::vector<std::string> rows;
+	std::string line;
+	while (std::getline(readFile, line)) {
+		if (!line.empty() && line.back() == '\r') line.pop_back();
+		if (!line.empty()) rows.push_back(line);
+	}
 	readFile.close();
+
+	numStations = static_cast<int>(rows.size());
+	rainGauges  = new tRainGauge[numStations];
+	assert(rainGauges != 0);
+
+	for (int count = 0; count < numStations; count++) {
+		std::istringstream ss(rows[count]);
+		std::string token;
+		char fileName[kName];
+
+		std::getline(ss, token, ',');
+		rainGauges[count].setStation(std::stoi(token));
+
+		std::getline(ss, token, ',');
+		strncpy(fileName, token.c_str(), kName - 1);
+		fileName[kName - 1] = '\0';
+		rainGauges[count].setFileName(fileName);
+
+		std::getline(ss, token, ',');
+		rainGauges[count].setLat(std::stod(token));
+
+		std::getline(ss, token, ',');
+		rainGauges[count].setLong(std::stod(token));
+
+		std::getline(ss, token, ',');
+		rainGauges[count].setElev(std::stod(token));
+	}
 }
 
 /***************************************************************************
@@ -622,91 +484,152 @@ void tRainfall::readGaugeStat(char *stationfile)
 ** tRainfall::readGaugeData() Function
 **
 **
-** Reads and assigns data values to tRainGauge objects. 
-** File Format:
-** 
-** Description Line: 
-**      Abbreviations of Parameters as character strings
-**      Ex. Y M D H R     
+** Reads and assigns data values to tRainGauge objects.
+** File Format (CSV):
 **
-** Body Lines:
-**      Values for each parameters. Read in as ints and doubles
-**      Ex. Year (4 digit number), Month, Day, Hour (int)
-**          Rain (double) in mm/hr
+** Header (required, 5 columns):
+** Year,Month,Day,Hour,Rain_mm/hr
 **
-**      No Data Flag as 9999.99 for doubles
+** Body Lines (one row per timestep):
+**      Year  (int)    4-digit year
+**      Month (int)    Month (1-12)
+**      Day   (int)    Day of month
+**      Hour  (int)    Hour of day
+**      Rain  (double) Rainfall rate in mm/hr; values <0 or >200 flagged as NO_DATA (9999.99)
 **
 ***************************************************************************/
-void tRainfall::readGaugeData(int num) 
+void tRainfall::readGaugeData(int num)
 {
-	int numParams, numTimes;
 	char fileName[kMaxNameSize];
-	int *year, *month, *day, *hour;
-	double *Rain;
-	double tempo;
-	char *tmpstr;
-	
-	tmpstr = rainGauges[num].getFileName();
-    snprintf(fileName,sizeof(fileName),"%s", tmpstr);//WR--09192023: 'sprintf' is deprecated: This function is provided for compatibility reasons only.
-	numParams = rainGauges[num].getParm();
-	numTimes  = rainGauges[num].getTime();
-	
-	cout<<"\nReading RainGauge Data File '";
-	cout<< fileName<<"'..."<<endl<<flush;
+	snprintf(fileName, sizeof(fileName), "%s", rainGauges[num].getFileName());
+
+	Cout<<"\nReading RainGauge Data File '"<<fileName<<"'..."<<endl<<flush;
 
 	ifstream readDataFile(fileName);
 	if (!readDataFile) {
 		cout << "\nFile " <<fileName<<" not found!" << endl;
 		cout << "Exiting Program...\n\n"<<endl;
-		exit(2);}
-
-	char paramNames[10];
-	year  = new int[numTimes];
-	month = new int[numTimes];
-	day   = new int[numTimes];
-	hour  = new int[numTimes];
-
-	Rain  = new double[numTimes];
-	
-	for (int cnt = 0; cnt<numParams; cnt++) {
-		readDataFile >> paramNames;
+		exit(2);
 	}
-	
-	for (int count = 0;count<numTimes;count++) {
-		for (int ct = 0;ct<numParams;ct++) {
-			if (ct==0) {
-				readDataFile >> year[count];}
-			else if (ct==1) {
-				readDataFile >> month[count];}
-			else if (ct==2) {
-				readDataFile >> day[count];}
-			else if (ct==3) {
-				readDataFile >> hour[count];
+
+	// Validate CSV header: Year,Month,Day,Hour,Rain_mm/hr
+	std::string headerLine;
+	std::getline(readDataFile, headerLine);
+	if (!headerLine.empty() && headerLine.back() == '\r') headerLine.pop_back();
+	{
+		std::istringstream hss(headerLine);
+		std::string token;
+		int ncols = 0;
+		while (std::getline(hss, token, ',')) ncols++;
+		if (ncols != 5) {
+			cerr << "\nError: Rain gauge data file '" << fileName
+			     << "' header must have 5 columns "
+			        "(Year,Month,Day,Hour,Rain_mm/hr)." << endl;
+			exit(1);
+		}
+	}
+
+	// Read all data rows
+	std::vector<std::string> rows;
+	std::string line;
+	while (std::getline(readDataFile, line)) {
+		if (!line.empty() && line.back() == '\r') line.pop_back();
+		if (!line.empty()) rows.push_back(line);
+	}
+	readDataFile.close();
+
+	// Find the row matching STARTDATE and trim everything before it
+	int startIdx = -1;
+	for (int i = 0; i < static_cast<int>(rows.size()); i++) {
+		std::istringstream ss(rows[i]);
+		std::string token;
+		std::getline(ss, token, ','); int ry = std::stoi(token);
+		std::getline(ss, token, ','); int rm = std::stoi(token);
+		std::getline(ss, token, ','); int rd = std::stoi(token);
+		std::getline(ss, token, ','); int rh = std::stoi(token);
+		if (ry == timer->yearS && rm == timer->monthS && rd == timer->dayS && rh == timer->hourS) {
+			startIdx = i;
+			break;
+		}
+	}
+	if (startIdx < 0) {
+		std::cerr << "\n\nFATAL ERROR in " << fileName << std::endl;
+		std::cerr << "Simulation start date " << timer->yearS << "/" << timer->monthS
+		          << "/" << timer->dayS << " " << timer->hourS << ":00"
+		          << " not found in file." << std::endl;
+		std::cerr << "Exiting Program...\n\n" << std::endl;
+		exit(1);
+	}
+	if (startIdx > 0)
+		rows.erase(rows.begin(), rows.begin() + startIdx);
+
+	// Verify enough data exists to cover the full simulation duration
+	int requiredSteps = static_cast<int>(std::round(timer->getEndTime() / rainDt));
+	if (static_cast<int>(rows.size()) < requiredSteps) {
+		std::cerr << "\n\nFATAL ERROR in " << fileName << std::endl;
+		std::cerr << "Insufficient data for simulation duration." << std::endl;
+		std::cerr << "Required: " << requiredSteps << " timesteps ("
+		          << timer->getEndTime() << " hrs at " << rainDt << " hr intervals)" << std::endl;
+		std::cerr << "Available after start date: " << rows.size() << " timesteps" << std::endl;
+		std::cerr << "Exiting Program...\n\n" << std::endl;
+		exit(1);
+	}
+
+	int numTimes = static_cast<int>(rows.size());
+	std::vector<int>    Year(numTimes), Month(numTimes), Day(numTimes), Hour(numTimes);
+	std::vector<double> Rain(numTimes);
+
+	for (int count = 0; count < numTimes; count++) {
+		std::istringstream ss(rows[count]);
+		std::string token;
+
+		std::getline(ss, token, ','); Year[count]  = std::stoi(token);
+		std::getline(ss, token, ','); Month[count] = std::stoi(token);
+		std::getline(ss, token, ','); Day[count]   = std::stoi(token);
+		std::getline(ss, token, ','); Hour[count]  = std::stoi(token);
+		std::getline(ss, token, ',');
+		double tempo = std::stod(token);
+		Rain[count] = (tempo < 0 || tempo > 200) ? 9999.99 : tempo;
+
+		if (count > 0 && rainDt >= 1.0) {
+			int expected_yr = Year[count-1], expected_mo = Month[count-1];
+			int expected_dy = Day[count-1],  expected_hr = Hour[count-1];
+			expected_hr += static_cast<int>(rainDt);
+			while (expected_hr >= 24) {
+				expected_hr -= 24;
+				expected_dy++;
+				int dayInMonth[12] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+				bool isLeap = (expected_yr % 4 == 0 && expected_yr % 100 != 0) || (expected_yr % 400 == 0);
+				if (isLeap) dayInMonth[1] = 29;
+				if (expected_dy > dayInMonth[expected_mo - 1]) {
+					expected_dy = 1;
+					if (++expected_mo > 12) { expected_mo = 1; expected_yr++; }
+				}
 			}
-			else if (ct==4) {
-				readDataFile >> tempo;
-				if (tempo < 0  || tempo > 200)
-					Rain[count] = 9999.99;
-				else
-					Rain[count] = tempo;
+			if (Year[count] != expected_yr || Month[count] != expected_mo ||
+			    Day[count]  != expected_dy  || Hour[count]  != expected_hr)
+			{
+				std::cerr << "\n\nFATAL ERROR in " << fileName << std::endl;
+				std::cerr << "Timestamp gap or duplicate detected in data." << std::endl;
+				std::cerr << "After:    " << Year[count-1] << "/" << Month[count-1] << "/" << Day[count-1]
+				          << " " << Hour[count-1] << ":00" << std::endl;
+				std::cerr << "Expected: " << expected_yr << "/" << expected_mo << "/" << expected_dy
+				          << " " << expected_hr << ":00" << std::endl;
+				std::cerr << "Found:    " << Year[count] << "/" << Month[count] << "/" << Day[count]
+				          << " " << Hour[count] << ":00" << std::endl;
+				std::cerr << "Exiting Program...\n\n" << std::endl;
+				exit(1);
 			}
 		}
 	}
 
-	readDataFile.close();
-	
-	rainGauges[num].setYear(year);
-	rainGauges[num].setMonth(month);
-	rainGauges[num].setDay(day);
-	rainGauges[num].setHour(hour);
+	robustNess(Rain.data(), numTimes);
 
-	robustNess(Rain, numTimes);
-	
+	rainGauges[num].setYear(Year);
+	rainGauges[num].setMonth(Month);
+	rainGauges[num].setDay(Day);
+	rainGauges[num].setHour(Hour);
 	rainGauges[num].setRain(Rain);
-
-	delete [] Rain; delete [] hour;
-	delete [] year; delete [] month; delete [] day;
-
 }
 
 /***************************************************************************
@@ -830,97 +753,8 @@ void tRainfall::setToNode()
 		}
 		delete [] curGauge;  
 	}
+	
 	return;
-}
-
-/***************************************************************************
-**
-** tRainfall::setfState() Function
-**
-** Functions used to set the values of fState
-**
-***************************************************************************/
-void tRainfall::setfState(int state) 
-{ 
-	fState = state;
-}
-
-/***************************************************************************
-**
-** tRainfall::writeRestart() Function
-** 
-** Called from tSimulator during simulation loop
-** 
-***************************************************************************/
-void tRainfall::writeRestart(fstream & rStr) const
-{
-  BinaryWrite(rStr, searchRain);
-  BinaryWrite(rStr, rainfallType);
-  BinaryWrite(rStr, numStations);
-  BinaryWrite(rStr, arraySize);
-  BinaryWrite(rStr, hourlyTimeStep);
-  BinaryWrite(rStr, numRains);
-  BinaryWrite(rStr, optForecast);
-  BinaryWrite(rStr, fState);
-  BinaryWrite(rStr, optMAP);
-  BinaryWrite(rStr, rainDt);
-
-  if (rainfallType == 3) {
-    for (int i = 0; i < 4; i++)
-      BinaryWrite(rStr, currentTime[i]);
-    for (int i = 0; i < arraySize; i++) {
-      BinaryWrite(rStr, gaugeRain[i]);
-      BinaryWrite(rStr, latitude[i]);
-      BinaryWrite(rStr, longitude[i]);
-    } 
-    for (int i = 0; i < numStations; i++)
-      rainGauges[i].writeRestart(rStr);
-  }
-
-  BinaryWrite(rStr, precLapseRate);
-  BinaryWrite(rStr, aveMAP);
-  BinaryWrite(rStr, cumMAP);
-  BinaryWrite(rStr, climate);
-
-  tStorm::writeRestart(rStr);
-}
-
-/***************************************************************************
-**
-** tRainfall::readRestart() Function
-**
-***************************************************************************/
-void tRainfall::readRestart(fstream & rStr)
-{
-  BinaryRead(rStr, searchRain);
-  BinaryRead(rStr, rainfallType);
-  BinaryRead(rStr, numStations);
-  BinaryRead(rStr, arraySize);
-  BinaryRead(rStr, hourlyTimeStep);
-  BinaryRead(rStr, numRains);
-  BinaryRead(rStr, optForecast);
-  BinaryRead(rStr, fState);
-  BinaryRead(rStr, optMAP);
-  BinaryRead(rStr, rainDt);
-
-  if (rainfallType == 3) {
-    for (int i = 0; i < 4; i++)
-      BinaryRead(rStr, currentTime[i]);
-    for (int i = 0; i < arraySize; i++) {
-      BinaryRead(rStr, gaugeRain[i]);
-      BinaryRead(rStr, latitude[i]);
-      BinaryRead(rStr, longitude[i]);
-    }
-    for (int i = 0; i < numStations; i++)
-      rainGauges[i].readRestart(rStr);
-  }
-
-  BinaryRead(rStr, precLapseRate);
-  BinaryRead(rStr, aveMAP);
-  BinaryRead(rStr, cumMAP);
-  BinaryRead(rStr, climate);
-
-  tStorm::readRestart(rStr);
 }
 
 //=========================================================================

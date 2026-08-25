@@ -2,7 +2,7 @@
  * TIN-based Real-time Integrated Basin Simulator (tRIBS)
  * Distributed Hydrologic Model
  *
- * Copyright (c) 2025. tRIBS Developers
+ * Copyright (c) tRIBS Developers
  *
  * See LICENSE file in the project root for full license information.
  ******************************************************************************/
@@ -31,14 +31,11 @@ class tInputFile;
 class tRunTimer;
 class tCNode;
 class tHydroModel;
-class tStorm;
 class tRainGauge;
 class tRainfall;
 class tEvapoTrans;
 class tIntercept;
 class tHydroMet;
-class tHydroMetStoch;
-class tHydroMetConvert;
 class tWaterBalance;
 class tSnowPack; // SKY2008Snow from AJR2007
 class tSnowIntercept; // SKY2008Snow from AJR2007

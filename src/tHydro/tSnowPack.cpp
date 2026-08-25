@@ -2,7 +2,7 @@
  * TIN-based Real-time Integrated Basin Simulator (tRIBS)
  * Distributed Hydrologic Model
  *
- * Copyright (c) 2025. tRIBS Developers
+ * Copyright (c) tRIBS Developers
  *
  * See LICENSE file in the project root for full license information.
  ******************************************************************************/
@@ -72,13 +72,10 @@ tSnowPack::~tSnowPack() {
 void tSnowPack::SetSnowPackVariables(tInputFile &infile) {
 
     //parameters
-    minSnTemp = infile.ReadItem(minSnTemp, "MINSNTEMP");
-    snliqfrac = infile.ReadItem(snliqfrac, "SNLIQFRAC"); // Added by CJC 2020
     hillAlbedoOption = infile.ReadItem(hillAlbedoOption, "HILLALBOPT");
-    densityAge = 0.0;
     ETAge = 0.0;
     compactParam = 0.3;
-    rhoSnFreshkg = 100.0;
+    //rhoSnFreshkg = 100.0;
     snOnOff = 0.0;
 }
 
@@ -103,8 +100,10 @@ void tSnowPack::SetSnowInterceptVariables() {
 void tSnowPack::SetSnowVariables(tInputFile &infile) {
     
 
-    //time steps
-    timeStepm = infile.ReadItem(timeStepm, "METSTEP");
+    //time steps: use etistep (= min(metstep, dtRain)) so sub-hourly rainfall is
+    //handled correctly. When dtRain >= metstep (the normal hourly case) this is
+    //identical to reading METSTEP directly.
+    timeStepm = timer->getEtIStep() * 60.0;  // hours -> minutes
     timeSteph = timeStepm / 60.0;
     timeSteps = 60.0 * timeStepm;
     minutelyTimeStep = 0.0;
@@ -136,7 +135,6 @@ void tSnowPack::SetSnowVariables(tInputFile &infile) {
     rhosncgs = 0.1;
     rholiqkg = 1000.0; //kg/m^3
     rhoicekg = 920.0; //kg/m^3
-    rhosnkg = 100.0;
     rhoAir = 1.3;
 
     //thermal properties
@@ -164,6 +162,111 @@ void tSnowPack::SetSnowVariables(tInputFile &infile) {
     ctom = 10.0;
     mtoc = 0.1;
 
+    // Set hardcoded default snow parameters
+    rhoSnFreshkg    = 60.0;   // kg/m3
+    snliqfrac       = 0.04;    // 4% irreducible water content
+    kSatRef         = 0.005;   // m/s
+    minSnTemp       = -30.0;   // C
+    canopyWindAtten = 0.5;
+    snRoughness     = 0.001;   // m
+    snInitialAlbedo = 0.85;
+    snLambdaDry     = 0.96;
+    snLambdaWet     = 0.82;
+    snMinAlbedo     = 0.4;
+    albResetThresh  = 5.0;     // 5mm to reset albedo
+    optPartition    = 0;       // Default to Linear Transition
+    maxTempWB       = 5.0;     // Default for Wet Bulb
+    minTempRain     = 0.0;     // Default for Linear
+    maxTempSnow     = 4.0;     // Default for Linear
+
+    // Read Input Parameters from snow parameter file
+    // Read the path to the snow parameter file from the main input file
+    char snowParamFile[kName];
+
+    int optSnow = 0;
+    optSnow = infile.ReadItem(optSnow, "OPTSNOW");
+
+    snowParamFile[0] = '\0';
+    if (infile.IsItemIn("SNOWFILENAME"))
+        infile.ReadItem(snowParamFile, "SNOWFILENAME");
+
+    // If user defined snow parameter file in input then use that
+    if (snowParamFile[0] != '\0') {
+
+        ifstream testFile(snowParamFile);
+        if (!testFile) {
+            if (optSnow > 0) {
+                Cout << "\nSnow parameter file '" << snowParamFile << "' not found." << endl;
+                Cout << "\tWarning: tRIBS will use the default hardcoded snow parameters." << endl;
+            }
+        } else {
+            testFile.close();
+
+            // Create a new tInputFile object specifically for the snow parameters
+            tInputFile snowIn(snowParamFile);
+
+            // Read the parameters using keywords defined in file.
+            // Density
+            rhoSnFreshkg = snowIn.ReadItem(rhoSnFreshkg, "FRESH_SNOW_DENSITY");
+
+            // General
+            snliqfrac = snowIn.ReadItem(snliqfrac,  "IRREDUCIBLE_SAT"); 
+            kSatRef   = snowIn.ReadItem(kSatRef,    "K_SAT_REF");
+            minSnTemp = snowIn.ReadItem(minSnTemp,  "MIN_SNOW_TEMP");
+            canopyWindAtten = snowIn.ReadItem(canopyWindAtten, "CANOPY_WIND_ATTENUATION");
+            snRoughness = snowIn.ReadItem(snRoughness, "ROUGHNESS_LENGTH");
+
+            // Albedo
+            snInitialAlbedo = snowIn.ReadItem(snInitialAlbedo, "ALBEDO_FRESH");
+            snLambdaDry     = snowIn.ReadItem(snLambdaDry,     "ALBEDO_DECAY_DRY");
+            snLambdaWet     = snowIn.ReadItem(snLambdaWet,     "ALBEDO_DECAY_WET");
+            snMinAlbedo     = snowIn.ReadItem(snMinAlbedo,     "ALBEDO_MIN");
+            albResetThresh  = snowIn.ReadItem(albResetThresh,  "ALBEDO_RESET_THRESHOLD");
+
+            // Precipitation Partitioning
+            optPartition = snowIn.ReadItem(optPartition, "OPTPRECPARTITION");
+            if (optPartition == 0) { // Wet-bulb method
+                // Check input actually exists
+                if (!snowIn.IsItemIn("MAX_WETBULB_TEMP")) {
+                    cout << "\nERROR: You selected Precipitation Partition Option 0 (Wet Bulb)," << endl;
+                    cout << "       but the parameter 'MAX_WETBULB_TEMP' is missing from the file." << endl;
+                    exit(1);
+                }
+
+                maxTempWB = snowIn.ReadItem(maxTempWB, "MAX_WETBULB_TEMP");
+            } else if (optPartition == 1) { // Linear transition method
+                // Check input actually exists
+                if (!snowIn.IsItemIn("MIN_TEMP_RAIN")) {
+                    cout << "\nERROR: You selected Precipitation Partition Option 1 (Linear Transition)," << endl;
+                    cout << "       but the parameter 'MIN_TEMP_RAIN' is missing from the file." << endl;
+                    exit(1);
+                } else if (!snowIn.IsItemIn("MAX_TEMP_SNOW")) {
+                    cout << "\nERROR: You selected Precipitation Partition Option 1 (Linear Transition)," << endl;
+                    cout << "       but the parameter 'MAX_TEMP_SNOW' is missing from the file." << endl;
+                    exit(1);
+                }
+
+                minTempRain = snowIn.ReadItem(minTempRain, "MIN_TEMP_RAIN");
+                maxTempSnow = snowIn.ReadItem(maxTempSnow, "MAX_TEMP_SNOW");
+            } else { // Invalid option
+                cout << "\nPrecipitation Partition Option " << optPartition;
+                cout << " not valid." << endl;
+                cout << "\tPlease use :" << endl;
+                cout << "\t\t(0) for Wet Bulb Threshold" << endl;
+                cout << "\t\t(1) for Linear Transition" << endl;
+                cout << "\nExiting Program..." << endl << endl;
+                exit(1);
+            }
+        } // end file exists
+    } else {
+        if (optSnow > 0) {
+            Cout << "\n'SNOWFILENAME' not specified in the input file." << endl;
+            Cout << "\tWarning: tRIBS will use the default hardcoded snow parameters." << endl;
+        }
+    }
+
+    // Initialize the density state variable to the parameter value
+    rhosnkg = rhoSnFreshkg; 
 }
 
 //---------------------------------------------------------------------------
@@ -288,29 +391,6 @@ void tSnowPack::callSnowPack(tIntercept *Intercept, int flag) {
     while (nodeIter.IsActive()) {
         double precip = 0.0;
 
-        landPtr->setLandPtr(cNode->getLandUse());
-        cNode->setCanStorParam(landPtr->getLandProp(1));
-        cNode->setIntercepCoeff(landPtr->getLandProp(2));
-        cNode->setThroughFall(landPtr->getLandProp(3));
-        cNode->setCanFieldCap(landPtr->getLandProp(4));
-        cNode->setDrainCoeff(landPtr->getLandProp(5));
-        cNode->setDrainExpPar(landPtr->getLandProp(6));
-        cNode->setLandUseAlb(landPtr->getLandProp(7));
-        cNode->setVegHeight(landPtr->getLandProp(8));
-        cNode->setOptTransmCoeff(landPtr->getLandProp(9));
-        cNode->setStomRes(landPtr->getLandProp(10));
-        cNode->setVegFraction(landPtr->getLandProp(11));
-        cNode->setLeafAI(landPtr->getLandProp(12));
-
-        if (luOption == 1) {
-            if (luInterpOption == 1) { // LU values linearly interpolated between 'previous' and 'until' values
-                interpolateLUGrids(cNode);
-            }
-            else if (luInterpOption == 0) {// LU values set from 'previous' grid
-                constantLUGrids(cNode);
-            }
-        }
-
         // Elapsed MET steps from the beginning, used for averaging dynamic LU grid values below over time for integ. output
         auto te = (double) timer->getElapsedMETSteps(timer->getCurrentTime());
         integratedLUVars(cNode, te);
@@ -327,60 +407,68 @@ void tSnowPack::callSnowPack(tIntercept *Intercept, int flag) {
         snOnOff = 0.0;
 
         checkShelter(cNode);
-        setCoeffs(cNode);// this sets coeffs from land classification table
 
-        // this overwrites a given parameter if the landuse option is selected and the gridded data exists
-        if (luOption == 1) {
+        // Load the full set of default parameters from the table.
+        // This provides the fallback values for any parameters not supplied as grids.
+        setCoeffs(cNode);
+
+        // If using gridded data (dynamic or static), overwrite the defaults.
+        if (luOption == 1 || luOption == 2) {
+
+            // For DYNAMIC grids (Option 1), update/interpolate node values first.
+            if (luOption == 1) {
+                if (luInterpOption == 1) {
+                    interpolateLUGrids(cNode);
+                } else {
+                    constantLUGrids(cNode);
+                }
+            }
+            // For STATIC grids (Option 2), values are already on the node from initialization, so no action is needed here.
+            // For both gridded options, load the parameters from the node into the local 'coeff' variables.
             newLUGridData(cNode);
         }
 
         //updates meteorological variables if not in stochastic mode
-        if (!rainPtr->getoptStorm()) {
-            if (metdataOption == 1) {
-                thisStation = assignedStation[count];
-                newHydroMetData(hourlyTimeStep); //read in met data from station file -- inherited function
+        if (metdataOption == 1) {
+            thisStation = assignedStation[count];
+            newHydroMetData(); //read in met data from station file -- inherited function
 
-                if (fabs(skyCover-9999.99)<1.0E-3){ // assumed if first value is 9999.99 the rest are
-                    skycover_flag =1;
-                }
-
-            } else if (metdataOption == 2) {
-                newHydroMetGridData(cNode); // set up and get appropriate data -- inherited function
-
-                if (fabs(skyCover-9999.99)<1.0E-3){ // work around since nodata from grids only set to 9999.99 once in tvariannt
-                    skycover_flag =1;
-                }
+            if (fabs(skyCover-9999.99)<1.0E-3){ // assumed if first value is 9999.99 the rest are
+                skycover_flag =1;
             }
 
-            // Set the observed values to the node:
-            // they will be required by other function calls
-            vPress = vaporPress();
+        } else if (metdataOption == 2) {
+            newHydroMetGridData(cNode); // set up and get appropriate data -- inherited function
 
-
-            // Check/modify cloud cover values
-            if (skycover_flag == 1) {
-                skyCover = compSkyCover();
+            if (fabs(skyCover-9999.99)<1.0E-3){ // work around since nodata from grids only set to 9999.99 once in tvariannt
+                skycover_flag =1;
             }
-
-
-
-            cNode->setAirTemp(airTemp); // celsius
-            cNode->setDewTemp(dewTemp);
-            cNode->setRelHumid(rHumidity);
-            cNode->setVapPressure(vPress);
-            cNode->setWindSpeed(windSpeed);
-            cNode->setAirPressure(atmPress);
-            cNode->setSkyCover(skyCover);
-            cNode->setShortRadIn(inShortR);
-
-            //Set Soil/Surface Temperature
-            if (hourlyTimeStep == 0) {
-                cNode->setSoilTemp(Tlo - 273.15);
-                cNode->setSurfTemp(Tso - 273.15);
-            }
-
         }
 
+        // Set the observed values to the node:
+        // they will be required by other function calls
+        vPress = vaporPress();
+
+
+        // Check/modify cloud cover values
+        if (skycover_flag == 1) {
+            skyCover = compSkyCover();
+        }
+
+        cNode->setAirTemp(airTemp); // celsius
+        cNode->setDewTemp(dewTemp);
+        cNode->setRelHumid(rHumidity);
+        cNode->setVapPressure(vPress);
+        cNode->setWindSpeed(windSpeed);
+        cNode->setAirPressure(atmPress);
+        cNode->setSkyCover(skyCover);
+        cNode->setShortRadIn(inShortR);
+
+        //Set Soil/Surface Temperature
+        if (hourlyTimeStep == 0 && !isRestartStart) {
+            cNode->setSoilTemp(Tlo - 273.15);
+            cNode->setSurfTemp(Tso - 273.15);
+        }
 
         if (Ioption == 0) {
             cNode->setNetPrecipitation(rain);
@@ -413,19 +501,13 @@ void tSnowPack::callSnowPack(tIntercept *Intercept, int flag) {
             if (evapotransOption == 1) {
                 EvapPenmanMonteith(cNode); // SKY2008Snow
             } else if (evapotransOption == 2) {
-                EvapDeardorff(cNode); // SKY2008Snow
-            } else if (evapotransOption == 3) {
-                EvapPriestlyTaylor(cNode); // SKY2008Snow
-            } else if (evapotransOption == 4) {
                 EvapPan();
             } else {
                 cout << "\nEvapotranspiration Option " << evapotransOption;
                 cout << " not valid." << endl;
                 cout << "\tPlease use :" << endl;
                 cout << "\t\t(1) for Penman-Monteith Method" << endl;
-                cout << "\t\t(2) for Deardorff Method" << endl;
-                cout << "\t\t(3) for Priestly-Taylor Method" << endl;
-                cout << "\t\t(4) for Pan Evaporation Measurements" << endl;
+                cout << "\t\t(2) for Pan Evaporation Measurements" << endl;
                 cout << "Exiting Program...\n\n" << endl;
                 exit(1);
             }
@@ -442,12 +524,12 @@ void tSnowPack::callSnowPack(tIntercept *Intercept, int flag) {
             liqRoute = 0.0;
             iceWE = 0.0;
             liqWE = 0.0;
+            snDepthm = 0.0;
             Utot = 0.0;
             Usn = 0.0;
             Uwat = 0.0;
             snTempC = 0.0;
             crustAge = 0.0;
-            densityAge = 0.0;
 
             cNode->setIntSub(0.0);
             setToNodeSnP(cNode);
@@ -465,20 +547,69 @@ void tSnowPack::callSnowPack(tIntercept *Intercept, int flag) {
                 cNode->setNetPrecipitation(rain);
             }
 
-            precip = cNode->getNetPrecipitation(); //units in mm
-            precip += snUnload * ctom; // units in mm
-
-            // Here precip is being set by net precipitation which is set from callSnowIntercept
-            // and represents throughfall + unloaded snow  from snow interception (so scaled by coeffV) and precipitation
-            // that falls on the no vegetated fraction of the cell (1-coeffV). refactored WR 6/21/23
-
-            snDepthm = cmtonaught * snWE / 0.312; // 0.312 is value for bulk density of snow, Sturm et al. 2010
-            //calculate current snow depth for use in the turbulent heat flux calculations and output.
+            precip = cNode->getNetPrecipitation(); //units in mm/hr
+            // snUnload is the canopy snow unloaded over this step [cm], a depth,
+            // while precip is a rate [mm/hr] that the mass updates below turn
+            // back into a depth via *timeSteps/3600. CJC2026
+            precip += snUnload * ctom / timeSteph; // cm/step -> mm/hr
 
             //change mass (volume) quantities to correct units (kJ, m, C, s)
             iceWE = iceWE * cmtonaught; // mm to m
             liqWE = liqWE * cmtonaught; // mm to m
             snWE = iceWE + liqWE; // mm to m
+
+            // Here precip is being set by net precipitation which is set from callSnowIntercept
+            // and represents throughfall + unloaded snow  from snow interception (so scaled by coeffV) and precipitation
+            // that falls on the no vegetated fraction of the cell (1-coeffV). refactored WR 6/21/23
+
+            // BEGIN Calculate current snow depth for use in the turbulent heat flux calculations and output.
+            // We don't yet know the new state of the new mass balance variables so we will project what they will be
+            // in order to calculate the new snow depth.
+
+            // Calculate Incoming Mass (temporary variables)
+            // precip is a rate in mm/hr, so scale by the timestep (hr) to get
+            // the depth arriving this step, then convert mm to m (0.001). CJC2026
+            double newSnowM = (precip * snowFracCalc()) * timeSteph * 0.001;
+            double newRainM = (precip * (1.0 - snowFracCalc())) * timeSteph * 0.001;
+
+            // Calculate projected Mass States
+            // Approximation of what the pack will look like after this timestep.
+            // We use these only to calculate depth/roughness right now.
+            double projIceWE = iceWE + newSnowM;       // Total Ice Matrix
+            double projTotWE = snWE + newSnowM + newRainM; // Total Weight (for compaction)
+
+            // Weighted Average Mixing
+            // We have to do this step because of the single layer snow model.
+            // Only mix if we actually have new solid snow.
+            if (newSnowM > 1e-6) {
+                double freshRho = freshDensityCalc(airTemp); // e.g. 80 kg/m3
+                
+                double oldIceKg = iceWE * 1000.0;
+                double newIceKg = newSnowM * 1000.0;
+                
+                // Conservation of Volume
+                double vol_old = oldIceKg / rhosnkg;
+                double vol_new = newIceKg / freshRho;
+                
+                // New Mixed Density
+                rhosnkg = (oldIceKg + newIceKg) / (vol_old + vol_new);
+            }
+
+            // Apply Compaction 
+            // We pass projTotWE because the weight of the liqwe contributes to squashing the snow.
+            if (projTotWE > 1e-6) {
+                rhosnkg = densityCompactionCalc(rhosnkg, projTotWE * 1000.0, snTempC, timeSteps);
+            }
+            
+            // Safety Clamps on Density
+            if (rhosnkg < 50.0) rhosnkg = 50.0;
+            if (rhosnkg > 600.0) rhosnkg = 600.0; // Max density for dry snow
+
+            // Calculate Final Depth
+            // We divide by rhosnkg so liquid water doesn't artificially inflate depth.
+            snDepthm = (projIceWE * 1000.0) / rhosnkg;
+
+            // END Calculate current snow depth
 
             //account for veg height
             if (coeffH == 0) {
@@ -498,9 +629,6 @@ void tSnowPack::callSnowPack(tIntercept *Intercept, int flag) {
                 //no precipitation heat flux, as it is totally accounted for in the snow pack energy
                 //   initialization
                 phfOnOff = 0.0;
-
-                //set the new density age
-                densityAge = 0.0;
 
                 //reinitialize crust age
                 crustAge = 0.0;
@@ -524,11 +652,25 @@ void tSnowPack::callSnowPack(tIntercept *Intercept, int flag) {
                 //set other fluxes
                 L = H = G = Prec = Utotold = 0.0;
 
-                //added by XYT2023,liqRoute
-                if (liqWE > snliqfrac * iceWE) { // Added snliqfrac by CJC2020
+                // We assume the density of the ice matrix (rhosnkg) did not change during melt, 
+                // only the amount of ice changed. 
+                if (rhosnkg > 0) {
+                        snDepthm = (iceWE * 1000.0) / rhosnkg;
+                } else {
+                        snDepthm = 0.0;
+                }
+
+                // Calculate the Max Liquid Capacity (in meters)
+                // We treat snliqfrac as the Volumetric Irreducible Saturation.
+                // Capacity = Depth * Porosity * snliqfrac
+                double maxPoreStorageM = snDepthm * porosityCalc(rhosnkg) * snliqfrac; 
+
+                //put in routing bucket
+                if (liqWE > maxPoreStorageM) { 
                     //there is enough water left over
                     if (liqWE != snWE) {
-                        liqRoute = (liqWE - snliqfrac * iceWE); // Added snliqfrac by CJC2020
+                        // Calculate drainage using Darcy's Law approximation
+                        liqRoute = drainageCalc(liqWE, snDepthm, rhosnkg, snliqfrac, timeSteps);
                         liqWE = liqWE - liqRoute;
                         snWE = liqWE + iceWE;
                     }
@@ -554,11 +696,11 @@ void tSnowPack::callSnowPack(tIntercept *Intercept, int flag) {
                 //account for precipitation heat flux
                 phfOnOff = 1.0;
 
-                //find the new density age
-                densityAge = (snWE * densityAge) / (snWE + mtoc * precip);
-
                 //reset crust age if snowing out
-                if (precip * snowFracCalc() > 1e-3) {
+                // albResetThresh is a depth (mm) but precip is a rate (mm/hr),
+                // so scale by the timestep (hr) to compare fresh-snow depth this
+                // step against the threshold. CJC2026
+                if (precip * snowFracCalc() * timeSteph > albResetThresh) {
                     crustAge = 0.0;
                 }
 
@@ -593,7 +735,6 @@ void tSnowPack::callSnowPack(tIntercept *Intercept, int flag) {
                     Uwat = 0.0;
                     snTempC = 0.0;
                     crustAge = 0.0;
-                    densityAge = 0.0;
                 } else {
 
                     //find initial state of energy
@@ -649,13 +790,27 @@ void tSnowPack::callSnowPack(tIntercept *Intercept, int flag) {
                             liqWE = snWE; // this is here because the liqWE += term above
                         }                  //  can result in liqWE > snWE
                         //assign water equivalents
-                        iceWE = snWE - liqWE;
+                        iceWE = snWE - liqWE; 
+
+                        // We assume the density of the ice matrix (rhosnkg) did not change during melt, 
+                        // only the amount of ice changed. 
+                        if (rhosnkg > 0) {
+                                snDepthm = (iceWE * 1000.0) / rhosnkg;
+                        } else {
+                                snDepthm = 0.0;
+                        }
+
+                        // Calculate the Max Liquid Capacity (in meters)
+                        // We treat 'snliqfrac' as the Volumetric Irreducible Saturation.
+                        // Capacity = Depth * Porosity * snliqfrac
+                        double maxPoreStorageM = snDepthm * porosityCalc(rhosnkg) * snliqfrac; 
 
                         //put in routing bucket
-                        if (liqWE > snliqfrac * iceWE) { // Added snliqfrac by CJC2020
+                        if (liqWE > maxPoreStorageM) { 
                             //there is enough water left over
                             if (liqWE != snWE) {
-                                liqRoute = (liqWE - snliqfrac * iceWE); // Added snliqfrac by CJC2020
+                                // Calculate drainage using Darcy's Law approximation
+                                liqRoute = drainageCalc(liqWE, snDepthm, rhosnkg, snliqfrac, timeSteps);
                                 liqWE = liqWE - liqRoute;
                                 snWE = liqWE + iceWE;
                             }
@@ -682,13 +837,11 @@ void tSnowPack::callSnowPack(tIntercept *Intercept, int flag) {
                 liqWE = 0.0;
                 iceWE = 0.0;
                 crustAge = 0.0;
-                densityAge = 0.0;
                 Utot = 0.0;
                 Usn = 0.0;
                 Uwat = 0.0;
             } else {
                 crustAge += timeSteph;
-                densityAge += timeSteph;
                 snOnOff = 1.0;
             }
 
@@ -715,45 +868,14 @@ void tSnowPack::callSnowPack(tIntercept *Intercept, int flag) {
 
         }//end yes-snow
 
-
-        // Estimate average Ep and cloudiness
-        if (rainPtr->getoptStorm() && Io > 0.0) {
-            potEvap = cNode->getPotEvap();
-            SkyC += skyCover;
-            cnt++;
-        }
-
         //get the next node information for while loop
         cNode = nodeIter.NextP();
         count++;
 
     }//end while-nodes
     timeCount++;
-    oldTimeStep = hourlyTimeStep;
     hourlyTimeStep++;
-
-    // AJR2008, SKY2008Snow
-    // Submit the basin average value
-    if (rainPtr->getoptStorm()) {
-        // SKY2008Snow -- Following bug corrected to account for SkyC division by cnt again in the next ComputeDailyEpCld call
-        cnt ? SkyC = SkyC : SkyC = skyCover;
-
-        // Get approximate EP from Priestley-Taylor method
-        EP = ApproximateEP();
-
-        // Submit values to climate simulator
-        weatherSimul->ComputeDailyEpCld(EP, SkyC / static_cast<double>(cnt));
-
-        // Assign the radiation variables to the 'tHydrometStoch'
-        if (!count) {
-            weatherSimul->setSunH(alphaD);
-            weatherSimul->setSinH(sinAlpha);
-            weatherSimul->setIo(Io);
-            weatherSimul->setIdir(Ics);
-            weatherSimul->setIdif(Ids);
-            weatherSimul->OutputHydrometVars();
-        }
-    }
+    isRestartStart = false;
 }
 
 //---------------------------------------------------------------------------
@@ -804,19 +926,13 @@ void tSnowPack::callSnowIntercept(tCNode *node, tIntercept *interceptModel, int 
         if (evapotransOption == 1) {
             EvapPenmanMonteith(node); // call to get EvapPot, but energy balance for soil es
         } else if (evapotransOption == 2) {
-            EvapDeardorff(node); // SKY2008Snow
-        } else if (evapotransOption == 3) {
-            EvapPriestlyTaylor(node); // SKY2008Snow
-        } else if (evapotransOption == 4) {
             EvapPan();
         } else {
             cout << "\nEvapotranspiration Option " << evapotransOption;
             cout << " not valid." << endl;
             cout << "\tPlease use :" << endl;
             cout << "\t\t(1) for Penman-Monteith Method" << endl;
-            cout << "\t\t(2) for Deardorff Method" << endl;
-            cout << "\t\t(3) for Priestly-Taylor Method" << endl;
-            cout << "\t\t(4) for Pan Evaporation Measurements" << endl;
+            cout << "\t\t(2) for Pan Evaporation Measurements" << endl;
             cout << "Exiting Program...\n\n" << endl;
             exit(1);
         }
@@ -869,11 +985,16 @@ void tSnowPack::callSnowIntercept(tCNode *node, tIntercept *interceptModel, int 
         Imax = 4.4 * LAI;
 
         //compute new intercepted snow (kg/m^2)
-        Isnow = 0.7 * (Imax - Iold) * (1 - exp(-precip / Imax));
+        // precip is a rate (mm/hr == kg/m^2/hr) while the canopy load I is a
+        // mass (kg/m^2), so the interception update must use the precip depth
+        // arriving this timestep, and the intercepted mass must be converted
+        // back to a rate when debited from throughfall (netPrecipitation is
+        // consumed as mm/hr downstream). CJC2026
+        Isnow = 0.7 * (Imax - Iold) * (1 - exp(-(precip * timeSteph) / Imax));
         I = Iold + Isnow;
 
-        //precip minus intercepted snow (i.e. throughfall)
-        throughfall = precip - Isnow;
+        //precip minus intercepted snow (i.e. throughfall), kept as a rate (mm/hr)
+        throughfall = precip - Isnow / timeSteph;
 
         //if there was old snow, sublimate and unload
         if (Iold > 0.0 && flag) {
@@ -943,13 +1064,15 @@ void tSnowPack::callSnowIntercept(tCNode *node, tIntercept *interceptModel, int 
 
 void tSnowPack::updateRipeSnowPack(double precip) {
     //liq WE update
-    snEvap = (1 - coeffV) * latentHFCalc(resFactCalc()) * timeSteps /
+    snEvap = latentHFCalc(resFactCalc()) * timeSteps /
              (rholiqkg * latVapkJ); // units should be in meters
     liqWE += cmtonaught * ((mtoc * precip) * (1 - snowFracCalc())) * timeSteps /
              3600; // Removed snUnload term CJC2020
 
     if (liqWE + snEvap <= 0) {
-        snEvap = liqWE;
+        // Demand exceeds available liquid: actual evaporation is the whole
+        // remaining store, kept negative per the loss-flux convention
+        snEvap = -liqWE;
         liqWE = 0;
     } else {
         liqWE += snEvap;
@@ -968,12 +1091,14 @@ void tSnowPack::updateSolidSnowPack(double precip) {
 
 
     //ice WE update
-    snSub = (1 - coeffV) * latentHFCalc(resFactCalc()) * timeSteps /
+    snSub = latentHFCalc(resFactCalc()) * timeSteps /
             (rholiqkg * latSubkJ);// units should be in meters
     iceWE += cmtonaught * (mtoc * (precip * snowFracCalc())) * timeSteps / 3600;
 
     if (iceWE + snSub <= 0) {
-        snSub = iceWE;
+        // Demand exceeds available ice: actual sublimation is the whole
+        // remaining store, kept negative per the loss-flux convention
+        snSub = -iceWE;
         iceWE = 0;
     } else {
         iceWE += snSub;
@@ -1003,6 +1128,13 @@ void tSnowPack::getFrNodeSnP(tCNode *node) {
     liqRoute = 0.0; //cm
     snWE = liqWE + iceWE; //cm
 
+    // Deal with snow density
+    rhosnkg = node->getRhoSn();
+    // If there is no snow, density should be initialized to fresh snow
+    if (snWE <= 1e-5) {
+        rhosnkg = rhoSnFreshkg; // Uses the parameter you read from the file
+    }
+
     //deal with the snow temperatures
     if (snWE > 1e-4) {
 
@@ -1026,7 +1158,6 @@ void tSnowPack::getFrNodeSnP(tCNode *node) {
     }
 
     crustAge = node->getCrustAge();
-    densityAge = node->getDensityAge();
     ETAge = node->getEvapoTransAge();
 
     persMax = node->getPersTimeMax();
@@ -1056,10 +1187,9 @@ void tSnowPack::setToNodeSnP(tCNode *node) {
     node->setIceWE(iceWE);
     node->setSnTempC(snTempC);
     node->setCrustAge(crustAge);
-    node->setDensityAge(densityAge);
     node->setEvapoTransAge(ETAge);
-    node->setSnSub(snSub); // scaled by non-vegetated area
-    node->setSnEvap(snEvap); // scaled by non-vegetated area
+    node->setSnSub(snSub);
+    node->setSnEvap(snEvap);
 
     //mass flux
     node->setLiqRouted(liqRoute);
@@ -1078,21 +1208,31 @@ void tSnowPack::setToNodeSnP(tCNode *node) {
     }
 
     if (snWE > 1e-5) {
-        persMaxtemp += 1.0;
+        // Accumulate persistence in hours (timeSteph = etistep) rather than in
+        // integration-step counts, so the diagnostic is timestep-independent.
+        persMaxtemp += timeSteph;
 
         if (persMaxtemp > persMax) {
             persMax = persMaxtemp;
 
-            if (persMaxtemp - 1 < 1)
-                inittimeTemp = hourlyTimeStep;
+            if (persMaxtemp - timeSteph < timeSteph) // first step of this pack
+                inittimeTemp = hourlyTimeStep * timeSteph; // elapsed hours
 
         }
     }
 
     if (snWE >= peakSnWE) {
         peakSnWE = snWE;
-        peaktime = hourlyTimeStep;
+        peaktime = hourlyTimeStep * timeSteph; // elapsed hours
         inittime = inittimeTemp;
+    }
+
+    // Save the updated density
+    if (snWE > 1e-5) {
+        node->setRhoSn(rhosnkg);
+    } else {
+        // If no snow exists, set the node storage to 0.0 for output.
+        node->setRhoSn(0.0);
     }
 
     node->setPersTimeMax(persMax);
@@ -1101,9 +1241,11 @@ void tSnowPack::setToNodeSnP(tCNode *node) {
     node->setPeakPackTime(double(peaktime));
     node->setInitPackTime(double(inittime));
     node->setInitPackTimeTemp(double(inittimeTemp));
+    // Convert meters to centimeters for the output/node storage
+    node->setSnDepth(snDepthm * 100.0); 
 
     //cumulative outputs
-    node->addLatHF(L);
+    node->addLatHF(L * timeSteps);
     node->addSnSub(snSub); // cumulative snow sublimation CJC2020
     node->addSnEvap(snEvap); // cumulative snow evaporation CJC2020
     node->addMelt(liqRoute);
@@ -1114,7 +1256,9 @@ void tSnowPack::setToNodeSnP(tCNode *node) {
     node->addRLout(RLout * timeSteps);
     node->addRSin(RSin * timeSteps);
     node->addCumUerror(Uerr * timeSteps);
-    node->addCumHrsSnow(snOnOff);
+    // snOnOff is a 0/1 flag per ET step, so accumulating it raw counted steps
+    // rather than hours. Originally: addCumHrsSnow(snOnOff). CJC2026
+    node->addCumHrsSnow(snOnOff * timer->getEtIStep());
 
     //reset fluxes to zero
     L = H = Prec = G = RLin = RLout = RSin = dUint = 0.0;
@@ -1132,20 +1276,165 @@ void tSnowPack::setToNodeSnP(tCNode *node) {
 
 //---------------------------------------------------------------------------
 //
-//			  tSnowPack::densityFromAge()
+//			  tSnowPack::freshDensityCalc()
 //
-//	This function should calculate density as a function of time. The
-//	density should be in mks. (include a reference)
+//	  Calculates the density of newly fallen snow based on air temperature.
+//	  This uses the empirical relationship derived for continental snowpacks.
 //
-//						    (Tuteja et al 1996)
+//							 (Hedstrom-Pomeroy 1998)
 //
 //---------------------------------------------------------------------------
 
-double tSnowPack::densityFromAge() {
+double tSnowPack::freshDensityCalc(double airTempC) {
 
-    double rhotemporary(400); //kg/m^3
+    // Returns density in kg/m^3
+    double rho_fresh = rhoSnFreshkg + 51.25 * exp(airTempC / 2.59);
+    
+    // Safety clamps from https://doi.org/10.1175/1520-0477(2000)081%3C1577:DOFFSI%3E2.3.CO;2
+    if (rho_fresh < 50.0) rho_fresh = 50.0;
+    if (rho_fresh > 200.0) rho_fresh = 200.0;
+    
+    return rho_fresh;
+}
 
-    return rhotemporary;
+//---------------------------------------------------------------------------
+//
+//			  tSnowPack::densityCompactionCalc()
+//
+//	  Calculates the change in bulk snow density due to two processes:
+//	  1. Destructive Metamorphism (crystal settling/rounding)
+//	  2. Overburden Pressure (compaction due to weight)
+//
+//						(Jordan 1991 / Anderson 1976)
+//
+//---------------------------------------------------------------------------
+
+double tSnowPack::densityCompactionCalc(double rho, double SWE_kgm2, double snTempC, double dt_sec) {
+
+    // Constants from Jordan (1991) / Anderson (1976)
+    // currentDensity in kg/m^3
+    // currentSnWE_kgm2 in kg/m^2
+    // snTempC in Celsius
+    // dt_sec is timestep in seconds
+    
+    double density = rho;
+    double T_kelvin = snTempC + 273.15;
+    double T_diff = 273.15 - T_kelvin;
+    double gravity = 9.81;
+    
+    if (snTempC < -20.0) return rho; // Too cold for significant compaction
+
+    // Destructive Metamorphism (Settling)
+    // Constants converted from hourly (0.01) to secondly (2.77e-6)
+    double c1 = 2.777e-6; // s^-1 
+    double c3 = 0.04;     // K^-1
+    double c4 = 0.046;    // m^3/kg
+    
+    // Fractional rate (s^-1)
+    double fractional_meta = c1 * exp(-c3 * T_diff) * exp(-c4 * (density - 100.0));
+    
+    // Overburden Pressure (Compaction)
+    // Pressure at midpoint = 0.5 * SWE
+    double P = 0.5 * SWE_kgm2 * gravity;
+    
+    // Viscosity (Pa s) - Jordan (1991)
+    double eta0 = 3.6e6; 
+    double a_eta = 0.08; 
+    double b_eta = 0.021; 
+    double eta = eta0 * exp(a_eta * T_diff + b_eta * density);
+    
+    double fractional_overburden = P / eta; // s^-1
+    
+    // Integration
+    double total_rate = fractional_meta + fractional_overburden;
+    
+    // Use exponential growth: rho(t) = rho0 * exp(rate * dt)
+    double new_density = density * exp(total_rate * dt_sec);
+    
+    // Safety Clamps
+    if (new_density > 600.0) new_density = 600.0;
+    
+    return new_density;
+}
+
+//---------------------------------------------------------------------------
+//
+//			  tSnowPack::drainageCalc()
+//
+//	  Calculates the vertical liquid water flux (drainage) out of the 
+//	  snowpack using a Darcy's Law approximation for gravity drainage.
+//	  
+//	  The function treats 'irredSat' as the Volumetric Irreducible 
+//	  Water Saturation (fraction of pore space holding immobile water).
+//	  Flux only occurs when liquid water exceeds this holding capacity.
+//
+//						(Colbeck 1972 / Jordan 1991)
+//
+//---------------------------------------------------------------------------
+
+double tSnowPack::drainageCalc(double liqWE_m, double snDepth_m, double rho, double irredSat, double dt_sec) {
+    
+    // Sanity Check
+    if (liqWE_m <= 0.0 || snDepth_m <= 0.0) return 0.0;
+
+    // Calculate Porosity
+    double porosity = porosityCalc(rho);
+
+    // Calculate Effective Saturation
+    double pore_volume = snDepth_m * porosity;
+    double S_absolute = liqWE_m / pore_volume;
+    double S_eff = 0.0;
+
+    // Only drain water above the irreducible holding capacity
+    if (S_absolute > irredSat) {
+        S_eff = (S_absolute - irredSat) / (1.0 - irredSat);
+    } else {
+        return 0.0; // Water is held by capillary forces
+    }
+
+    // Calculate Flux (Darcy's Law approximation)
+    // Flux = K_sat * (S_eff)^3, 3 is a theoretical value from Colbeck
+    double drainage_flux_mps = kSatRef * S_eff * S_eff * S_eff;
+
+    // Integrate the flux (m/s) over the timestep (dt_sec) to a volume (m).
+    double route_vol = drainage_flux_mps * dt_sec;
+
+    // Mass Balance Limit
+    // Cannot drain more water than is "mobile" (Liquid - Holding Capacity)
+    double mobile_water = liqWE_m - (pore_volume * irredSat);
+    
+    // Clamp to 0 just in case floating point math goes slightly negative
+    if (mobile_water < 0.0) mobile_water = 0.0;
+    if (route_vol > mobile_water) {
+        route_vol = mobile_water;
+    }
+    
+    return route_vol;
+}
+
+//---------------------------------------------------------------------------
+//
+//        tSnowPack::porosityCalc()
+//
+//	  Calculate bulk porosity based on current snow density. Assumes 
+//	  a pure ice grain density of 917 kg/m^3.
+//	  
+//	  Includes a safety clamp (min porosity 0.05) to prevent division 
+//	  by zero errors in drainage calculations for highly compacted ice.
+//
+//---------------------------------------------------------------------------
+double tSnowPack::porosityCalc(double rho) {
+
+    // Calculate theoretical porosity
+    double por = 1.0 - (rho / rhoicekg);
+
+    // Safety Clamp
+    // Prevent divide by zero in dense ice
+    if (por < 0.05) { 
+        por = 0.05; 
+    }
+
+    return por;
 }
 
 /****************************************************************************
@@ -1191,9 +1480,8 @@ double tSnowPack::latentHFCalc(double Kaero) {
     // If the snow surface is frozen, the process is sublimation.
     } else {
         // Use latent heat of sublimation.
-        // Should we be using Clausius-Clapeyron here for the vapor pressure (liquid water) or should it be for ice?
-        // Could use Magnus-Tetens formula for ice vapor pressure.
-        lhf = (latSubkJ * 0.622 * rhoAir * Kaero * (vPress - 6.112 * exp((17.67 * snTemp_corr) / (snTemp_corr + 243.5))) /
+        // Saturation Vapor Pressure over ICE
+        lhf = (latSubkJ * 0.622 * rhoAir * Kaero * (vPress - 6.112 * exp((21.87 * snTemp_corr) / (snTemp_corr + 265.5))) /
                atmPress); //sublimation by THM 2012
     }
     return lhf;
@@ -1247,32 +1535,31 @@ double tSnowPack::snowFracCalc() {
     double Tw, RH, Ta, f1;
     Ta = airTemp;
     RH = rHumidity;
-    // Calculate wet-Bulb Temperature according to Stull (2011) https://doi.org/10.1175/JAMC-D-11-0143.1
-    Tw = Ta*atan(0.151977*pow(RH + 8.313659,0.5)) + atan(Ta + RH) - atan(RH - 1.676331) +
-         0.00391838*pow(RH,1.5)*atan(0.023101*RH) - 4.686035; // in degC
+    if (optPartition == 0) { // Wet-bulb partitioning
 
-    // Calculate  snowfall fraction according to Wang et al. (2019) https://doi.org/10.1029/2019GL085722
-    f1 = 1 + 6.99*pow(10,-5)*exp(2*(Tw + 3.97));
+        // Calculate wet-Bulb Temperature according to Stull (2011) https://doi.org/10.1175/JAMC-D-11-0143.1
+        Tw = Ta*atan(0.151977*sqrt(RH + 8.313659)) + atan(Ta + RH) - atan(RH - 1.676331) +
+            0.00391838*pow(RH,1.5)*atan(0.023101*RH) - 4.686035; // in degC
 
-    // Wet-bulb temperature > 5C corresponds to Ta = 10C and RH = 50%, assuming no snowfall
-    if ( Tw > 5 ) {
-        snowfrac = 0;
+        // Calculate  snowfall fraction according to Wang et al. (2019) https://doi.org/10.1029/2019GL085722
+        f1 = 1 + 6.99*pow(10,-5)*exp(2*(Tw + 3.97));
+
+        // Wet-bulb temperature > 5C corresponds to Ta = 10C and RH = 50%, assuming no snowfall
+        if ( Tw > maxTempWB ) {
+            snowfrac = 0;
+        } else {
+            snowfrac = 1/f1;
+        }
+    } else { // Linear ramp partitioning
+
+        if (Ta <= minTempRain) {
+            snowfrac = 1; // all ice
+        } else if (Ta >= maxTempSnow) {
+            snowfrac = 0; // all liquid
+        } else if ((Ta >= minTempRain) && (Ta <= maxTempSnow)) {
+            snowfrac = (maxTempSnow - Ta) / (maxTempSnow - minTempRain); //mixture
+        }
     }
-    else {
-        snowfrac = 1/f1;
-    }
-
-/*  Updated as outlined above to reflect influence of RH on snow fall partitioning -WR 11272023
-//    double TMin(0), TMax(4.4); //indices (Wigmosta et al. 1994)—updated for CJC thesis (see table 11)
-//
-//    if (airTemp <= TMin)
-//        snowfrac = 1; // all ice
-//    if (airTemp >= TMax)
-//        snowfrac = 0; // all liquid
-//    if ((airTemp >= TMin) && (airTemp <= TMax))
-//        snowfrac = (TMax - airTemp) / (TMax - TMin); //mixture
-*/
-
     return snowfrac;
 }
 
@@ -1300,16 +1587,20 @@ double tSnowPack::precipitationHFCalc() {
     double frac;
 
     //  frac = snowFracCalc();
-    snPrec = (snowFracCalc() * (rain + ctom * snUnload)) * mtoc; //convert from mm to cm
-    liqPrec = ((1 - snowFracCalc()) * (rain + ctom * snUnload)) * mtoc; //convert from mm to cm
+    // snUnload is the canopy snow unloaded over this step [cm], a depth, while
+    // rain is a rate [mm/hr] and the /3600 below treats the sum as a per-hour
+    // depth, so the unloaded snow has to be expressed as a rate as well. CJC2026
+    double unloadRate = ctom * snUnload / timeSteph; // cm/step to mm/hr
+    snPrec = (snowFracCalc() * (rain + unloadRate)) * mtoc; //convert from mm to cm
+    liqPrec = ((1 - snowFracCalc()) * (rain + unloadRate)) * mtoc; //convert from mm to cm
 
     if (airTemp > 0) {
-        phf = (cmtonaught * snPrec * 0 * rholiqkg * cpicekJ +
-               cmtonaught * liqPrec * (latFreezekJ + airTemp * rholiqkg * cpwaterkJ)) / 3600;
+        // snPrec term is zero (ice assumed to be at 0C on arrival)
+        phf = (cmtonaught * liqPrec * rholiqkg * (latFreezekJ + airTemp * cpwaterkJ)) / 3600;
 
-    } else if (airTemp <= 0) {
+    } else {
         phf = (cmtonaught * snPrec * airTemp * rholiqkg * cpicekJ +
-               cmtonaught * liqPrec * latFreezekJ * rholiqkg) / 3600;
+               cmtonaught * liqPrec * rholiqkg * latFreezekJ) / 3600;
 
     }
 
@@ -1336,14 +1627,7 @@ double tSnowPack::precipitationHFCalc() {
 double tSnowPack::agingAlbedo() {
     double alb;
 
-    // Albedo Parameters for Central Arizona
-    // Based on Sun et al. (2019) and general values for dusty, ephemeral snowpacks.
-    const double snInitialAlbedo = 0.85; // Albedo of fresh, new snow.
-    const double snLambdaDry     = 0.96; // Decay factor for dry snow aging.
-    const double snLambdaWet     = 0.87; // Faster decay factor for wet/melting snow.
-    const double snMinAlbedo     = 0.45; // Minimum albedo for old, "dirty" snow.
-
-    if (liqWE < 1.0E-5) {
+    if (liqWE < 1.0E-5 && snTempC < -0.1) {
         // Dry snow aging
         alb = snInitialAlbedo * pow(snLambdaDry, pow(crustAge / 24.0, 0.58));
     } else {
@@ -1385,31 +1669,34 @@ double tSnowPack::resFactCalc() {
     vegHeight = (coeffH <= 0) ? 0.1 : coeffH;
     vegHeight = (vegHeight > snDepthm) ? vegHeight - snDepthm : 0.1;
 
-    vegBare = 0.1;
+    vegBare = 0.4;
     vegFrac = coeffV;
 
     // Compute below canopy windspeed at snow surface following equation Moreno et al. (2016) CJC 2020
     if (snDepthm < coeffH) {
-        windSpeedS = windSpeedC * exp(-0.5 * coeffLAI * (1.0 - (snDepthm / coeffH)));
+        windSpeedS = windSpeedC * exp(-canopyWindAtten * coeffLAI * (1.0 - (snDepthm / coeffH)));
     } else {
         windSpeedS = windSpeedC;  // No canopy attenuation
     }
-
-    // --- Aerodynamic resistance for vegetation ---
+    
+    // Aerodynamic resistance for vegetation
     zm = 2.0 + vegHeight;
     zom = 0.123 * vegHeight;
     zov = 0.0123 * vegHeight;
     d = 0.67 * vegHeight;
 
-    rav = log((zm - d) / zom) * log((zm - d) / zov) / (windSpeedC * pow(vonKarm, 2)); //Uses canopy level wind speed
+    rav = log((zm - d) / zom) * log((zm - d) / zov) / (windSpeedC * (vonKarm * vonKarm)); //Uses canopy level wind speed
 
-    // --- Aerodynamic resistance for bare soil ---
+    // Aerodynamic resistance for snow surface
+    zom = snRoughness;
+    zov = snRoughness / 10.0; // 10% of the momentum roughness like with the original code
+    vegBare = snRoughness / 0.123; // Back calculate effective obstacle height using same relation as original code
     zm = 2.0 + vegBare;
-    zom = 0.123 * vegBare;
-    zov = 0.0123 * vegBare;
+    //zom = 0.123 * vegBare;
+    //zov = 0.0123 * vegBare;
     d = 0.67 * vegBare;
 
-    ras = log((zm - d) / zom) * log((zm - d) / zov) / (windSpeedS * pow(vonKarm, 2)); // Uses snow/surface level wind
+    ras = log((zm - d) / zom) * log((zm - d) / zov) / (windSpeedS * (vonKarm * vonKarm)); // Uses snow/surface level wind
 
     // Weighted resistance
     ra = (1 - vegFrac) * ras + vegFrac * rav;
@@ -1434,10 +1721,12 @@ double tSnowPack::resFactCalc() {
     // https://doi.org/10.1029/2008WR007042
 
     // Bulk Richardson Number (Eq. 17)
-    // Use windSpeedS (attenuated wind at snow surface) in RiB calc.
-    // Though Ta is from 2m AGL, we prioritize the snow–air interface.
-    // This matches the aerodynamic resistance formulation and maintains internal consistency.
-    double RiB = (g * zm_eff * (Ta - Ts)) / (T_avg * windSpeedS* windSpeedS);
+    // Evaluated with windSpeedC, the reference-level wind, so that the wind and
+    // the air temperature Ta both refer to the same 2 m reference height.
+    // An earlier version used windSpeedS (the canopy-attenuated wind at the snow
+    // surface); note ra itself still blends ras(windSpeedS) and rav(windSpeedC),
+    // so RiB matches the rav term rather than the blend. CJC2026
+    double RiB = (g * zm_eff * (Ta - Ts)) / (T_avg * windSpeedC* windSpeedC);
 
     // Compute upper limit Ri_u (Eq. 24)
     double Ri_u = 1.0 / (log(zm_eff / z0) + 5.0);
@@ -1446,18 +1735,23 @@ double tSnowPack::resFactCalc() {
     double C_stab;
     if (RiB < 0.0) {
         // Unstable conditions (Eq. 19)
-        C_stab = pow(1.0 - 16.0 * RiB, 0.5);
+        C_stab = 1.0 / sqrt(1.0 - 16.0 * RiB);
     } else if (RiB <= Ri_u) {
         // Stable but not extreme (Eq. 25)
-        C_stab = 1.0 / pow(1.0 - (RiB / Ri_cr), 2.0);
+        double term = 1.0 - (RiB / Ri_cr);
+        C_stab = 1.0 / (term * term);
     } else {
         // Very stable, capped (Eq. 26)
-        C_stab = 1.0 / pow(1.0 - (Ri_u / Ri_cr), 2.0);
+        double term = 1.0 - (Ri_u / Ri_cr);
+        C_stab = 1.0 / (term * term);
     }
 
 	// Clamp the stability correction factor to a reasonable range
-	// As RiB approaches Ri_cr, C_stab approaches infinity, so we limit it
-	if (C_stab > 15.0) { C_stab = 15.0; } // kaero can at most be 15 times the original value
+	// As RiB approaches Ri_cr, C_stab approaches infinity, so we limit it.
+	// The cap only binds in stable conditions (C_stab > 1, i.e. ra inflated);
+	// since ra *= C_stab and kaero = 1/ra, it keeps kaero from falling below
+	// 1/15 of its uncorrected value. CJC2026
+	if (C_stab > 15.0) { C_stab = 15.0; }
 
     // Apply correction to aerodynamic resistance
     ra *= C_stab;
@@ -1499,22 +1793,21 @@ void tSnowPack::computeSub() {
     // needs to be refactored or maybe deprecated.
 
     //compute effective incident shortwave radiation on snow crystal
-    Sp = PI * pow(iceRad, 2.0) * (1 - albedo) * inShortR;//check units--check (W)//WR debug change 0.8 to albedo
+    Sp = PI * (iceRad * iceRad) * (1 - albedo) * inShortR;//check units--check (W)//WR debug change 0.8 to albedo
 
     //Find coefficient for changing windspeed
     acoefficient = beta * coeffLAI;
 
     //find windspeed
-    if (windSpeed == 0.0) {
-        windSpeedC = 0.1; // WR 01032024 switched to windSpeedC since that is what is set to node.
-    }
-    windSpeedC = windSpeed * exp(-acoefficient * 0.4);// WR 01032024 switched to windSpeedC since that is what is set to node.
+    windSpeedC = windSpeed * exp(-acoefficient * 0.4);
+    if (windSpeedC == 0.0)
+        windSpeedC = 0.1;
 
     //Calculate Reynolds number
     Re = 2 * iceRad * windSpeedC / nu;
 
     //Calculate Sherwood number
-    Sh = 1.79 + 0.606 * pow(Re, 0.5);
+    Sh = 1.79 + 0.606 * sqrt(Re);
 
     //Calculate Nusselt number
     Nu = Sh;
@@ -1609,8 +1902,8 @@ double tSnowPack::inShortWaveSn(tCNode *cNode) {
 
         // If observations (for a horizontal surface) exist -
         // use them, at least in an approximate manner
-        if (tsOption > 1 && !rainPtr->getoptStorm()) {
-            RadGlobClr = (inShortR / (1.0 - 0.65 * pow(N, 2.0)));
+        if (tsOption > 1) {
+            RadGlobClr = (inShortR / (1.0 - 0.65 * (N * N)));
             Ic = Ic / (Ic * sinAlpha + Id) * RadGlobClr;
             Id = RadGlobClr - Ic * sinAlpha;
         }
@@ -1673,7 +1966,7 @@ double tSnowPack::inShortWaveSn(tCNode *cNode) {
         Ids = Id * v;
 
         // 3) Account for cloud cover
-        Is = (1.0 - 0.65 * pow(N, 2)) * (Ics + Ids);
+        Is = (1.0 - 0.65 * (N * N)) * (Ics + Ids);
 
         //Reflected from surrounded sites radiation
         //
@@ -1728,27 +2021,14 @@ double tSnowPack::inShortWaveSn(tCNode *cNode) {
         Ic = Is = N = Iv = Isw = Id = Ids = Ics = Ir = 0.0;
     } // end -- alphaD <= 0
 
-
-    // Assign the radiation variables to the 'tHydrometStoch' for ID = 0
-    if (rainPtr->getoptStorm() && (ID == 0)) {
-        weatherSimul->setSunH(alphaD);
-        weatherSimul->setIdir(Ics);
-        weatherSimul->setIdir_vis(0.5 * Ics);
-        weatherSimul->setIdir_nir(0.5 * Ics);
-        weatherSimul->setIdif(Ids + Ir);//AJR2008, SKY2008Snow
-        weatherSimul->setIdif_vis(0.5 * (Ids + Ir));//AJR2008, SKY2008Snow
-        weatherSimul->setIdif_nir(0.5 * (Ids + Ir));//AJR2008, SKY2008Snow
-        weatherSimul->OutputHydrometVars();
-    }
-
     // Set shortwave variables to the node (partition is approximate)
-    if (tsOption > 1 && !rainPtr->getoptStorm()) {
+    if (tsOption > 1) {
         cNode->setShortRadIn(inShortR); //or set(Is), they must be equal
     } else {
         cNode->setShortRadIn(Isw);
     }
-    cNode->setShortRadIn_dir(Ics * (1.0 - 0.65 * pow(N, 2.0))); // TODO: should these be set as values above the canopy?
-    cNode->setShortRadIn_dif((Ids + Ir) * (1.0 - 0.65 * pow(N, 2.0)));//AJR2008, SKY2008Snow
+    cNode->setShortRadIn_dir(Ics * (1.0 - 0.65 * (N * N))); // TODO: should these be set as values above the canopy?
+    cNode->setShortRadIn_dif((Ids + Ir) * (1.0 - 0.65 * (N * N)));//AJR2008, SKY2008Snow
 
     return Isw;
 }
@@ -1790,8 +2070,8 @@ double tSnowPack::inShortWaveCan() {
 
         // If observations (for a horizontal surface) exist -
         // use them, at least in an approximate manner
-        if (tsOption > 1 && !rainPtr->getoptStorm()) {
-            RadGlobClr = (inShortR / (1.0 - 0.65 * pow(N, 2.0)));
+        if (tsOption > 1) {
+            RadGlobClr = (inShortR / (1.0 - 0.65 * (N * N)));
             Ic = Ic / (Ic * sinAlpha + Id) * RadGlobClr;
             Id = RadGlobClr - Ic * sinAlpha;
         }
@@ -1854,7 +2134,7 @@ double tSnowPack::inShortWaveCan() {
         Ids = Id * v;
 
         // 3) Account for cloud cover
-        Is = (1.0 - 0.65 * pow(N, 2)) * (Ics + Ids);
+        Is = (1.0 - 0.65 * (N * N)) * (Ics + Ids);
 
         //Reflected from surrounded sites radiation
         //
@@ -1963,7 +2243,7 @@ void tSnowPack::snowEB(int nodeID, tCNode *node) {
     //atmospheric heat flux
     RSin = naughttokilo * inShortWaveSn(node); // AJR2008, SKY2008Snow
     RLin = naughttokilo * inLongWave(node); // AJR2008, SKY2008Snow
-    RLout = -naughttokilo * v1 * emmisSn() * sigma * pow(snTempK, 4.0);
+    RLout = -naughttokilo * v1 * emmisSn() * sigma * (snTempK*snTempK*snTempK*snTempK);
 
 
     //set up for output
@@ -2048,282 +2328,6 @@ double tSnowPack::KtoC(double temperature) {
 
     return (temperature - 273.15);
 
-}
-
-/***************************************************************************
-**
-** tSnowPack::writeRestart() Function
-**
-** Called from tSimulator during simulation loop
-**
-***************************************************************************/
-void tSnowPack::writeRestart(fstream &rStr) const {
-    BinaryWrite(rStr, hillAlbedoOption);
-    BinaryWrite(rStr, densityAge);
-    BinaryWrite(rStr, rainTemp);
-    BinaryWrite(rStr, ETAge);
-
-    BinaryWrite(rStr, timeSteph);
-    BinaryWrite(rStr, timeSteps);
-    BinaryWrite(rStr, timeStepm);
-    BinaryWrite(rStr, minutelyTimeStep);
-
-    BinaryWrite(rStr, liqWE);
-    BinaryWrite(rStr, iceWE);
-    BinaryWrite(rStr, snWE);
-    BinaryWrite(rStr, canWE);
-    BinaryWrite(rStr, liqRoute);
-    BinaryWrite(rStr, liqWEm);
-    BinaryWrite(rStr, iceWEm);
-    BinaryWrite(rStr, snWEm);
-    BinaryWrite(rStr, Utot);
-    BinaryWrite(rStr, Usn);
-    BinaryWrite(rStr, Uwat);
-    BinaryWrite(rStr, Utotold);
-    BinaryWrite(rStr, liqWatCont);
-    BinaryWrite(rStr, liqTempC);
-    BinaryWrite(rStr, iceTempC);
-    BinaryWrite(rStr, snTempC);
-    BinaryWrite(rStr, liqTempK);
-    BinaryWrite(rStr, iceTempK);
-    BinaryWrite(rStr, snTempK);
-    BinaryWrite(rStr, crustAge);
-
-    BinaryWrite(rStr, H);
-    BinaryWrite(rStr, L);
-    BinaryWrite(rStr, G);
-    BinaryWrite(rStr, Prec);
-    BinaryWrite(rStr, Rn);
-    BinaryWrite(rStr, dUint);
-    BinaryWrite(rStr, RLin);
-    BinaryWrite(rStr, RLout);
-    BinaryWrite(rStr, RSin);
-    BinaryWrite(rStr, Uerr);
-    BinaryWrite(rStr, snPrec);
-    BinaryWrite(rStr, liqPrec);
-    BinaryWrite(rStr, snPrecm);
-    BinaryWrite(rStr, liqPrecm);
-    BinaryWrite(rStr, snPrecmm);
-    BinaryWrite(rStr, liqPrecmm);
-    BinaryWrite(rStr, snUnload);
-    BinaryWrite(rStr, snCanWE);
-    BinaryWrite(rStr, vapPressSmb);
-    BinaryWrite(rStr, vapPresskSPa);
-
-    BinaryWrite(rStr, rholiqcgs);
-    BinaryWrite(rStr, rhoicecgs);
-    BinaryWrite(rStr, rhosncgs);
-    BinaryWrite(rStr, rholiqkg);
-    BinaryWrite(rStr, rhoicekg);
-    BinaryWrite(rStr, rhosnkg);
-    BinaryWrite(rStr, rhoAir);
-    BinaryWrite(rStr, phfOnOff);
-
-    BinaryWrite(rStr, cpsnowkJ);
-    BinaryWrite(rStr, cpicekJ);
-    BinaryWrite(rStr, cpwaterkJ);
-    BinaryWrite(rStr, cpairkJ);
-    BinaryWrite(rStr, latFreezekJ);
-    BinaryWrite(rStr, latVapkJ);
-    BinaryWrite(rStr, latSubkJ);
-
-    BinaryWrite(rStr, resFact);
-    BinaryWrite(rStr, albedo);
-    BinaryWrite(rStr, hillalbedo);
-    BinaryWrite(rStr, compactParam);
-    BinaryWrite(rStr, rhoSnFreshkg);
-    BinaryWrite(rStr, minSnTemp);
-
-    BinaryWrite(rStr, snDepth);
-    BinaryWrite(rStr, snDepthm);
-    BinaryWrite(rStr, snOnOff);
-    BinaryWrite(rStr, peakSnWE);
-    BinaryWrite(rStr, peakSnWEtemp);
-    BinaryWrite(rStr, persMax);
-    BinaryWrite(rStr, persMaxtemp);
-    BinaryWrite(rStr, inittime);
-    BinaryWrite(rStr, inittimeTemp);
-    BinaryWrite(rStr, peaktime);
-
-    BinaryWrite(rStr, naughttokilo);
-    BinaryWrite(rStr, kilotonaught);
-    BinaryWrite(rStr, cgsRHOtomks);
-    BinaryWrite(rStr, mksRHOtocgs);
-    BinaryWrite(rStr, naughttocm);
-    BinaryWrite(rStr, cmtonaught);
-    BinaryWrite(rStr, ctom);
-    BinaryWrite(rStr, mtoc);
-
-    BinaryWrite(rStr, Qcs);
-    BinaryWrite(rStr, Ce);
-    BinaryWrite(rStr, I);
-    BinaryWrite(rStr, Iold);
-    BinaryWrite(rStr, psiS);
-    BinaryWrite(rStr, Imax);
-    BinaryWrite(rStr, prec);
-    BinaryWrite(rStr, LAI);
-    BinaryWrite(rStr, kc);
-    BinaryWrite(rStr, iceRad);
-    BinaryWrite(rStr, dmdt);
-    BinaryWrite(rStr, Omega);
-    BinaryWrite(rStr, Sp);
-    BinaryWrite(rStr, RH);
-    BinaryWrite(rStr, D);
-    BinaryWrite(rStr, rhoVap);
-    BinaryWrite(rStr, Sh);
-    BinaryWrite(rStr, Nu);
-    BinaryWrite(rStr, Re);
-    BinaryWrite(rStr, KtAtm);
-    BinaryWrite(rStr, Ta);
-    BinaryWrite(rStr, Mwater);
-    BinaryWrite(rStr, R);
-    BinaryWrite(rStr, RdryAir);
-    BinaryWrite(rStr, esatIce);
-    BinaryWrite(rStr, nu);
-    BinaryWrite(rStr, beta);
-    BinaryWrite(rStr, acoefficient);
-    BinaryWrite(rStr, Lm);
-    BinaryWrite(rStr, airTempK);
-    BinaryWrite(rStr, effPrecip);
-
-    tEvapoTrans::writeRestart(rStr);
-}
-
-/***************************************************************************
-**
-** tSnowPack::readRestart() Function
-**
-***************************************************************************/
-void tSnowPack::readRestart(fstream &rStr) {
-    BinaryRead(rStr, hillAlbedoOption);
-    BinaryRead(rStr, densityAge);
-    BinaryRead(rStr, rainTemp);
-    BinaryRead(rStr, ETAge);
-
-    BinaryRead(rStr, timeSteph);
-    BinaryRead(rStr, timeSteps);
-    BinaryRead(rStr, timeStepm);
-    BinaryRead(rStr, minutelyTimeStep);
-
-    BinaryRead(rStr, liqWE);
-    BinaryRead(rStr, iceWE);
-    BinaryRead(rStr, snWE);
-    BinaryRead(rStr, canWE);
-    BinaryRead(rStr, liqRoute);
-    BinaryRead(rStr, liqWEm);
-    BinaryRead(rStr, iceWEm);
-    BinaryRead(rStr, snWEm);
-    BinaryRead(rStr, Utot);
-    BinaryRead(rStr, Usn);
-    BinaryRead(rStr, Uwat);
-    BinaryRead(rStr, Utotold);
-    BinaryRead(rStr, liqWatCont);
-    BinaryRead(rStr, liqTempC);
-    BinaryRead(rStr, iceTempC);
-    BinaryRead(rStr, snTempC);
-    BinaryRead(rStr, liqTempK);
-    BinaryRead(rStr, iceTempK);
-    BinaryRead(rStr, snTempK);
-    BinaryRead(rStr, crustAge);
-
-    BinaryRead(rStr, H);
-    BinaryRead(rStr, L);
-    BinaryRead(rStr, G);
-    BinaryRead(rStr, Prec);
-    BinaryRead(rStr, Rn);
-    BinaryRead(rStr, dUint);
-    BinaryRead(rStr, RLin);
-    BinaryRead(rStr, RLout);
-    BinaryRead(rStr, RSin);
-    BinaryRead(rStr, Uerr);
-    BinaryRead(rStr, snPrec);
-    BinaryRead(rStr, liqPrec);
-    BinaryRead(rStr, snPrecm);
-    BinaryRead(rStr, liqPrecm);
-    BinaryRead(rStr, snPrecmm);
-    BinaryRead(rStr, liqPrecmm);
-    BinaryRead(rStr, snUnload);
-    BinaryRead(rStr, snCanWE);
-    BinaryRead(rStr, vapPressSmb);
-    BinaryRead(rStr, vapPresskSPa);
-
-    BinaryRead(rStr, rholiqcgs);
-    BinaryRead(rStr, rhoicecgs);
-    BinaryRead(rStr, rhosncgs);
-    BinaryRead(rStr, rholiqkg);
-    BinaryRead(rStr, rhoicekg);
-    BinaryRead(rStr, rhosnkg);
-    BinaryRead(rStr, rhoAir);
-    BinaryRead(rStr, phfOnOff);
-
-    BinaryRead(rStr, cpsnowkJ);
-    BinaryRead(rStr, cpicekJ);
-    BinaryRead(rStr, cpwaterkJ);
-    BinaryRead(rStr, cpairkJ);
-    BinaryRead(rStr, latFreezekJ);
-    BinaryRead(rStr, latVapkJ);
-    BinaryRead(rStr, latSubkJ);
-
-    BinaryRead(rStr, resFact);
-    BinaryRead(rStr, albedo);
-    BinaryRead(rStr, hillalbedo);
-    BinaryRead(rStr, compactParam);
-    BinaryRead(rStr, rhoSnFreshkg);
-    BinaryRead(rStr, minSnTemp);
-
-    BinaryRead(rStr, snDepth);
-    BinaryRead(rStr, snDepthm);
-    BinaryRead(rStr, snOnOff);
-    BinaryRead(rStr, peakSnWE);
-    BinaryRead(rStr, peakSnWEtemp);
-    BinaryRead(rStr, persMax);
-    BinaryRead(rStr, persMaxtemp);
-    BinaryRead(rStr, inittime);
-    BinaryRead(rStr, inittimeTemp);
-    BinaryRead(rStr, peaktime);
-
-    BinaryRead(rStr, naughttokilo);
-    BinaryRead(rStr, kilotonaught);
-    BinaryRead(rStr, cgsRHOtomks);
-    BinaryRead(rStr, mksRHOtocgs);
-    BinaryRead(rStr, naughttocm);
-    BinaryRead(rStr, cmtonaught);
-    BinaryRead(rStr, ctom);
-    BinaryRead(rStr, mtoc);
-
-    BinaryRead(rStr, Qcs);
-    BinaryRead(rStr, Ce);
-    BinaryRead(rStr, I);
-    BinaryRead(rStr, Iold);
-    BinaryRead(rStr, psiS);
-    BinaryRead(rStr, Imax);
-    BinaryRead(rStr, prec);
-    BinaryRead(rStr, LAI);
-    BinaryRead(rStr, kc);
-    BinaryRead(rStr, iceRad);
-    BinaryRead(rStr, dmdt);
-    BinaryRead(rStr, Omega);
-    BinaryRead(rStr, Sp);
-    BinaryRead(rStr, RH);
-    BinaryRead(rStr, D);
-    BinaryRead(rStr, rhoVap);
-    BinaryRead(rStr, Sh);
-    BinaryRead(rStr, Nu);
-    BinaryRead(rStr, Re);
-    BinaryRead(rStr, KtAtm);
-    BinaryRead(rStr, Ta);
-    BinaryRead(rStr, Mwater);
-    BinaryRead(rStr, R);
-    BinaryRead(rStr, RdryAir);
-    BinaryRead(rStr, esatIce);
-    BinaryRead(rStr, nu);
-    BinaryRead(rStr, beta);
-    BinaryRead(rStr, acoefficient);
-    BinaryRead(rStr, Lm);
-    BinaryRead(rStr, airTempK);
-    BinaryRead(rStr, effPrecip);
-
-    tEvapoTrans::readRestart(rStr);
 }
 
 void tSnowPack::checkShelter(tCNode *cNode) {

@@ -2,7 +2,7 @@
  * TIN-based Real-time Integrated Basin Simulator (tRIBS)
  * Distributed Hydrologic Model
  *
- * Copyright (c) 2025. tRIBS Developers
+ * Copyright (c) tRIBS Developers
  *
  * See LICENSE file in the project root for full license information.
  ******************************************************************************/
@@ -71,10 +71,8 @@ public:
   void SortNodesByNetOrder();
   void FillLakes();
   void initializeTravelTime();
-  void initializeTravelTimeOnly();     
   void setTravelTime();
   void setMaxTravelTime();
-  void setTravelVelocity(double);
   void SurfaceFlow();
   void DrainAreaVoronoi();
   void RouteFlowArea(tCNode *, double);
@@ -107,8 +105,6 @@ public:
   double getCurrDischarge(int);
 
   void SetReachInformation();
-  void writeRestart(fstream &) const;
-  void readRestart(fstream &);
 
   tPtrList< tCNode >& getReachHeadList() { return NodesLstH; }
   tPtrList< tCNode >& getReachOutletList() { return NodesLstO; }
@@ -131,11 +127,7 @@ protected:
   tList< int >       NNodes;     // NODELIST #3 # of nodes in each reach 
 
   int flowboxes; 	        // Size of current discharge array
-  int maxttimeInitial;		// added by Ara Ko in 2017 to keep the minitial maxttime 
   double hillvel;   	        // Hillslope velocity, [m/sec]
-  double streamvel; 	        // Stream velocity, [m/sec]
-  double velratio;  	        // Ratio Stream/Hillslope
-  double velcoef;   	        // Coeffcient velocity-discharge
   double flowexp;   	        // Power in velocity-discharge relationship
   double baseflow;  	        // Baseflow: leftover from event-based
   double dOtp;      	        // Time interval in hydrograph output, [hour]

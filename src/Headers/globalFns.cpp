@@ -2,7 +2,7 @@
  * TIN-based Real-time Integrated Basin Simulator (tRIBS)
  * Distributed Hydrologic Model
  *
- * Copyright (c) 2025. tRIBS Developers
+ * Copyright (c) tRIBS Developers
  *
  * See LICENSE file in the project root for full license information.
  ******************************************************************************/
@@ -502,8 +502,8 @@ double InterpSquareGrid( double xgen, double ygen, tMatrix< double >& elev,
 **  zs contain the z values at p0, p1, and p2, respectively in the array
 **
 **********************************************************************/
-double PlaneFit(double x, double y, tArray<double> p0,
-                tArray<double> p1, tArray<double> p2, tArray<double> zs)
+double PlaneFit(double x, double y, const tArray<double>& p0,
+                const tArray<double>& p1, const tArray<double>& p2, const tArray<double>& zs)
 {
 	double a, b, c;
 	double y0, y1, y2, x0, x1, x2, z0, z1, z2;

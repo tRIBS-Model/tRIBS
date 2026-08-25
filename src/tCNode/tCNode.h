@@ -2,7 +2,7 @@
  * TIN-based Real-time Integrated Basin Simulator (tRIBS)
  * Distributed Hydrologic Model
  *
- * Copyright (c) 2025. tRIBS Developers
+ * Copyright (c) tRIBS Developers
  *
  * See LICENSE file in the project root for full license information.
  ******************************************************************************/
@@ -34,34 +34,10 @@
 #include <memory> // WR - added 09192023 :)
 #include <list> //SMM - added 09232008
 
-#ifdef ALPHA_64
-  #include <iostream.h>
-  #include <fstream.h>
-  #include <assert.h>
-  #include <math.h>
-#elif defined LINUX_32
-  #include <iostream>
-  #include <fstream>
-  #include <cassert>
-  #include <cmath>
-
-#elif defined MAC
-  #include <iostream>
-  #include <fstream>
-  #include <cassert>
-  #include <cmath>
-
-#elif defined WIN
-  #include <iostream.h>
-  #include <fstream.h>
-  #include <assert.h>
-  #include <math.h>
-#else 
-  #include <iostream.h>
-  #include <fstream.h>
-  #include <assert.h>
-  #include <math.h>
-#endif
+#include <iostream>
+#include <fstream>
+#include <cassert>
+#include <cmath>
 
 //=========================================================================
 //
@@ -173,7 +149,7 @@ public:
   double getSnTempC();//state
   double getLiqRouted();//flux
   double getCrustAge();//state
-  double getDensityAge();//state
+  double getRhoSn();//state
   double getEvapoTransAge();//state
   double getSnLHF();//flux
   double getSnSHF();//flux
@@ -206,6 +182,7 @@ public:
   double getInitPackTime();//integratedoutput
   double getInitPackTimeTemp();
   double getPeakPackTime();//integratedoutput
+  double getSnDepth();//output CJC2025
 
   //snowintercept
   double getIntSWE();//state
@@ -269,16 +246,15 @@ public:
   double getStomRes();
 
   // SKYnGM2008LU
-  double getIntercepCoeff();
   double getCanFieldCap();
   double getDrainCoeff();
   double getDrainExpPar();
   double getOptTransmCoeff();
   double getLeafAI();
-  double getCanStorParam();
   // CJC2025: New Parameters
   double getEvapThresh();
   double getTransThresh();
+  double getRootZoneDepth();
 
   // SKYnGM2008LU
   double getLandUseAlbInPrevGrid();
@@ -291,10 +267,6 @@ public:
   double getStomResInUntilGrid();
   double getVegFractionInPrevGrid();
   double getVegFractionInUntilGrid();
-  double getCanStorParamInPrevGrid();
-  double getCanStorParamInUntilGrid();
-  double getIntercepCoeffInPrevGrid();
-  double getIntercepCoeffInUntilGrid();
   double getCanFieldCapInPrevGrid();
   double getCanFieldCapInUntilGrid();
   double getDrainCoeffInPrevGrid();
@@ -310,12 +282,12 @@ public:
   double getEvapThreshInUntilGrid();
   double getTransThreshInPrevGrid();
   double getTransThreshInUntilGrid();
+  double getRootZoneDepthInPrevGrid();
+  double getRootZoneDepthInUntilGrid();
 
 
 
   // SKYnGM2008LU
-  double getAvCanStorParam();
-  double getAvIntercepCoeff();
   double getAvThroughFall();
   double getAvCanFieldCap();
   double getAvDrainCoeff();
@@ -329,12 +301,14 @@ public:
   // CJC2025: New Parameters
   double getAvEvapThresh();
   double getAvTransThresh();
+  double getAvRootZoneDepth();
 
   double getAvSoilMoisture();         // Integral characteristics
   double getAvEvapFract();
   double getAvET();
 
   tEdge * getFlowEdg();
+  double getCosSlope();
 
   int getFloodStatus();
   int getSoilID();                     //Invariant Members
@@ -471,16 +445,15 @@ public:
   void setStomRes(double);
 
   // SKYnGM2008LU
-  void setIntercepCoeff(double);
   void setCanFieldCap(double);
   void setDrainCoeff(double);
   void setDrainExpPar(double);
   void setOptTransmCoeff(double);
   void setLeafAI(double);
-  void setCanStorParam(double);
   // CJC2025: New Parameters
   void setEvapThresh(double);
   void setTransThresh(double);
+  void setRootZoneDepth(double);
 
   void setLandUseAlbInPrevGrid(double);
   void setLandUseAlbInUntilGrid(double);
@@ -492,10 +465,6 @@ public:
   void setStomResInUntilGrid(double);
   void setVegFractionInPrevGrid(double);
   void setVegFractionInUntilGrid(double);
-  void setCanStorParamInPrevGrid(double);
-  void setCanStorParamInUntilGrid(double);
-  void setIntercepCoeffInPrevGrid(double);
-  void setIntercepCoeffInUntilGrid(double);
   void setCanFieldCapInPrevGrid(double);
   void setCanFieldCapInUntilGrid(double);
   void setDrainCoeffInPrevGrid(double);
@@ -511,10 +480,10 @@ public:
   void setEvapThreshInUntilGrid(double);
   void setTransThreshInPrevGrid(double);
   void setTransThreshInUntilGrid(double);
+  void setRootZoneDepthInPrevGrid(double);
+  void setRootZoneDepthInUntilGrid(double);
 
   // SKYnGM2008LU
-  void setAvCanStorParam(double);
-  void setAvIntercepCoeff(double);
   void setAvThroughFall(double);
   void setAvCanFieldCap(double);
   void setAvDrainCoeff(double);
@@ -528,6 +497,7 @@ public:
   // CJC2025: New Parameters
   void setAvEvapThresh(double);
   void setAvTransThresh(double);
+  void setAvRootZoneDepth(double);
 
   void setAvSoilMoisture(double);     // Integral characteristics
   void setAvEvapFract(double);
@@ -547,7 +517,7 @@ public:
   void setLiqRouted(double);
   void setSnTempC(double);
   void setCrustAge(double);
-  void setDensityAge(double);
+  void setRhoSn(double);
   void setEvapoTransAge(double);
   void setSnLHF(double);
   void setSnSHF(double);
@@ -567,6 +537,7 @@ public:
   void setInitPackTime(double);//integratedoutput
   void setInitPackTimeTemp(double);  
   void setPeakPackTime(double);//integratedoutput
+  void setSnDepth(double);//output CJC2025
   //snowintercept
   void setIntSWE(double);
   void setIntPrec(double);
@@ -658,8 +629,10 @@ public:
   tEdge  *bndEdge2; 
   void   deleteVertArrays();   
   void   allocVertArrays(int); 
-  void   writeRestart(fstream&) const;
-  void   readRestart(fstream&);
+  void   writeRestart(ostream&) const;
+  void   readRestart(istream&);
+  void   readRestartBody(istream&);
+  static void skipRestartBody(istream&);
   void   printVariables();
 
   int    satOccur;              // Surface saturation occurence 
@@ -677,6 +650,13 @@ public:
 
   double getSoilCutoff();
   double getRootCutoff();
+
+  // Performance caches (see tHydroModel: root cutoff / satOccur test)
+  void setRootCutoffDepth(double);
+  void setNwtSatThresh(double);
+
+  double getRootCutoffDepth();
+  double getNwtSatThresh();
 
 
 protected:
@@ -764,7 +744,7 @@ protected:
   double liqRoute;//output
   double snTemperC;//state var
   double crAge;//state var
-  double densAge;//state var
+  double rhoSn;//state var
   double ETage;//state var
   double snLHF;//output
   double snSHF;//output
@@ -782,6 +762,7 @@ protected:
   double initPackTime; //output
   double initPackTimeTemp;
   double peakPackTime; //output
+  double snDepth; //output CJC2026
   //snowintercept
   double intSWEq;//state var
   double intSnUnload;//output var
@@ -817,31 +798,32 @@ protected:
   double StomRes;
 
   // SKYnGM2008LU
-  double IntercepCoeff;
   double CanFieldCap;
   double DrainCoeff;
   double DrainExpPar;
   double OptTransmCoeff;
   double LeafAI;
-  double CanStorParam;
   // CJC2025: New Parameters
   double EvapThresh;
   double TransThresh;
+  double RootZoneDepth;
 
   // SKYnGM2008LU
   double LandUseAlbInPrevGrid, LandUseAlbInUntilGrid, ThroughFallInPrevGrid, ThroughFallInUntilGrid;
   double VegHeightInPrevGrid, VegHeightInUntilGrid, StomResInPrevGrid, StomResInUntilGrid;
-  double VegFractionInPrevGrid, VegFractionInUntilGrid, CanStorParamInPrevGrid, CanStorParamInUntilGrid;
-  double IntercepCoeffInPrevGrid,IntercepCoeffInUntilGrid, CanFieldCapInPrevGrid, CanFieldCapInUntilGrid;
+  double VegFractionInPrevGrid, VegFractionInUntilGrid;
+  double CanFieldCapInPrevGrid, CanFieldCapInUntilGrid;
   double DrainCoeffInPrevGrid, DrainCoeffInUntilGrid, DrainExpParInPrevGrid, DrainExpParInUntilGrid;
   double OptTransmCoeffInPrevGrid, OptTransmCoeffInUntilGrid, LeafAIInPrevGrid, LeafAIInUntilGrid;
   double EvapThreshInPrevGrid, EvapThreshInUntilGrid, TransThreshInPrevGrid, TransThreshInUntilGrid; // CJC2025: New Parameters
+  double RootZoneDepthInPrevGrid, RootZoneDepthInUntilGrid;
 
   // SKYnGM2008LU
-  double AvCanStorParam, AvIntercepCoeff, AvThroughFall, AvCanFieldCap;
+  double AvThroughFall, AvCanFieldCap;
   double AvDrainCoeff, AvDrainExpPar, AvLandUseAlb, AvVegHeight;
   double AvOptTransmCoeff, AvStomRes, AvVegFraction, AvLeafAI;
   double AvEvapThresh, AvTransThresh; // CJC2025: New Parameters
+  double AvRootZoneDepth;
 
   double AvSoilMoisture;        // Integral characteristics
   double AvEvapFract;
@@ -917,6 +899,14 @@ protected:
   // update to beta functions, variable store cutoff of soil and dry canopy evap once Nwt = Bedrock
   double soil_cutoff;
   double root_cutoff;
+
+  // Performance caches, both initialized to -1.0 i.e. "not yet computed":
+  // root_cutoff_depth: rootzone depth root_cutoff was last computed for, so
+  //   the cutoff is only recomputed when the rootzone depth changes
+  // nwt_sat_thresh: water table depth above which the top 1 mm of soil may
+  //   be saturated (depends only on static soil properties)
+  double root_cutoff_depth;
+  double nwt_sat_thresh;
 
 
 };

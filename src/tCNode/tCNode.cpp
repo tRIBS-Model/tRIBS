@@ -2,7 +2,7 @@
  * TIN-based Real-time Integrated Basin Simulator (tRIBS)
  * Distributed Hydrologic Model
  *
- * Copyright (c) 2025. tRIBS Developers
+ * Copyright (c) tRIBS Developers
  *
  * See LICENSE file in the project root for full license information.
  ******************************************************************************/
@@ -13,6 +13,7 @@
 **
 ***************************************************************************/
 
+#include <cstdint>
 #include "src/tCNode/tCNode.h"
 
 //=========================================================================
@@ -93,31 +94,33 @@ tCNode::tCNode() :tNode()
 	LandUseAlb = ThroughFall = VegHeight = StomRes = 0.0; 
 
 	// SKYnGM2008LU
-	IntercepCoeff = CanFieldCap = DrainCoeff = 0.0;  
-	DrainExpPar = OptTransmCoeff = LeafAI = 0.0;	
-	CanStorParam = 0.0;
+	CanFieldCap = DrainCoeff = 0.0;
+	DrainExpPar = OptTransmCoeff = LeafAI = 0.0;
   EvapThresh = TransThresh = 0.0; // CJC2025
+  RootZoneDepth = 1000.0;
 
 	// SKYnGM2008LU
 	LandUseAlbInPrevGrid = LandUseAlbInUntilGrid = ThroughFallInPrevGrid = ThroughFallInUntilGrid = 0.0;
 	VegHeightInPrevGrid = VegHeightInUntilGrid = StomResInPrevGrid = StomResInUntilGrid = 0.0;
-	VegFractionInPrevGrid = VegFractionInUntilGrid = CanStorParamInPrevGrid = CanStorParamInUntilGrid = 0.0;
-	IntercepCoeffInPrevGrid = IntercepCoeffInUntilGrid = CanFieldCapInPrevGrid = CanFieldCapInUntilGrid = 0.0;
+	VegFractionInPrevGrid = VegFractionInUntilGrid = 0.0;
+	CanFieldCapInPrevGrid = CanFieldCapInUntilGrid = 0.0;
 	DrainCoeffInPrevGrid = DrainCoeffInUntilGrid = DrainExpParInPrevGrid = DrainExpParInUntilGrid = 0.0;
 	OptTransmCoeffInPrevGrid = OptTransmCoeffInUntilGrid = LeafAIInPrevGrid = LeafAIInUntilGrid = 0.0;
   EvapThreshInPrevGrid = EvapThreshInUntilGrid = TransThreshInPrevGrid = TransThreshInUntilGrid = 0.0; // CJC2025
+  RootZoneDepthInPrevGrid = RootZoneDepthInUntilGrid = 1000.0;
 
 	// SKYnGM2008LU
-	AvCanStorParam = AvIntercepCoeff = AvThroughFall = AvCanFieldCap = 0.0;
+	AvThroughFall = AvCanFieldCap = 0.0;
 	AvDrainCoeff = AvDrainExpPar = AvLandUseAlb = AvVegHeight = 0.0;
 	AvOptTransmCoeff = AvStomRes = AvVegFraction = AvLeafAI = 0.0;
   AvEvapThresh = AvTransThresh = 0.0; // CJC2025
-	
+  AvRootZoneDepth = 1000.0;
+
 	// SKY2008Snow from AJR2007
 	//snowpack -- RINEHART 2007 @ NMT
 	liqWEq = iceWEq =  liqRoute = dU = 0.0;
 	snTemperC = 0.0;
-	crAge = densAge = ETage = 0.0;
+	crAge = rhoSn = ETage = 0.0;
 	cumLHF = cumMelt = 0.0;
 	snSub = snEvap = 0.0; // Initialize snowpack cumulative sublimation & evaporation CJC2020
 	cumSnSub = cumSnEvap = cumTotEvap = cumBarEvap = 0.0; // Initialize snowpack cumulative sublimation & evaporation CJC2020
@@ -126,7 +129,7 @@ tCNode::tCNode() :tNode()
 	cumUError = 0.0;
 	cumHrsSun = cumHrsSnow = 0.0;
 	cumLHF = cumSHF = cumPHF = cumRLin = cumRLout = cumRSin = cumGHF = cumMelt = 0.0;  
-	persTime = persTimeTemp = peakSWE = peakSWEtemp = initPackTime = peakPackTime = 0.0;
+	persTime = persTimeTemp = peakSWE = peakSWEtemp = initPackTime = peakPackTime = snDepth = 0.0;
 	initPackTimeTemp = 0.0;  
 	//snowintercept -- RINEHART 2007 @ NMT
 	intSWEq = 0.0;
@@ -156,6 +159,10 @@ tCNode::tCNode() :tNode()
     // updates to beta_func
     soil_cutoff = 0.0;
     root_cutoff = 0.0;
+
+    // Performance caches: -1 means "not yet computed"
+    root_cutoff_depth = -1.0;
+    nwt_sat_thresh = -1.0;
 
 }
 
@@ -228,31 +235,33 @@ tCNode::tCNode(tInputFile &infile) :tNode() {
 	LandUseAlb = ThroughFall = VegHeight = StomRes = 0.0; 
 
 	// SKYnGM2008LU
-	IntercepCoeff = CanFieldCap = DrainCoeff = 0.0; 
+	CanFieldCap = DrainCoeff = 0.0;
 	DrainExpPar = OptTransmCoeff = LeafAI = 0.0;
-        CanStorParam = 0.0;	
   EvapThresh = TransThresh = 0.0; // CJC2025
+  RootZoneDepth = 1000.0;
 
 	// SKYnGM2008LU
 	LandUseAlbInPrevGrid = LandUseAlbInUntilGrid = ThroughFallInPrevGrid = ThroughFallInUntilGrid = 0.0;
 	VegHeightInPrevGrid = VegHeightInUntilGrid = StomResInPrevGrid = StomResInUntilGrid = 0.0;
-	VegFractionInPrevGrid = VegFractionInUntilGrid = CanStorParamInPrevGrid = CanStorParamInUntilGrid = 0.0;
-	IntercepCoeffInPrevGrid = IntercepCoeffInUntilGrid = CanFieldCapInPrevGrid = CanFieldCapInUntilGrid = 0.0;
+	VegFractionInPrevGrid = VegFractionInUntilGrid = 0.0;
+	CanFieldCapInPrevGrid = CanFieldCapInUntilGrid = 0.0;
 	DrainCoeffInPrevGrid = DrainCoeffInUntilGrid = DrainExpParInPrevGrid = DrainExpParInUntilGrid = 0.0;
 	OptTransmCoeffInPrevGrid = OptTransmCoeffInUntilGrid = LeafAIInPrevGrid = LeafAIInUntilGrid = 0.0;
   EvapThreshInPrevGrid = EvapThreshInUntilGrid = TransThreshInPrevGrid = TransThreshInUntilGrid = 0.0; // CJC2025
+  RootZoneDepthInPrevGrid = RootZoneDepthInUntilGrid = 1000.0;
 
 	// SKYnGM2008LU
-	AvCanStorParam = AvIntercepCoeff = AvThroughFall = AvCanFieldCap = 0.0;
+	AvThroughFall = AvCanFieldCap = 0.0;
 	AvDrainCoeff = AvDrainExpPar = AvLandUseAlb = AvVegHeight = 0.0;
 	AvOptTransmCoeff = AvStomRes = AvVegFraction = AvLeafAI = 0.0;
   AvEvapThresh = AvTransThresh = 0.0; // CJC2025
+  AvRootZoneDepth = 1000.0;
 
 	// SKY2008Snow from AJR2007
 	//snowpack -- RINEHART 2007 @ NMT
 	liqWEq = iceWEq =  liqRoute = dU = 0.0;
 	snTemperC = 0.0;
-	crAge = densAge = ETage = 0.0;
+	crAge = rhoSn = ETage = 0.0;
 	cumLHF = cumMelt = 0.0;
 	snSub = snEvap = 0.0; // Initialize snowpack cumulative sublimation & evaporation CJC2020
 	cumSnSub = cumSnEvap = cumTotEvap = cumBarEvap = 0.0; // Initialize snowpack cumulative sublimation & evaporation CJC2020
@@ -262,7 +271,7 @@ tCNode::tCNode(tInputFile &infile) :tNode() {
 	cumLHF = cumSHF = cumPHF = cumRLin = cumRLout = cumRSin = cumGHF = 0.0;
 	cumMelt = 0.0;
 	cumHrsSun = cumHrsSnow = 0.0;
-	persTime = persTimeTemp = peakSWE = peakSWEtemp = initPackTime = peakPackTime = 0.0;
+	persTime = persTimeTemp = peakSWE = peakSWEtemp = initPackTime = peakPackTime = snDepth = 0.0;
 	initPackTimeTemp = 0.0;
 	//snowintercept -- RINEHART 2007 @ NMT
 	intSWEq = 0.0;
@@ -301,6 +310,13 @@ tCNode::tCNode(tInputFile &infile) :tNode() {
     Porosity = 0.0;
     VolHeatCond = 0.0;
     SoilHeatCap = 0.0;
+
+    soil_cutoff = 0.0;
+    root_cutoff = 0.0;
+
+    // Performance caches: -1 means "not yet computed"
+    root_cutoff_depth = -1.0;
+    nwt_sat_thresh = -1.0;
 
 }
 
@@ -457,16 +473,15 @@ double tCNode::getVegHeight() {return VegHeight;}
 double tCNode::getStomRes() {return StomRes;}
 
 // SKYnGM2008LU
-double tCNode::getIntercepCoeff() {return IntercepCoeff;}
 double tCNode::getCanFieldCap() {return CanFieldCap;}
 double tCNode::getDrainCoeff() {return DrainCoeff;}
 double tCNode::getDrainExpPar() {return DrainExpPar;}
 double tCNode::getOptTransmCoeff() {return OptTransmCoeff;}
 double tCNode::getLeafAI() {return LeafAI;}
-double tCNode::getCanStorParam() {return CanStorParam;}
 // CJC2025: New Parameters
 double tCNode::getEvapThresh() {return EvapThresh;}
 double tCNode::getTransThresh() {return TransThresh;}
+double tCNode::getRootZoneDepth() {return RootZoneDepth;}
 
 // SKYnGM2008LU
 double tCNode::getLandUseAlbInPrevGrid() {return LandUseAlbInPrevGrid;}
@@ -479,10 +494,6 @@ double tCNode::getStomResInPrevGrid() {return StomResInPrevGrid;}
 double tCNode::getStomResInUntilGrid() {return StomResInUntilGrid;}
 double tCNode::getVegFractionInPrevGrid() {return VegFractionInPrevGrid;}
 double tCNode::getVegFractionInUntilGrid() {return VegFractionInUntilGrid;}
-double tCNode::getCanStorParamInPrevGrid() {return CanStorParamInPrevGrid;}
-double tCNode::getCanStorParamInUntilGrid() {return CanStorParamInUntilGrid;}
-double tCNode::getIntercepCoeffInPrevGrid() {return IntercepCoeffInPrevGrid;}
-double tCNode::getIntercepCoeffInUntilGrid() {return IntercepCoeffInUntilGrid;}
 double tCNode::getCanFieldCapInPrevGrid() {return CanFieldCapInPrevGrid;}
 double tCNode::getCanFieldCapInUntilGrid() {return CanFieldCapInUntilGrid;}
 double tCNode::getDrainCoeffInPrevGrid() {return DrainCoeffInPrevGrid;}
@@ -494,14 +505,14 @@ double tCNode::getOptTransmCoeffInUntilGrid() {return OptTransmCoeffInUntilGrid;
 double tCNode::getLeafAIInPrevGrid() {return LeafAIInPrevGrid;}
 double tCNode::getLeafAIInUntilGrid() {return LeafAIInUntilGrid;}
 // CJC2025: New Parameters
-double tCNode::getEvapThreshInPrevGrid() {return EvapThreshInPrevGrid;} 
-double tCNode::getEvapThreshInUntilGrid() {return EvapThreshInUntilGrid;} 
-double tCNode::getTransThreshInPrevGrid() {return TransThreshInPrevGrid;} 
-double tCNode::getTransThreshInUntilGrid() {return TransThreshInUntilGrid;} 
+double tCNode::getEvapThreshInPrevGrid() {return EvapThreshInPrevGrid;}
+double tCNode::getEvapThreshInUntilGrid() {return EvapThreshInUntilGrid;}
+double tCNode::getTransThreshInPrevGrid() {return TransThreshInPrevGrid;}
+double tCNode::getTransThreshInUntilGrid() {return TransThreshInUntilGrid;}
+double tCNode::getRootZoneDepthInPrevGrid() {return RootZoneDepthInPrevGrid;}
+double tCNode::getRootZoneDepthInUntilGrid() {return RootZoneDepthInUntilGrid;} 
 
 // SKYnGM2008LU
-double tCNode::getAvCanStorParam() {return AvCanStorParam;}
-double tCNode::getAvIntercepCoeff() {return AvIntercepCoeff;}
 double tCNode::getAvThroughFall() {return AvThroughFall;}
 double tCNode::getAvCanFieldCap() {return AvCanFieldCap;}
 double tCNode::getAvDrainCoeff() {return AvDrainCoeff;}
@@ -515,12 +526,27 @@ double tCNode::getAvLeafAI() {return AvLeafAI;}
 // CJC2025: New Parameters
 double tCNode::getAvEvapThresh() {return AvEvapThresh;}
 double tCNode::getAvTransThresh() {return AvTransThresh;}
+double tCNode::getAvRootZoneDepth() {return AvRootZoneDepth;}
 
 int    tCNode::getFloodStatus()  { return flood; }
 int    tCNode::getSoilID()       { return soiID; }
 int    tCNode::getLandUse()      { return LandUse; }
 tEdge * tCNode::getFlowEdg()     { return flowedge; }
 tCNode * tCNode::getStreamNode() { return StreamPtr; }
+
+// CJC2026: Cosine of the flow-edge slope angle. This is the factor between
+// the slope-normal depths held in state (Nwt, Mu, Mi, Nf, Nt, bedrock) and
+// the vertical depths used by depth inputs and outputs: vertical = normal /
+// cos, normal = vertical * cos. Equal to cos(atan(S)), computed as
+// 1/sqrt(1+S^2) to avoid trig calls.
+double tCNode::getCosSlope()
+{
+	if (!flowedge)
+		return 1.0;
+	double s  = flowedge->getSlope();
+	double cs = 1.0/sqrt(1.0 + s*s);
+	return (cs < 1E-9) ? 1E-9 : cs;
+}
 
 tList< int >    * tCNode::getTimeIndList() { return TimeInd.get(); }
 tList< double > * tCNode::getQeffList()    { return Qeff.get(); }
@@ -533,7 +559,7 @@ double tCNode::getDU() {return dU;}//flux
 double tCNode::getLiqRouted() {return liqRoute;}//flux
 double tCNode::getSnTempC() {return snTemperC;}//state
 double tCNode::getCrustAge() {return crAge;}//state
-double tCNode::getDensityAge() {return densAge;}//state
+double tCNode::getRhoSn() {return rhoSn;}//state
 double tCNode::getEvapoTransAge() {return ETage;}//flux
 double tCNode::getSnLHF() {return snLHF;}//flux
 double tCNode::getSnSHF() {return snSHF;}//flux
@@ -568,6 +594,7 @@ double tCNode::getPeakSWETemp() {return peakSWEtemp;}
 double tCNode::getInitPackTime() {return initPackTime;}
 double tCNode::getInitPackTimeTemp() {return initPackTimeTemp;}
 double tCNode::getPeakPackTime() {return peakPackTime;}
+double tCNode::getSnDepth() {return snDepth;} // CJC2026
 // snowintercept -- RINEHART 2007 @ NMT
 double tCNode::getIntSWE() {return intSWEq;}//state
 double tCNode::getIntPrec() {return intPrec;}//flux 
@@ -611,6 +638,9 @@ double tCNode::getSoilHeatCap() {return SoilHeatCap;}
 //beta update
 double tCNode::getSoilCutoff() {return soil_cutoff;}
 double tCNode::getRootCutoff() {return root_cutoff;}
+
+double tCNode::getRootCutoffDepth() {return root_cutoff_depth;}
+double tCNode::getNwtSatThresh() {return nwt_sat_thresh;}
 
 // Set Functions
 
@@ -748,7 +778,7 @@ void tCNode::setDU(double value) {dU = value;}//flux
 void tCNode::setLiqRouted(double lr) {liqRoute = lr;}//flux
 void tCNode::setSnTempC(double temperature) {snTemperC = temperature;}//state
 void tCNode::setCrustAge(double ca) {crAge = ca;}//state
-void tCNode::setDensityAge(double da) {densAge = da;}//state
+void tCNode::setRhoSn(double r) {rhoSn = r;}//state
 void tCNode::setEvapoTransAge(double ea) {ETage = ea;}//flux
 void tCNode::setSnLHF(double value) {snLHF = value;}//flux
 void tCNode::setSnSHF(double value) {snSHF = value;}//flux
@@ -768,6 +798,7 @@ void tCNode::setPeakSWETemp(double value) {peakSWEtemp = value;}
 void tCNode::setInitPackTime(double value) {initPackTime = value;}
 void tCNode::setInitPackTimeTemp(double value) {initPackTimeTemp = value;}
 void tCNode::setPeakPackTime(double value) {peakPackTime = value;}
+void tCNode::setSnDepth(double value) {snDepth = value;} // CJC2026
 //snowintercept -- RINEHART 2007 @ NMT
 void tCNode::setIntSWE(double swe) {intSWEq = swe;}//state
 void tCNode::setIntPrec(double value) {intPrec = value;}//flux
@@ -804,16 +835,15 @@ void tCNode::setVegHeight(double value) { VegHeight = value; }
 void tCNode::setStomRes(double value) {StomRes = value; }
 
 // SKYnGM2008LU
-void tCNode::setIntercepCoeff(double value) { IntercepCoeff = value; }
 void tCNode::setCanFieldCap(double value) { CanFieldCap = value; }
 void tCNode::setDrainCoeff(double value) { DrainCoeff = value; }
 void tCNode::setDrainExpPar(double value) {DrainExpPar = value; }
 void tCNode::setOptTransmCoeff(double value) { OptTransmCoeff = value; }
 void tCNode::setLeafAI(double value) { LeafAI = value; }
-void tCNode::setCanStorParam(double value) { CanStorParam = value; }
 // CJC2025: New Parameters
 void tCNode::setEvapThresh(double value) { EvapThresh = value; }
 void tCNode::setTransThresh(double value) { TransThresh = value; }
+void tCNode::setRootZoneDepth(double value) { RootZoneDepth = value; }
 
 // SKYnGM2008LU
 void tCNode::setLandUseAlbInPrevGrid(double value) { LandUseAlbInPrevGrid = value; }
@@ -826,10 +856,6 @@ void tCNode::setStomResInPrevGrid(double value) { StomResInPrevGrid = value; }
 void tCNode::setStomResInUntilGrid(double value) { StomResInUntilGrid = value; }
 void tCNode::setVegFractionInPrevGrid(double value) { VegFractionInPrevGrid = value; }
 void tCNode::setVegFractionInUntilGrid(double value) { VegFractionInUntilGrid = value; }
-void tCNode::setCanStorParamInPrevGrid(double value) { CanStorParamInPrevGrid = value; }
-void tCNode::setCanStorParamInUntilGrid(double value) { CanStorParamInUntilGrid = value; }
-void tCNode::setIntercepCoeffInPrevGrid(double value) { IntercepCoeffInPrevGrid = value; }
-void tCNode::setIntercepCoeffInUntilGrid(double value) { IntercepCoeffInUntilGrid = value; }
 void tCNode::setCanFieldCapInPrevGrid(double value) { CanFieldCapInPrevGrid = value; }
 void tCNode::setCanFieldCapInUntilGrid(double value) { CanFieldCapInUntilGrid = value; }
 void tCNode::setDrainCoeffInPrevGrid(double value) { DrainCoeffInPrevGrid = value; }
@@ -845,10 +871,10 @@ void tCNode::setEvapThreshInPrevGrid(double value) { EvapThreshInPrevGrid = valu
 void tCNode::setEvapThreshInUntilGrid(double value) { EvapThreshInUntilGrid = value; }
 void tCNode::setTransThreshInPrevGrid(double value) { TransThreshInPrevGrid = value; }
 void tCNode::setTransThreshInUntilGrid(double value) { TransThreshInUntilGrid = value; }
+void tCNode::setRootZoneDepthInPrevGrid(double value) { RootZoneDepthInPrevGrid = value; }
+void tCNode::setRootZoneDepthInUntilGrid(double value) { RootZoneDepthInUntilGrid = value; }
 
 // SKYnGM2008LU
-void tCNode::setAvCanStorParam(double value) { AvCanStorParam = value; }
-void tCNode::setAvIntercepCoeff(double value) { AvIntercepCoeff = value; }
 void tCNode::setAvThroughFall(double value) { AvThroughFall = value; }
 void tCNode::setAvCanFieldCap(double value) { AvCanFieldCap = value; }
 void tCNode::setAvDrainCoeff(double value) { AvDrainCoeff = value; }
@@ -862,6 +888,7 @@ void tCNode::setAvLeafAI(double value) { AvLeafAI = value; }
 // CJC2025: New Parameters
 void tCNode::setAvEvapThresh(double value) { AvEvapThresh = value; }
 void tCNode::setAvTransThresh(double value) { AvTransThresh = value; }
+void tCNode::setAvRootZoneDepth(double value) { AvRootZoneDepth = value; }
 
 // Added by Giuseppe Mascaro in 2016 to allow ingestion of soil grids
 void tCNode::setKs(double value) { Ks = value;}
@@ -881,6 +908,9 @@ void tCNode::setSoilHeatCap(double value) { SoilHeatCap = value;}
 //beta update
 void tCNode::setSoilCutoff(double value) {soil_cutoff = value;}
 void tCNode::setRootCutoff(double value) {root_cutoff = value;}
+
+void tCNode::setRootCutoffDepth(double value) {root_cutoff_depth = value;}
+void tCNode::setNwtSatThresh(double value) {nwt_sat_thresh = value;}
 
 
 
@@ -1201,53 +1231,16 @@ int tCNode::polyCentroid(double x[], double y[], int n,
 **
 ** tCNode::writeRestart() Function
 **
-** Called from tSimulator during simulation loop
+** Writes the minimal set of state variables needed for physically correct
+** initialization without a spinup.
 **
 ***************************************************************************/
 
-void tCNode::writeRestart(fstream& rStr) const
+void tCNode::writeRestart(ostream& rStr) const
 {
-  BinaryWrite(rStr, srf_hr);
-  BinaryWrite(rStr, cumsrf); //added CJC2021
-  BinaryWrite(rStr, RunOn);
-  BinaryWrite(rStr, VapPress);
-  BinaryWrite(rStr, ShortRadIn_dir);
-  BinaryWrite(rStr, ShortRadIn_dif);
-  BinaryWrite(rStr, ShortAbsbVeg);
-  BinaryWrite(rStr, ShortAbsbSoi);
-  BinaryWrite(rStr, Gnod);
-  BinaryWrite(rStr, VegFraction);
-
-  BinaryWrite(rStr, tracer);
-  BinaryWrite(rStr, flood);
-  BinaryWrite(rStr, soiID);
-  BinaryWrite(rStr, LandUse);
-  BinaryWrite(rStr, Reach);
-  BinaryWrite(rStr, Qin);
-  BinaryWrite(rStr, Qout);
-  BinaryWrite(rStr, traveltime);
-  BinaryWrite(rStr, hillpath);
-  BinaryWrite(rStr, streampath);
-  BinaryWrite(rStr, GridET);
-  BinaryWrite(rStr, ContrArea);
-  BinaryWrite(rStr, Curvature);
-  BinaryWrite(rStr, BasinArea);
-  BinaryWrite(rStr, BedrockDepth);
-  BinaryWrite(rStr, hFlux);
-  BinaryWrite(rStr, QgwIn);
-  BinaryWrite(rStr, QgwOut);
-  BinaryWrite(rStr, Aspect);
-  BinaryWrite(rStr, Width);
-  BinaryWrite(rStr, Roughness);
-
-  BinaryWrite(rStr, satOccur);
-  BinaryWrite(rStr, hsrfOccur);
-  BinaryWrite(rStr, percOccur); //ASM
-  BinaryWrite(rStr, avPerc);  //ASM
-  BinaryWrite(rStr, psrfOccur);
-  BinaryWrite(rStr, satsrfOccur);
-  BinaryWrite(rStr, sbsrfOccur);
-  BinaryWrite(rStr, RechDisch);
+  int64_t nodeID = static_cast<int64_t>(getID());
+  BinaryWrite(rStr, nodeID);
+  // Vadose/groundwater zone
   BinaryWrite(rStr, NwtOld);
   BinaryWrite(rStr, MuOld);
   BinaryWrite(rStr, MiOld);
@@ -1255,205 +1248,48 @@ void tCNode::writeRestart(fstream& rStr) const
   BinaryWrite(rStr, NfOld);
   BinaryWrite(rStr, RuOld);
   BinaryWrite(rStr, RiOld);
-  BinaryWrite(rStr, Qpout);
-  BinaryWrite(rStr, Rain);
-  BinaryWrite(rStr, intstorm);
-  BinaryWrite(rStr, Interception);
-  BinaryWrite(rStr, NetPrecipitation);
+
+  // Canopy
   BinaryWrite(rStr, CanStorage);
-  BinaryWrite(rStr, PotEvaporation);
-  BinaryWrite(rStr, ActEvaporation);
-  BinaryWrite(rStr, StormLength);
-  BinaryWrite(rStr, CumIntercept);
-  BinaryWrite(rStr, EvapWetCanopy);
-  BinaryWrite(rStr, EvapDryCanopy);
-  BinaryWrite(rStr, EvapSoil);
-  BinaryWrite(rStr, EvapoTranspiration);
-  BinaryWrite(rStr, SoilMoisture);
-  BinaryWrite(rStr, SoilMoistureSC);
-  BinaryWrite(rStr, SoilMoistureUNSC);
-  BinaryWrite(rStr, RootMoisture);
-  BinaryWrite(rStr, RootMoistureSC);
-  BinaryWrite(rStr, Transmissivity);
-  BinaryWrite(rStr, AirTemp);
-  BinaryWrite(rStr, DewTemp);
-  BinaryWrite(rStr, RelHumid);
-  BinaryWrite(rStr, SurfTemp);
-  BinaryWrite(rStr, SoilTemp);
-  BinaryWrite(rStr, WindSpeed);
-  BinaryWrite(rStr, SkyCover);
-  BinaryWrite(rStr, NetRad);
-  BinaryWrite(rStr, AirPressure);
-  BinaryWrite(rStr, ShortRadIn);
-  BinaryWrite(rStr, LongRadIn);
-  BinaryWrite(rStr, LongRadOut);
-  BinaryWrite(rStr, gFlux);
-  BinaryWrite(rStr, lFlux);
-  BinaryWrite(rStr, AvSoilMoisture);
-  BinaryWrite(rStr, AvEvapFract);
-  BinaryWrite(rStr, AvET);
+
+  // Channel (zero on hillslope nodes)
   BinaryWrite(rStr, Hlevel);
   BinaryWrite(rStr, Qstrm);
-  BinaryWrite(rStr, FlowVelocity);
-  BinaryWrite(rStr, CanopyStorVol);
-  BinaryWrite(rStr, UnSaturatedStorage);
-  BinaryWrite(rStr, SaturatedStorage);
-  BinaryWrite(rStr, Recharge);
-  BinaryWrite(rStr, UnSatFlowIn);
-  BinaryWrite(rStr, UnSatFlowOut);
-  BinaryWrite(rStr, ChannelPerc); //ASM 2/10/2017
-  BinaryWrite(rStr, Ft); //ASM
 
-  BinaryWrite(rStr, liqWEq); // Snowpack
+  // Snow (always present; zero when OPTSNOW=0)
   BinaryWrite(rStr, iceWEq);
-  BinaryWrite(rStr, dU);
-  BinaryWrite(rStr, Unode);
-  BinaryWrite(rStr, Uerror);
-  BinaryWrite(rStr, cumUError);
-  BinaryWrite(rStr, liqRoute);
+  BinaryWrite(rStr, liqWEq);
   BinaryWrite(rStr, snTemperC);
+  BinaryWrite(rStr, rhoSn);
+  BinaryWrite(rStr, Unode);
+  BinaryWrite(rStr, snDepth);
   BinaryWrite(rStr, crAge);
-  BinaryWrite(rStr, densAge);
   BinaryWrite(rStr, ETage);
-  BinaryWrite(rStr, snLHF);
-  BinaryWrite(rStr, snSHF);
-  BinaryWrite(rStr, snGHF);
-  BinaryWrite(rStr, snPHF);
-  BinaryWrite(rStr, snRLin);
-  BinaryWrite(rStr, snRLout);
-  BinaryWrite(rStr, snRSin);
-  BinaryWrite(rStr, persTime);
-  BinaryWrite(rStr, persTimeTemp);
-  BinaryWrite(rStr, peakSWE);
-  BinaryWrite(rStr, peakSWEtemp);
-  BinaryWrite(rStr, initPackTime);
-  BinaryWrite(rStr, initPackTimeTemp);
-  BinaryWrite(rStr, peakPackTime);
+  BinaryWrite(rStr, intSWEq);
 
-  BinaryWrite(rStr, intSWEq); // Snow intercept
-  BinaryWrite(rStr, intSnUnload);
-  BinaryWrite(rStr, intSub);
-  BinaryWrite(rStr, intPrec);
+  // ET state: soil moisture drives betaFunc/betaFuncT; SurfTemp/SoilTemp seed
+  // the energy balance iteration and the incrementally-accumulated Tlo.
+  // Must be restored before SurfaceHydroProcesses runs at the first restart step.
+  BinaryWrite(rStr, SoilMoisture);
+  BinaryWrite(rStr, RootMoisture);
+  BinaryWrite(rStr, SurfTemp);
+  BinaryWrite(rStr, SoilTemp);
 
-  BinaryWrite(rStr, horizonAngle0000); // shelter
-  BinaryWrite(rStr, horizonAngle0225);
-  BinaryWrite(rStr, horizonAngle0450);
-  BinaryWrite(rStr, horizonAngle0675);
-  BinaryWrite(rStr, horizonAngle0900);
-  BinaryWrite(rStr, horizonAngle1125);
-  BinaryWrite(rStr, horizonAngle1350);
-  BinaryWrite(rStr, horizonAngle1575);
-  BinaryWrite(rStr, horizonAngle1800);
-  BinaryWrite(rStr, horizonAngle2025);
-  BinaryWrite(rStr, horizonAngle2250);
-  BinaryWrite(rStr, horizonAngle2475);
-  BinaryWrite(rStr, horizonAngle2700);
-  BinaryWrite(rStr, horizonAngle2925);
-  BinaryWrite(rStr, horizonAngle3150);
-  BinaryWrite(rStr, horizonAngle3375);
-  BinaryWrite(rStr, sfact);
-  BinaryWrite(rStr, lfact);
-  BinaryWrite(rStr, VegFraction);
+  // Interstorm counters: control state-machine transitions in interception
+  // (StormLength) and vadose-zone redistribution (intstorm). Both are
+  // elapsed-time accumulators that gate moisture-front and canopy-reset logic.
+  BinaryWrite(rStr, StormLength);
+  BinaryWrite(rStr, intstorm);
 
-  BinaryWrite(rStr, LandUseAlb); // Additions for landuse grids
-  BinaryWrite(rStr, ThroughFall);
-  BinaryWrite(rStr, VegHeight);
-  BinaryWrite(rStr, StomRes);
-  BinaryWrite(rStr, IntercepCoeff);
-  BinaryWrite(rStr, CanFieldCap);
-  BinaryWrite(rStr, DrainCoeff);
-  BinaryWrite(rStr, DrainExpPar);
-  BinaryWrite(rStr, OptTransmCoeff);
-  BinaryWrite(rStr, LeafAI);
-  BinaryWrite(rStr, CanStorParam);
-  // CJC2025: New Parameters
-  BinaryWrite(rStr, EvapThresh);
-  BinaryWrite(rStr, TransThresh);
-
-  BinaryWrite(rStr, LandUseAlbInPrevGrid);
-  BinaryWrite(rStr, LandUseAlbInUntilGrid);
-  BinaryWrite(rStr, ThroughFallInPrevGrid);
-  BinaryWrite(rStr, ThroughFallInUntilGrid);
-  BinaryWrite(rStr, VegHeightInPrevGrid);
-  BinaryWrite(rStr, VegHeightInUntilGrid);
-  BinaryWrite(rStr, StomResInPrevGrid);
-  BinaryWrite(rStr, StomResInUntilGrid);
-  BinaryWrite(rStr, VegFractionInPrevGrid);
-  BinaryWrite(rStr, VegFractionInUntilGrid);
-  BinaryWrite(rStr, CanStorParamInPrevGrid);
-  BinaryWrite(rStr, CanStorParamInUntilGrid);
-  BinaryWrite(rStr, IntercepCoeffInPrevGrid);
-  BinaryWrite(rStr, IntercepCoeffInUntilGrid);
-  BinaryWrite(rStr, CanFieldCapInPrevGrid);
-  BinaryWrite(rStr, CanFieldCapInUntilGrid);
-  BinaryWrite(rStr, DrainCoeffInPrevGrid);
-  BinaryWrite(rStr, DrainCoeffInUntilGrid);
-  BinaryWrite(rStr, DrainExpParInPrevGrid);
-  BinaryWrite(rStr, DrainExpParInUntilGrid);
-  BinaryWrite(rStr, OptTransmCoeffInPrevGrid);
-  BinaryWrite(rStr, OptTransmCoeffInUntilGrid);
-  BinaryWrite(rStr, LeafAIInPrevGrid);
-  BinaryWrite(rStr, LeafAIInUntilGrid);
-  // CJC2025: New Parameters
-  BinaryWrite(rStr, EvapThreshInPrevGrid);
-  BinaryWrite(rStr, EvapThreshInUntilGrid);
-  BinaryWrite(rStr, TransThreshInPrevGrid);
-  BinaryWrite(rStr, TransThreshInUntilGrid);
-
-  BinaryWrite(rStr, AvCanStorParam);
-  BinaryWrite(rStr, AvIntercepCoeff);
-  BinaryWrite(rStr, AvThroughFall);
-  BinaryWrite(rStr, AvCanFieldCap);
-  BinaryWrite(rStr, AvDrainCoeff);
-  BinaryWrite(rStr, AvDrainExpPar);
-  BinaryWrite(rStr, AvLandUseAlb);
-  BinaryWrite(rStr, AvVegHeight);
-  BinaryWrite(rStr, AvOptTransmCoeff);
-  BinaryWrite(rStr, AvStomRes);
-  BinaryWrite(rStr, AvVegFraction);
-  BinaryWrite(rStr, AvLeafAI);
-  // CJC2025: New Parameters
-  BinaryWrite(rStr, AvEvapThresh);
-  BinaryWrite(rStr, AvTransThresh);
-
-  BinaryWrite(rStr, cumHrsSun); // Snow
-  BinaryWrite(rStr, cumLHF);
-  BinaryWrite(rStr, cumSHF);
-  BinaryWrite(rStr, cumSnSub); // Write snowpack sublimation to restart file CJC2020
-  BinaryWrite(rStr, cumSnEvap); // Write snowpack evaporation to restart file CJC2020
-  BinaryWrite(rStr, cumTotEvap); // Write snowpack evaporation to restart file CJC2020
-  BinaryWrite(rStr, cumBarEvap); // Write snowpack evaporation to restart file CJC2020
-  BinaryWrite(rStr, cumPHF);
-  BinaryWrite(rStr, cumRLin);
-  BinaryWrite(rStr, cumRLout);
-  BinaryWrite(rStr, cumRSin);
-  BinaryWrite(rStr, cumGHF);
-  BinaryWrite(rStr, cumMelt);
-  BinaryWrite(rStr, cumIntSub);
-  BinaryWrite(rStr, cumIntUnl);
-  BinaryWrite(rStr, cumHrsSnow);
-  
-  // Added by Giuseppe Mascaro in 2016 to allow ingestion of soil grids
-  BinaryWrite(rStr, Ks); 
-  BinaryWrite(rStr, ThetaS);
-  BinaryWrite(rStr, ThetaR);
-  BinaryWrite(rStr, PoreSize);
-  BinaryWrite(rStr, AirEBubPres);
-  BinaryWrite(rStr, DecayF);
-  BinaryWrite(rStr, SatAnRatio);
-  BinaryWrite(rStr, UnsatAnRatio);
-  BinaryWrite(rStr, Porosity);
-  BinaryWrite(rStr, VolHeatCond);
-  BinaryWrite(rStr, SoilHeatCap);
-
+  // Kinematic routing queues
   int size;
   if (TimeInd != 0) {
     size = TimeInd->getSize();
     BinaryWrite(rStr, size);
-    tListIter< int > IndIter;
+    tListIter<int> IndIter;
     IndIter.Reset(*TimeInd);
     IndIter.First();
-    while ( !(IndIter.AtEnd())) {
+    while (!(IndIter.AtEnd())) {
       BinaryWrite(rStr, IndIter.DatRef());
       IndIter.Next();
     }
@@ -1465,10 +1301,10 @@ void tCNode::writeRestart(fstream& rStr) const
   if (Qeff != 0) {
     size = Qeff->getSize();
     BinaryWrite(rStr, size);
-    tListIter< double > QIter;
+    tListIter<double> QIter;
     QIter.Reset(*Qeff);
     QIter.First();
-    while ( !(QIter.AtEnd())) {
+    while (!(QIter.AtEnd())) {
       BinaryWrite(rStr, QIter.DatRef());
       QIter.Next();
     }
@@ -1484,49 +1320,17 @@ void tCNode::writeRestart(fstream& rStr) const
 **
 ***************************************************************************/
 
-void tCNode::readRestart(fstream& rStr)
+void tCNode::readRestart(istream& rStr)
 {
-  BinaryRead(rStr, srf_hr);
-  BinaryRead(rStr, cumsrf); //added CJC2021
-  BinaryRead(rStr, RunOn);
-  BinaryRead(rStr, VapPress);
-  BinaryRead(rStr, ShortRadIn_dir);
-  BinaryRead(rStr, ShortRadIn_dif);
-  BinaryRead(rStr, ShortAbsbVeg);
-  BinaryRead(rStr, ShortAbsbSoi);
-  BinaryRead(rStr, Gnod);
-  BinaryRead(rStr, VegFraction);
+  int64_t nodeID;
+  BinaryRead(rStr, nodeID);
+  assert(static_cast<int>(nodeID) == getID());
+  readRestartBody(rStr);
+}
 
-  BinaryRead(rStr, tracer);
-  BinaryRead(rStr, flood);
-  BinaryRead(rStr, soiID);
-  BinaryRead(rStr, LandUse);
-  BinaryRead(rStr, Reach);
-  BinaryRead(rStr, Qin);
-  BinaryRead(rStr, Qout);
-  BinaryRead(rStr, traveltime);
-  BinaryRead(rStr, hillpath);
-  BinaryRead(rStr, streampath);
-  BinaryRead(rStr, GridET);
-  BinaryRead(rStr, ContrArea);
-  BinaryRead(rStr, Curvature);
-  BinaryRead(rStr, BasinArea);
-  BinaryRead(rStr, BedrockDepth);
-  BinaryRead(rStr, hFlux);
-  BinaryRead(rStr, QgwIn);
-  BinaryRead(rStr, QgwOut);
-  BinaryRead(rStr, Aspect);
-  BinaryRead(rStr, Width);
-  BinaryRead(rStr, Roughness);
-
-  BinaryRead(rStr, satOccur);
-  BinaryRead(rStr, hsrfOccur);
-  BinaryRead(rStr, percOccur); //ASM
-  BinaryRead(rStr, avPerc); //ASM
-  BinaryRead(rStr, psrfOccur);
-  BinaryRead(rStr, satsrfOccur);
-  BinaryRead(rStr, sbsrfOccur);
-  BinaryRead(rStr, RechDisch);
+void tCNode::readRestartBody(istream& rStr)
+{
+  // Vadose/groundwater zone
   BinaryRead(rStr, NwtOld);
   BinaryRead(rStr, MuOld);
   BinaryRead(rStr, MiOld);
@@ -1534,197 +1338,36 @@ void tCNode::readRestart(fstream& rStr)
   BinaryRead(rStr, NfOld);
   BinaryRead(rStr, RuOld);
   BinaryRead(rStr, RiOld);
-  BinaryRead(rStr, Qpout);
-  BinaryRead(rStr, Rain);
-  BinaryRead(rStr, intstorm);
-  BinaryRead(rStr, Interception);
-  BinaryRead(rStr, NetPrecipitation);
+
+  // Canopy
   BinaryRead(rStr, CanStorage);
-  BinaryRead(rStr, PotEvaporation);
-  BinaryRead(rStr, ActEvaporation);
-  BinaryRead(rStr, StormLength);
-  BinaryRead(rStr, CumIntercept);
-  BinaryRead(rStr, EvapWetCanopy);
-  BinaryRead(rStr, EvapDryCanopy);
-  BinaryRead(rStr, EvapSoil);
-  BinaryRead(rStr, EvapoTranspiration);
-  BinaryRead(rStr, SoilMoisture);
-  BinaryRead(rStr, SoilMoistureSC);
-  BinaryRead(rStr, SoilMoistureUNSC);
-  BinaryRead(rStr, RootMoisture);
-  BinaryRead(rStr, RootMoistureSC);
-  BinaryRead(rStr, Transmissivity);
-  BinaryRead(rStr, AirTemp);
-  BinaryRead(rStr, DewTemp);
-  BinaryRead(rStr, RelHumid);
-  BinaryRead(rStr, SurfTemp);
-  BinaryRead(rStr, SoilTemp);
-  BinaryRead(rStr, WindSpeed);
-  BinaryRead(rStr, SkyCover);
-  BinaryRead(rStr, NetRad);
-  BinaryRead(rStr, AirPressure);
-  BinaryRead(rStr, ShortRadIn);
-  BinaryRead(rStr, LongRadIn);
-  BinaryRead(rStr, LongRadOut);
-  BinaryRead(rStr, gFlux);
-  BinaryRead(rStr, lFlux);
-  BinaryRead(rStr, AvSoilMoisture);
-  BinaryRead(rStr, AvEvapFract);
-  BinaryRead(rStr, AvET);
+
+  // Channel
   BinaryRead(rStr, Hlevel);
   BinaryRead(rStr, Qstrm);
-  BinaryRead(rStr, FlowVelocity);
-  BinaryRead(rStr, CanopyStorVol);
-  BinaryRead(rStr, UnSaturatedStorage);
-  BinaryRead(rStr, SaturatedStorage);
-  BinaryRead(rStr, Recharge);
-  BinaryRead(rStr, UnSatFlowIn);
-  BinaryRead(rStr, UnSatFlowOut);
-  BinaryRead(rStr, ChannelPerc); //ASM 2/10/2017
-  BinaryRead(rStr, Ft); //ASM
 
-  BinaryRead(rStr, liqWEq); // Snowpack
+  // Snow
   BinaryRead(rStr, iceWEq);
-  BinaryRead(rStr, dU);
-  BinaryRead(rStr, Unode);
-  BinaryRead(rStr, Uerror);
-  BinaryRead(rStr, cumUError);
-  BinaryRead(rStr, liqRoute);
+  BinaryRead(rStr, liqWEq);
   BinaryRead(rStr, snTemperC);
+  BinaryRead(rStr, rhoSn);
+  BinaryRead(rStr, Unode);
+  BinaryRead(rStr, snDepth);
   BinaryRead(rStr, crAge);
-  BinaryRead(rStr, densAge);
   BinaryRead(rStr, ETage);
-  BinaryRead(rStr, snLHF);
-  BinaryRead(rStr, snSHF);
-  BinaryRead(rStr, snGHF);
-  BinaryRead(rStr, snPHF);
-  BinaryRead(rStr, snRLin);
-  BinaryRead(rStr, snRLout);
-  BinaryRead(rStr, snRSin);
-  BinaryRead(rStr, persTime);
-  BinaryRead(rStr, persTimeTemp);
-  BinaryRead(rStr, peakSWE);
-  BinaryRead(rStr, peakSWEtemp);
-  BinaryRead(rStr, initPackTime);
-  BinaryRead(rStr, initPackTimeTemp);
-  BinaryRead(rStr, peakPackTime);
+  BinaryRead(rStr, intSWEq);
 
-  BinaryRead(rStr, intSWEq); // Snow intercept
-  BinaryRead(rStr, intSnUnload);
-  BinaryRead(rStr, intSub);
-  BinaryRead(rStr, intPrec);
+  // ET state
+  BinaryRead(rStr, SoilMoisture);
+  BinaryRead(rStr, RootMoisture);
+  BinaryRead(rStr, SurfTemp);
+  BinaryRead(rStr, SoilTemp);
 
-  BinaryRead(rStr, horizonAngle0000); // shelter
-  BinaryRead(rStr, horizonAngle0225);
-  BinaryRead(rStr, horizonAngle0450);
-  BinaryRead(rStr, horizonAngle0675);
-  BinaryRead(rStr, horizonAngle0900);
-  BinaryRead(rStr, horizonAngle1125);
-  BinaryRead(rStr, horizonAngle1350);
-  BinaryRead(rStr, horizonAngle1575);
-  BinaryRead(rStr, horizonAngle1800);
-  BinaryRead(rStr, horizonAngle2025);
-  BinaryRead(rStr, horizonAngle2250);
-  BinaryRead(rStr, horizonAngle2475);
-  BinaryRead(rStr, horizonAngle2700);
-  BinaryRead(rStr, horizonAngle2925);
-  BinaryRead(rStr, horizonAngle3150);
-  BinaryRead(rStr, horizonAngle3375);
-  BinaryRead(rStr, sfact);
-  BinaryRead(rStr, lfact);
-  BinaryRead(rStr, VegFraction);
+  // Interstorm counters
+  BinaryRead(rStr, StormLength);
+  BinaryRead(rStr, intstorm);
 
-  BinaryRead(rStr, LandUseAlb); // Additions for landuse grids
-  BinaryRead(rStr, ThroughFall);
-  BinaryRead(rStr, VegHeight);
-  BinaryRead(rStr, StomRes);
-  BinaryRead(rStr, IntercepCoeff);
-  BinaryRead(rStr, CanFieldCap);
-  BinaryRead(rStr, DrainCoeff);
-  BinaryRead(rStr, DrainExpPar);
-  BinaryRead(rStr, OptTransmCoeff);
-  BinaryRead(rStr, LeafAI);
-  BinaryRead(rStr, CanStorParam);
-  // CJC2025: New Parameters
-  BinaryRead(rStr, EvapThresh);
-  BinaryRead(rStr, TransThresh);
-
-  BinaryRead(rStr, LandUseAlbInPrevGrid);
-  BinaryRead(rStr, LandUseAlbInUntilGrid);
-  BinaryRead(rStr, ThroughFallInPrevGrid);
-  BinaryRead(rStr, ThroughFallInUntilGrid);
-  BinaryRead(rStr, VegHeightInPrevGrid);
-  BinaryRead(rStr, VegHeightInUntilGrid);
-  BinaryRead(rStr, StomResInPrevGrid);
-  BinaryRead(rStr, StomResInUntilGrid);
-  BinaryRead(rStr, VegFractionInPrevGrid);
-  BinaryRead(rStr, VegFractionInUntilGrid);
-  BinaryRead(rStr, CanStorParamInPrevGrid);
-  BinaryRead(rStr, CanStorParamInUntilGrid);
-  BinaryRead(rStr, IntercepCoeffInPrevGrid);
-  BinaryRead(rStr, IntercepCoeffInUntilGrid);
-  BinaryRead(rStr, CanFieldCapInPrevGrid);
-  BinaryRead(rStr, CanFieldCapInUntilGrid);
-  BinaryRead(rStr, DrainCoeffInPrevGrid);
-  BinaryRead(rStr, DrainCoeffInUntilGrid);
-  BinaryRead(rStr, DrainExpParInPrevGrid);
-  BinaryRead(rStr, DrainExpParInUntilGrid);
-  BinaryRead(rStr, OptTransmCoeffInPrevGrid);
-  BinaryRead(rStr, OptTransmCoeffInUntilGrid);
-  BinaryRead(rStr, LeafAIInPrevGrid);
-  BinaryRead(rStr, LeafAIInUntilGrid);
-  // CJC2025: New Parameters
-  BinaryRead(rStr, EvapThreshInPrevGrid);
-  BinaryRead(rStr, EvapThreshInUntilGrid);
-  BinaryRead(rStr, TransThreshInPrevGrid);
-  BinaryRead(rStr, TransThreshInUntilGrid);
-
-  BinaryRead(rStr, AvCanStorParam);
-  BinaryRead(rStr, AvIntercepCoeff);
-  BinaryRead(rStr, AvThroughFall);
-  BinaryRead(rStr, AvCanFieldCap);
-  BinaryRead(rStr, AvDrainCoeff);
-  BinaryRead(rStr, AvDrainExpPar);
-  BinaryRead(rStr, AvLandUseAlb);
-  BinaryRead(rStr, AvVegHeight);
-  BinaryRead(rStr, AvOptTransmCoeff);
-  BinaryRead(rStr, AvStomRes);
-  BinaryRead(rStr, AvVegFraction);
-  BinaryRead(rStr, AvLeafAI);
-  // CJC2025: New Parameters
-  BinaryRead(rStr, AvEvapThresh);
-  BinaryRead(rStr, AvTransThresh);
-
-  BinaryRead(rStr, cumHrsSun); // Snow
-  BinaryRead(rStr, cumLHF);
-  BinaryRead(rStr, cumSHF);
-  BinaryRead(rStr, cumSnSub); // Read snowpack sublimation from restart file CJC2020
-  BinaryRead(rStr, cumSnEvap); // Read snowpack evaporation from restart file CJC2020
-  BinaryRead(rStr, cumTotEvap); // Read total evaporation from restart file CJC2020
-  BinaryRead(rStr, cumBarEvap); // Read soil evaporation from restart file CJC2020
-  BinaryRead(rStr, cumPHF);
-  BinaryRead(rStr, cumRLin);
-  BinaryRead(rStr, cumRLout);
-  BinaryRead(rStr, cumRSin);
-  BinaryRead(rStr, cumGHF);
-  BinaryRead(rStr, cumMelt);
-  BinaryRead(rStr, cumIntSub);
-  BinaryRead(rStr, cumIntUnl);
-  BinaryRead(rStr, cumHrsSnow);
-  
-  // Added by Giuseppe Mascaro in 2016 to allow ingestion of soil grids
-  BinaryRead(rStr, Ks); 
-  BinaryRead(rStr, ThetaS);
-  BinaryRead(rStr, ThetaR);
-  BinaryRead(rStr, PoreSize);
-  BinaryRead(rStr, AirEBubPres);
-  BinaryRead(rStr, DecayF);
-  BinaryRead(rStr, SatAnRatio);
-  BinaryRead(rStr, UnsatAnRatio);
-  BinaryRead(rStr, Porosity);
-  BinaryRead(rStr, VolHeatCond);
-  BinaryRead(rStr, SoilHeatCap);
-
+  // Kinematic routing queues
   int size;
   int timeInd;
   BinaryRead(rStr, size);
@@ -1732,13 +1375,23 @@ void tCNode::readRestart(fstream& rStr)
     BinaryRead(rStr, timeInd);
     TimeInd->insertAtBack(timeInd);
   }
-
   BinaryRead(rStr, size);
   double qeff;
   for (int i = 0; i < size; i++) {
     BinaryRead(rStr, qeff);
     Qeff->insertAtBack(qeff);
   }
+}
+
+void tCNode::skipRestartBody(istream& rStr)
+{
+  double d;
+  for (int i = 0; i < 25; i++) BinaryRead(rStr, d);
+  int32_t count; int iv;
+  BinaryRead(rStr, count);
+  for (int i = 0; i < count; i++) BinaryRead(rStr, iv);
+  BinaryRead(rStr, count);
+  for (int i = 0; i < count; i++) BinaryRead(rStr, d);
 }
 
 /***************************************************************************
@@ -1843,7 +1496,7 @@ void tCNode::printVariables()
   cout << " liqRoute " << liqRoute;
   cout << " snTemperC " << snTemperC;
   cout << " crAge " << crAge;
-  cout << " densAge " << densAge;
+  cout << " rhoSn " << rhoSn;
   cout << " ETage " << ETage;
   cout << " snLHF " << snLHF;
   cout << " snSHF " << snSHF;
@@ -1859,6 +1512,7 @@ void tCNode::printVariables()
   cout << " initPackTime " << initPackTime;
   cout << " initPackTimeTemp " << initPackTimeTemp ;
   cout << " peakPackTime " << peakPackTime;
+  cout << " snDepth " << snDepth;
 
   cout << " intSWEq " << intSWEq; // Snow intercept
   cout << " intSnUnload " << intSnUnload;
@@ -1889,16 +1543,15 @@ void tCNode::printVariables()
   cout << " ThroughFall " << ThroughFall;
   cout << " VegHeight " << VegHeight;
   cout << " StomRes " << StomRes;
-  cout << " IntercepCoeff " << IntercepCoeff;
   cout << " CanFieldCap " << CanFieldCap;
   cout << " DrainCoeff " << DrainCoeff;
   cout << " DrainExpPar " << DrainExpPar;
   cout << " OptTransmCoeff " << OptTransmCoeff;
   cout << " LeafAI " << LeafAI;
-  cout << " CanStorParam " << CanStorParam;
   // CJC2025: New Parameters
   cout << " EvapThresh " << EvapThresh;
   cout << " TransThresh " << TransThresh;
+  cout << " RootZoneDepth " << RootZoneDepth;
 
   cout << " LandUseAlbInPrevGrid " << LandUseAlbInPrevGrid;
   cout << " LandUseAlbInUntilGrid " << LandUseAlbInUntilGrid;
@@ -1910,10 +1563,6 @@ void tCNode::printVariables()
   cout << " StomResInUntilGrid " << StomResInUntilGrid;
   cout << " VegFractionInPrevGrid " << VegFractionInPrevGrid;
   cout << " VegFractionInUntilGrid " << VegFractionInUntilGrid;
-  cout << " CanStorParamInPrevGrid " << CanStorParamInPrevGrid;
-  cout << " CanStorParamInUntilGrid " << CanStorParamInUntilGrid;
-  cout << " IntercepCoeffInPrevGrid " << IntercepCoeffInPrevGrid;
-  cout << " IntercepCoeffInUntilGrid " << IntercepCoeffInUntilGrid;
   cout << " CanFieldCapInPrevGrid " << CanFieldCapInPrevGrid;
   cout << " CanFieldCapInUntilGrid " << CanFieldCapInUntilGrid;
   cout << " DrainCoeffInPrevGrid " << DrainCoeffInPrevGrid;
@@ -1930,8 +1579,6 @@ void tCNode::printVariables()
   cout << " TransThreshInPrevGrid " << TransThreshInPrevGrid;
   cout << " TransThreshInUntilGrid " << TransThreshInUntilGrid;
 
-  cout << " AvCanStorParam " << AvCanStorParam;
-  cout << " AvIntercepCoeff " << AvIntercepCoeff;
   cout << " AvThroughFall " << AvThroughFall;
   cout << " AvCanFieldCap " << AvCanFieldCap;
   cout << " AvDrainCoeff " << AvDrainCoeff;
