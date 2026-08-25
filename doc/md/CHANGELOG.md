@@ -103,7 +103,7 @@ The v6.0.0 changes listed below are abbreviated. For specific details refer to t
 ### Changed & Refactored
 * **Output Standard:** Modified writing of soil water state variables in pixel, dynamic, and MRF files to convert from sloped state variables to vertical depths.
 * **Solar Radiation:** Centralized slope, albedo, and vegetation corrections into `inShortWave()`, reducing redundancy and improving consistency across the energy balance module. ([#84](https://github.com/tRIBS-Model/tRIBS/pull/84))
-* **ET Partitioning:** Updated `tEvapoTrans` to prioritize potential evaporation partitioning: first to wet canopy, and then transpiration. Soil evaporation is separate and uses the full potential ET rate in its calculation.
+* **ET Partitioning:** Updated `tEvapoTrans` to prioritize potential evaporation partitioning: first to wet canopy, then transpiration, and lastly soil evaporation.
 * **Snow Physics Refactor:** ([#84](https://github.com/tRIBS-Model/tRIBS/pull/84))
     * Updated albedo decay function with a minimum albedo threshold.
     * Refactored latent and sensible heat flux for ground snowpack to prevent temperatures from dropping below zero when liquid water is present.

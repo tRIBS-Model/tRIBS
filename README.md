@@ -10,6 +10,9 @@
 # TIN-based Real-time Integrated Basin Simulator: Version 6.0.0
 This repository contains source code for the fully distributed hydrological model: TIN-based Real-time Integrated Basin Simulator (tRIBS). We provide extensive documentation of the model [here](https://tribshms.readthedocs.io/en/latest/). Our documentation also contains useful information about working with the tRIBS code base through [GitHub](https://tribshms.readthedocs.io/en/latest/man/Using%20GitHub.html) and how to [contribute](https://tribshms.readthedocs.io/en/latest/man/Contributing.html). Finally we also provide [templates](https://tribshms.readthedocs.io/en/latest/man/Templates.html).
 
+> [!IMPORTANT]
+> **Update:** We strongly recommend all users review the [Changelog](./doc/md/CHANGELOG.md) for recent changes.
+
 Licensing information can be found in [LICENSE.txt](./LICENSE.txt).
 
 Release notes are provided [here](https://tribshms.readthedocs.io/en/latest/man/Release%20Notes.html#).
@@ -31,6 +34,11 @@ We have prepared multiple example applications for users to apply and learn from
 2) [Codespaces](https://github.com/tRIBS-Model/tRIBS-Workshop-Sandbox): An example application of generating an input file and running the model in a cloud computing environment, free of charge. Requires nothing from the user other than a Github account and a web-browser.
 3) [pytRIBS Examples](https://github.com/tRIBS-Model/pytRIBS-examples): Example applications of full model generation in a Jupyter notebook using the pytRIBS python package. Requires the users to have pytRIBS installed in a python environment and Docker installed.
 
+## Community Support
+To stay informed about model announcements and to interact with other users, please join the **tRIBS Users Email List**.
+
+* **Option 1 (Web):** Join via the [tRIBS Google Group Page](https://groups.google.com/g/tribs ) (requires Google sign-in).
+* **Option 2 (Email):** Send a blank email to [tribs+subscribe@googlegroups.com](mailto:tribs+subscribe@googlegroups.com) to subscribe via your preferred email client (no Google account required).
 ## Release/Version Notes
 tRIBS uses semantic versioning. We record updates of major, minor, and patch versions [here](./doc/md/CHANGELOG.md).
 
