@@ -2,7 +2,7 @@ name: release_docker
 run-name: Publishing the tRIBS Docker image for ${{ github.event.release.tag_name || inputs.tag }}
 
 # Builds packaging/Docker/Dockerfile for amd64 and arm64 and publishes the result
-# to Docker Hub as tribs/tribs.
+# to the GitHub Container Registry as ghcr.io/tribs-model/tribs.
 #
 # Each architecture is built natively on its own runner and pushed by digest; a
 # final job stitches the two digests into one multi-arch manifest.
@@ -27,10 +27,14 @@ on:
         default: true
 
 env:
-  IMAGE: tribs/tribs
+  IMAGE: ghcr.io/tribs-model/tribs
 
 jobs:
   build:
+    permissions:
+      contents: read
+      packages: write
+
     strategy:
       fail-fast: false
       matrix:
@@ -72,11 +76,12 @@ jobs:
 
       - uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       # Built into the local daemon first so the binaries can be exercised
-      # before anything reaches Docker Hub. The push below reuses this cache
+      # before anything reaches the registry. The push below reuses this cache
       # and does not recompile.
       - name: Build image for smoke test
         uses: docker/build-push-action@v6
@@ -100,6 +105,20 @@ jobs:
             exit 1
           fi
 
+      # The parallel binary exercises a different set of runtime dependencies.
+      - name: Smoke-test the parallel binary
+        run: |
+          output=$(docker run --rm tribs-smoketest:${{ matrix.arch }} mpirun -np 2 /tribs/bin/tRIBSpar 2>&1 || true)
+          echo "$output"
+          if ! printf '%s' "$output" | grep -q "MPI initialized, 2 processor(s)"; then
+            echo "::error::tRIBSpar did not initialize MPI in the ${{ matrix.arch }} image"
+            exit 1
+          fi
+
+      # provenance/sbom off: buildx attaches attestations by
+      # default, which wraps the build in a manifest list. push-by-digest must
+      # produce one single-platform manifest per runner, or the manifest job
+      # below ends up stitching an index of indexes.
       - name: Push by digest
         id: push
         uses: docker/build-push-action@v6
@@ -108,6 +127,8 @@ jobs:
           build-args: TRIBS_VERSION=${{ steps.release.outputs.tag }}
           platforms: ${{ matrix.platform }}
           cache-from: type=gha,scope=${{ matrix.arch }}
+          provenance: false
+          sbom: false
           outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=true
 
       # The manifest job needs the digests, and matrix jobs cannot return
@@ -129,6 +150,8 @@ jobs:
   manifest:
     needs: [build]
     runs-on: ubuntu-latest
+    permissions:
+      packages: write
 
     steps:
       - name: Resolve release tag
@@ -155,11 +178,12 @@ jobs:
 
       - uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Docker Hub carries the bare version, without the leading v, alongside
-      # :latest. That matches the 5.3.0 tag already published there.
+      # The version, alongside :latest, matching the
+      # tag convention used on Docker Hub before the move to GHCR.
       - name: Create and push the multi-arch manifest
         working-directory: /tmp/digests
         run: |

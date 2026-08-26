@@ -33,6 +33,7 @@ RUN apk update && \
         bash \
         libstdc++ \
         openmpi \
+        openssh-client \
         zlib \
     && rm -rf /var/cache/apk/*
 
