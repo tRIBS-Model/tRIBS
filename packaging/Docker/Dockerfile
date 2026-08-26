@@ -11,7 +11,12 @@ RUN apk update && \
 
 WORKDIR /build
 
-RUN git clone --depth 1 --branch main https://github.com/tribshms/tRIBS.git .
+# Build a released tag rather than a moving branch, so an image tag always
+# rebuilds to the same source. Override for a one-off build with
+# --build-arg TRIBS_VERSION=<tag>.
+ARG TRIBS_VERSION=v6.0.0
+
+RUN git clone --depth 1 --branch ${TRIBS_VERSION} https://github.com/tRIBS-Model/tRIBS.git .
 
 RUN cmake -B cmake-build-parallel -S . -Dparallel=ON -DCMAKE_BUILD_TYPE=Release && \
     cmake --build cmake-build-parallel --target all
