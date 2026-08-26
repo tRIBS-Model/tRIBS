@@ -1,0 +1,175 @@
+name: release_docker
+run-name: Publishing the tRIBS Docker image for ${{ github.event.release.tag_name || inputs.tag }}
+
+# Builds packaging/Docker/Dockerfile for amd64 and arm64 and publishes the result
+# to Docker Hub as tribs/tribs.
+#
+# Each architecture is built natively on its own runner and pushed by digest; a
+# final job stitches the two digests into one multi-arch manifest.
+#
+# The Dockerfile clones the source from GitHub rather than the build context, so
+# the tag is passed through as TRIBS_VERSION and is what determines the contents
+# of the image.
+
+on:
+  release:
+    types: [published]
+  # Manual entry point, for re-running a failed publish or backfilling a tag.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing release tag to build and publish (e.g. v6.0.0)"
+        required: true
+        type: string
+      latest:
+        description: "Also move the :latest tag to this build"
+        type: boolean
+        default: true
+
+env:
+  IMAGE: tribs/tribs
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            platform: linux/amd64
+            arch: amd64
+          - runner: ubuntu-24.04-arm
+            platform: linux/arm64
+            arch: arm64
+
+    runs-on: ${{ matrix.runner }}
+
+    steps:
+      - name: Resolve release tag
+        id: release
+        run: |
+          tag="${{ github.event.release.tag_name || inputs.tag }}"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout repository at the release tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.release.outputs.tag }}
+
+      # Same guard as release_binaries.yml: the version is hardcoded in
+      # CMakeLists.txt and can drift from the tag. Fail here rather than
+      # publishing an image whose tag lies about its contents.
+      - name: Verify tag matches TRIBS_VERSION
+        run: |
+          cmake_version=$(sed -n 's/^set(TRIBS_VERSION \([0-9.]*\))/\1/p' CMakeLists.txt)
+          if [ "${{ steps.release.outputs.version }}" != "$cmake_version" ]; then
+            echo "::error::Release tag ${{ steps.release.outputs.version }} does not match TRIBS_VERSION $cmake_version in CMakeLists.txt"
+            exit 1
+          fi
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # Built into the local daemon first so the binaries can be exercised
+      # before anything reaches Docker Hub. The push below reuses this cache
+      # and does not recompile.
+      - name: Build image for smoke test
+        uses: docker/build-push-action@v6
+        with:
+          context: packaging/Docker
+          build-args: TRIBS_VERSION=${{ steps.release.outputs.tag }}
+          platforms: ${{ matrix.platform }}
+          load: true
+          tags: tribs-smoketest:${{ matrix.arch }}
+          cache-from: type=gha,scope=${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.arch }}
+
+      # No arguments prints usage and exits 1, so a clean load is exit 1 plus
+      # usage text. Catches an image that builds but cannot resolve its libs.
+      - name: Smoke-test the image
+        run: |
+          output=$(docker run --rm tribs-smoketest:${{ matrix.arch }} /tribs/bin/tRIBS 2>&1) && status=0 || status=$?
+          echo "$output"
+          if [ "$status" -ne 1 ] || ! printf '%s' "$output" | grep -q "Usage:"; then
+            echo "::error::tRIBS did not run in the ${{ matrix.arch }} image (exit ${status})"
+            exit 1
+          fi
+
+      - name: Push by digest
+        id: push
+        uses: docker/build-push-action@v6
+        with:
+          context: packaging/Docker
+          build-args: TRIBS_VERSION=${{ steps.release.outputs.tag }}
+          platforms: ${{ matrix.platform }}
+          cache-from: type=gha,scope=${{ matrix.arch }}
+          outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=true
+
+      # The manifest job needs the digests, and matrix jobs cannot return
+      # values, so they travel as artifacts named for the digest itself.
+      - name: Export digest
+        run: |
+          mkdir -p /tmp/digests
+          digest="${{ steps.push.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"
+
+      - name: Upload digest
+        uses: actions/upload-artifact@v4
+        with:
+          name: digests-${{ matrix.arch }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  manifest:
+    needs: [build]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Resolve release tag
+        id: release
+        run: |
+          tag="${{ github.event.release.tag_name || inputs.tag }}"
+          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+          # A prerelease should never take over :latest; a manual run decides
+          # for itself.
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "latest=${{ inputs.latest }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "latest=${{ github.event.release.prerelease && 'false' || 'true' }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Download digests
+        uses: actions/download-artifact@v4
+        with:
+          path: /tmp/digests
+          pattern: digests-*
+          merge-multiple: true
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # Docker Hub carries the bare version, without the leading v, alongside
+      # :latest. That matches the 5.3.0 tag already published there.
+      - name: Create and push the multi-arch manifest
+        working-directory: /tmp/digests
+        run: |
+          tags="--tag ${IMAGE}:${{ steps.release.outputs.version }}"
+          if [ "${{ steps.release.outputs.latest }}" = "true" ]; then
+            tags="${tags} --tag ${IMAGE}:latest"
+          fi
+          # shellcheck disable=SC2086
+          docker buildx imagetools create ${tags} \
+            $(printf "${IMAGE}@sha256:%s " *)
+
+      - name: Inspect the published manifest
+        run: docker buildx imagetools inspect "${IMAGE}:${{ steps.release.outputs.version }}"
