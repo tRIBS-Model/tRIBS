@@ -27,6 +27,7 @@
 #ifndef TRESTART_H
 #define TRESTART_H
 
+#include <cstdint>
 #include <iostream>
 #include "src/tSimulator/tRunTimer.h"
 #include "src/tFlowNet/tKinemat.h"
