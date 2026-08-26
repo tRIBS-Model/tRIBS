@@ -1,4 +1,4 @@
-FROM alpine:3.19 AS builder
+FROM alpine:3.24 AS builder
 
 RUN apk update && \
     apk add --no-cache \
@@ -26,11 +26,12 @@ RUN cmake -B cmake-build-serial -S . -Dparallel=OFF -DCMAKE_BUILD_TYPE=Release &
 
 
 # Create the Final Image
-FROM alpine:3.19
+FROM alpine:3.24
 
 RUN apk update && \
     apk add --no-cache \
         bash \
+        libstdc++ \
         openmpi \
         zlib \
     && rm -rf /var/cache/apk/*
