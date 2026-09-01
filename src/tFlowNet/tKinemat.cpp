@@ -59,7 +59,22 @@ tKinemat::tKinemat(SimulationControl *sPtr, tMesh<tCNode> *gridRef, tInputFile &
     PsiB = PoreInd = 0.0;//ASM
     NodeLoss = clis = NULL; // ASM 2/9/2017 clis stands for channel loss and is supposed to mimic the ais, bis etc.
 
-    dtReff = 0.5;   // Hour, for lateral influx time increment
+    // Lateral influx time increment [hours]. Hillslope runoff is bucketed into
+    // bins of this width before being handed to the channel as lateral inflow,
+    // so dtReff sets the time resolution of the channel forcing. Tied to
+    // TIMESTEP so the channel sees runoff at full model resolution.
+    //
+    // INVARIANT: dtReff must be an exact integer multiple of TIMESTEP.
+    // RetrieveQeff() pops a bin only when ceil(t/dtReff) == floor(t/dtReff), so
+    // an incommensurate value never lands on a bin boundary: the front stack
+    // entry never pops, the per-node Qeff queue jams, and lateral inflow
+    // collapses to zero after the first bin.
+    //
+    // Was hardcoded to 0.5 hr. Because reis[] is held constant across a bin, the
+    // kinematic wave rose through the whole block and peaked when the block
+    // ended, pinning hydrograph peak timing to 30-minute boundaries regardless
+    // of channel width, roughness, or hillslope velocity parameters.
+    dtReff = timer->getTimeStep();
 
     kincoef = infile.ReadItem(kincoef, "KINEMVELCOEF");
     Roughness = infile.ReadItem(Roughness, "CHANNELROUGHNESS");
