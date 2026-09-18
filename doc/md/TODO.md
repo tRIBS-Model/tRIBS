@@ -2,10 +2,12 @@
 
 ### Todo
 - [ ] Refactor tResample::doIt, code is unclear and possible bottle neck.
-- [ ] Update flow for reading in dynamic LU grids--this is a bottleneck in terms of speed
+- [ ] Update flow for reading in dynamic LU grids--this is a bottleneck in terms of speed. Potential speed improvements with caching resampling variables and others, tested but not implemented.
 - [ ] Consider flexible approach for specifying outputs, I.E. could we make it so that you could pass in attribute related to a node and have them returned in the dynamic and integrated files. Could also be nice for input parameters, i.e. make list of hard coded parameters and expose as inputs.
 - [ ] Resolve remaing problems in channel transmission losses routine for option 2 & 3, (transient & green-ampt methods) ([#112](https://github.com/tRIBS-Model/tRIBS/pull/112)).
 - [ ] Update input timeseries and raster forcing files to use ISO 8601 timestamp format. No chnage to outputs for now, will still be elasped simulation hours. Example from `_MMddYYYYhh.asc` to `_20240615T1200.asc`
+- [ ] The precip grid and gauge paths label intervals differently: gauge row `T` covers `[T, T+dt)` while grid file `T` covers `(T-dt, T]`, so identically stamped gauge and grid forcing are offset by one interval. Need to decide which, most radar data is end of period as implemented in the model already.
+- [ ] `RAININTRVL` values that are not exact binary fractions (10, 5, 3, 2, 1 min) are still rejected by the `fmod(1.0, dtRain) != 0` check in `tRunTimer`.
 
 ### Finished
 - [x] Finalize updated benchmarks
