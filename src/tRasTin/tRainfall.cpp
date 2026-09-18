@@ -147,18 +147,46 @@ int tRainfall::Compose_In_Mrain_Name(tRunTimer *t)
     if ( infile.is_open() )
 		infile.close();
 	
-	if (t->minuteRn || t->dtRain < 1)
+	infile.clear();
+
+	// Sub-hourly input (RAININTRVL < 1): the minute is significant, and
+	// MMDDYYYYHHMM is the only valid spelling.
+	//
+	// Hourly or coarser: minuteRn is always 0 here. RainTime is a whole number
+	// of hours and tRunTimer rejects non-integer dtRain > 1, so correctCalendar-
+	// Time always lands on minutet == 0. The minute field therefore carries no
+	// information, and MMDDYYYYHH00 is accepted as an alternative spelling of
+	// MMDDYYYYHH so grids exported with a full timestamp work. CJC2026
+	if (t->minuteRn || t->dtRain < 1) {
 		snprintf(mrainfileIn,sizeof(mrainfileIn), "%s%02d%02d%04d%02d%02d.%s", inputname,
 				t->monthRn, t->dayRn, t->yearRn, t->hourRn, t->minuteRn, extension);
+		infile.open(mrainfileIn);
+	}
 	else {
+		char altName[kMaxNameSize];
+
 		snprintf(mrainfileIn,sizeof(mrainfileIn),"%s%02d%02d%04d%02d.%s", inputname,
 				t->monthRn, t->dayRn, t->yearRn, t->hourRn, extension);
+		snprintf(altName,sizeof(altName),"%s%02d%02d%04d%02d%02d.%s", inputname,
+				t->monthRn, t->dayRn, t->yearRn, t->hourRn, t->minuteRn, extension);
+
+		infile.open(mrainfileIn);
+
+		if ( !(infile.is_open()) ) {
+			infile.clear();
+			infile.open(altName);
+			// Report whichever name actually opened: NewRain() resamples
+			// mrainfileIn.
+			if ( infile.is_open() )
+				snprintf(mrainfileIn,sizeof(mrainfileIn),"%s",altName);
+		}
 	}
-	infile.open(mrainfileIn);
 
 	// Check if file opened
-    if ( !(infile.is_open()) )
+    if ( !(infile.is_open()) ) {
+		infile.clear();
 		return 0;
+	}
 	else {
 		infile.close();
 		return 1;
