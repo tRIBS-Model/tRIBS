@@ -234,7 +234,7 @@ void tRainfall::NewRain(tRunTimer *t)
 	curRain = respPtr->doIt(mrainfileIn, 1);
 
 	while( nodeIter.IsActive() ) {
-		if (curRain[id] < 0.0 || curRain[id] > maxRain*t->getRainDT())
+		if (curRain[id] < 0.0 || curRain[id] > maxRain)
 			curRain[id] = 0.0;
 		sumRain = sumRain + cn->getVArea()*curRain[id];
 		sumArea = sumArea + cn->getVArea();
@@ -248,7 +248,7 @@ void tRainfall::NewRain(tRunTimer *t)
 		if (optMAP == 1)
 			curRain[id]=sumRain/sumArea;
 		if (rainfallType == 1)
-			cn->setRain( curRain[id]/t->getRainDT());
+			cn->setRain( curRain[id] );   // mm/hr, was curRain[id]/t->getRainDT()
 		cn = nodeIter.NextP();
 		id++;
 	}
@@ -737,7 +737,7 @@ void tRainfall::setToNode()
 		cNode = nodeIter.FirstP();
 		while( nodeIter.IsActive() ) {
 			curGauge[id] = cNode->getRain();
-			if (curGauge[id] < 0.0 || curGauge[id] > maxRain*rainDt)
+			if (curGauge[id] < 0.0 || curGauge[id] > maxRain)
 				curGauge[id] = 0.0;
 			sumRain = sumRain + cNode->getVArea()*curGauge[id];   
 			sumArea = sumArea + cNode->getVArea();
@@ -748,7 +748,7 @@ void tRainfall::setToNode()
 		// Assign Weighted Mean Rainfall Values
 		cNode = nodeIter.FirstP();
 		while( nodeIter.IsActive() ) { 
-			cNode->setRain( (sumRain/sumArea) / rainDt );  
+			cNode->setRain( sumRain/sumArea );  // was (sumRain/sumArea)/rainDt  
 			cNode = nodeIter.NextP();
 		}
 		delete [] curGauge;  
