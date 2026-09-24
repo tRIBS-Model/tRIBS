@@ -10,6 +10,7 @@
 - [ ] `RAININTRVL` values that are not exact binary fractions (10, 5, 3, 2, 1 min) are still rejected by the `fmod(1.0, dtRain) != 0` check in `tRunTimer`.
 - [ ] tRIBS `FillLakes` bug. When it looks for the lowest node around a pit, the check is if `(open boundary || z < lowestElev)`. Finding the outlet sets the running minimum to the outlet's elevation, so any later neighbour lower that that elev replaces it. The terminal pit therefore never drains to the outlet it's directly connected to.
 - [ ] Potential bug, `vCell::convertToVoronoiFormat` seems to trust convexity of a polygon. Thus, sizes its buffers based on that which with bad triangles cause warning less problems. Look into how we can reject or repair self-intersecting cells with a warning.
+- Look into "temp" fix implemented in commit 52f2dd084ff9fee7837ebfcc301476f37894998c and see how it affects model performance. Determine if more advanced fix is needed.
 
 ### Finished
 - [x] Finalize updated benchmarks
