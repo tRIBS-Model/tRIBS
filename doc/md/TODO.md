@@ -8,6 +8,8 @@
 - [ ] Update input timeseries and raster forcing files to use ISO 8601 timestamp format. No chnage to outputs for now, will still be elasped simulation hours. Example from `_MMddYYYYhh.asc` to `_20240615T1200.asc`
 - [ ] The precip grid and gauge paths label intervals differently: gauge row `T` covers `[T, T+dt)` while grid file `T` covers `(T-dt, T]`, so identically stamped gauge and grid forcing are offset by one interval. Need to decide which, most radar data is end of period as implemented in the model already.
 - [ ] `RAININTRVL` values that are not exact binary fractions (10, 5, 3, 2, 1 min) are still rejected by the `fmod(1.0, dtRain) != 0` check in `tRunTimer`.
+- [ ] tRIBS `FillLakes` bug. When it looks for the lowest node around a pit, the check is if `(open boundary || z < lowestElev)`. Finding the outlet sets the running minimum to the outlet's elevation, so any later neighbour lower that that elev replaces it. The terminal pit therefore never drains to the outlet it's directly connected to.
+- [ ] Potential bug, `vCell::convertToVoronoiFormat` seems to trust convexity of a polygon. Thus, sizes its buffers based on that which with bad triangles cause warning less problems. Look into how we can reject or repair self-intersecting cells with a warning.
 
 ### Finished
 - [x] Finalize updated benchmarks
