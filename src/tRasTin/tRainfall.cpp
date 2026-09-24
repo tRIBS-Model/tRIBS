@@ -147,18 +147,46 @@ int tRainfall::Compose_In_Mrain_Name(tRunTimer *t)
     if ( infile.is_open() )
 		infile.close();
 	
-	if (t->minuteRn || t->dtRain < 1)
+	infile.clear();
+
+	// Sub-hourly input (RAININTRVL < 1): the minute is significant, and
+	// MMDDYYYYHHMM is the only valid spelling.
+	//
+	// Hourly or coarser: minuteRn is always 0 here. RainTime is a whole number
+	// of hours and tRunTimer rejects non-integer dtRain > 1, so correctCalendar-
+	// Time always lands on minutet == 0. The minute field therefore carries no
+	// information, and MMDDYYYYHH00 is accepted as an alternative spelling of
+	// MMDDYYYYHH so grids exported with a full timestamp work. CJC2026
+	if (t->minuteRn || t->dtRain < 1) {
 		snprintf(mrainfileIn,sizeof(mrainfileIn), "%s%02d%02d%04d%02d%02d.%s", inputname,
 				t->monthRn, t->dayRn, t->yearRn, t->hourRn, t->minuteRn, extension);
+		infile.open(mrainfileIn);
+	}
 	else {
+		char altName[kMaxNameSize];
+
 		snprintf(mrainfileIn,sizeof(mrainfileIn),"%s%02d%02d%04d%02d.%s", inputname,
 				t->monthRn, t->dayRn, t->yearRn, t->hourRn, extension);
+		snprintf(altName,sizeof(altName),"%s%02d%02d%04d%02d%02d.%s", inputname,
+				t->monthRn, t->dayRn, t->yearRn, t->hourRn, t->minuteRn, extension);
+
+		infile.open(mrainfileIn);
+
+		if ( !(infile.is_open()) ) {
+			infile.clear();
+			infile.open(altName);
+			// Report whichever name actually opened: NewRain() resamples
+			// mrainfileIn.
+			if ( infile.is_open() )
+				snprintf(mrainfileIn,sizeof(mrainfileIn),"%s",altName);
+		}
 	}
-	infile.open(mrainfileIn);
 
 	// Check if file opened
-    if ( !(infile.is_open()) )
+    if ( !(infile.is_open()) ) {
+		infile.clear();
 		return 0;
+	}
 	else {
 		infile.close();
 		return 1;
@@ -234,7 +262,7 @@ void tRainfall::NewRain(tRunTimer *t)
 	curRain = respPtr->doIt(mrainfileIn, 1);
 
 	while( nodeIter.IsActive() ) {
-		if (curRain[id] < 0.0 || curRain[id] > maxRain*t->getRainDT())
+		if (curRain[id] < 0.0 || curRain[id] > maxRain)
 			curRain[id] = 0.0;
 		sumRain = sumRain + cn->getVArea()*curRain[id];
 		sumArea = sumArea + cn->getVArea();
@@ -248,7 +276,7 @@ void tRainfall::NewRain(tRunTimer *t)
 		if (optMAP == 1)
 			curRain[id]=sumRain/sumArea;
 		if (rainfallType == 1)
-			cn->setRain( curRain[id]/t->getRainDT());
+			cn->setRain( curRain[id] );   // mm/hr, was curRain[id]/t->getRainDT()
 		cn = nodeIter.NextP();
 		id++;
 	}
@@ -737,7 +765,7 @@ void tRainfall::setToNode()
 		cNode = nodeIter.FirstP();
 		while( nodeIter.IsActive() ) {
 			curGauge[id] = cNode->getRain();
-			if (curGauge[id] < 0.0 || curGauge[id] > maxRain*rainDt)
+			if (curGauge[id] < 0.0 || curGauge[id] > maxRain)
 				curGauge[id] = 0.0;
 			sumRain = sumRain + cNode->getVArea()*curGauge[id];   
 			sumArea = sumArea + cNode->getVArea();
@@ -748,7 +776,7 @@ void tRainfall::setToNode()
 		// Assign Weighted Mean Rainfall Values
 		cNode = nodeIter.FirstP();
 		while( nodeIter.IsActive() ) { 
-			cNode->setRain( (sumRain/sumArea) / rainDt );  
+			cNode->setRain( sumRain/sumArea );  // was (sumRain/sumArea)/rainDt  
 			cNode = nodeIter.NextP();
 		}
 		delete [] curGauge;  
