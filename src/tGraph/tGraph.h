@@ -78,7 +78,8 @@ public:
   /// Write out stream reach connectivity
   static void outputConnectivity(tInputFile& InputFile);
 
-  /// Partition graph based on # of processors
+  /// Partition graph based on # of processors, or on NUMPARTITIONS in a
+  /// partition-only run
   static void partition(tInputFile& InputFile);
   /// Partition graph into n pieces
   static void partition(int n, tInputFile& InputFile);
@@ -213,6 +214,7 @@ private:
                                                   //!< used to generate the
                                                   //!< partition, or -1 when it
                                                   //!< was read from a GRAPHFILE
+  static bool                    partitionOnlyRun;//!< PARALLELMODE 2 run
 
   static std::vector<tGraphNode> conn;            //!< Connectivity of reaches
 
