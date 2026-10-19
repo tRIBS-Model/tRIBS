@@ -22,9 +22,16 @@ New keyword semantics (breaking change from v5):
   (with validation). If blank/absent, the partition is generated every run
   and written to `<OUTFILENAME>_<SF|SSF|SSFH>_<np>nodes.reach`. The output
   path is never searched for an existing file.
-- `PARALLELMODE`: gains value `2` = partition-only (tRIBSpar only): build
-  the mesh and stream network, write the `.reach` graphfile, print partition
-  statistics, and exit without simulating.
+- `PARALLELMODE`: gains value `2` = partition-only (serial `tRIBS` or
+  `tRIBSpar`): build the mesh and stream network, write the `.reach`
+  graphfile, print partition statistics, and exit without simulating. Only
+  the mesh, channel, and reservoir inputs are checked; soil, land use,
+  groundwater, forcing, output-list, and restart keywords may be absent and
+  their files need not exist.
+- `NUMPARTITIONS` (new, optional): partition count for a `PARALLELMODE 2`
+  run. Required by the serial binary; in `tRIBSpar` it overrides the MPI
+  process count, and when absent a warning is printed and `-np` is used.
+  Ignored (with a note if it differs from `-np`) when `PARALLELMODE` is 1.
 
 ## 1. The golden invariant (highest priority)
 
@@ -97,9 +104,21 @@ bad partition:
    statistics printed (per-partition table, load balance, edge cuts), exits
    after Part 3b without simulating; the `.reach` file must be byte-identical
    to the one a full `PARALLELMODE 1` run with the same config generates.
-9. `PARALLELMODE 2` in the serial `tRIBS` binary → fatal error pointing at
-   `mpirun -np <N> tRIBSpar`.
-10. `PARALLELMODE 2` with `GRAPHFILE` set → validates and reports statistics
+9. `PARALLELMODE 2` in the serial `tRIBS` binary with `NUMPARTITIONS N` →
+   same `.reach` file and statistics as case 8 with `-np N` (expect
+   byte-identical on the same machine), no MPI launch needed.
+10. `PARALLELMODE 2` in the serial binary without `NUMPARTITIONS` → fatal
+    error during input preprocessing, before mesh building.
+11. `PARALLELMODE 2` in `tRIBSpar` without `NUMPARTITIONS` → warning, falls
+    back to `-np`; with `NUMPARTITIONS` and `-np > 1` → note that the ranks
+    repeat the same partitioning, `.reach` file built for `NUMPARTITIONS`.
+12. `NUMPARTITIONS` greater than the reach count, or `0` → fatal error naming
+    `NUMPARTITIONS` (not the processor count) as the thing to change.
+13. `PARALLELMODE 2` with `SOILTABLENAME`, `LANDMAPNAME`, `GWATERFILE`, and
+    the forcing paths pointing at nonexistent files (and with those keywords
+    deleted outright) → runs to completion; the same input with
+    `PARALLELMODE 1` → fatal "not found" error.
+14. `PARALLELMODE 2` with `GRAPHFILE` set → validates and reports statistics
     for the existing file instead of generating a new one.
 
 ## 4. Determinism and performance

@@ -39,6 +39,7 @@ int tGraph::numGlobalReach = 0;
 int tGraph::numGlobalPart = 1;
 int tGraph::localPart = 0;
 int tGraph::partMethod = -1;
+bool tGraph::partitionOnlyRun = false;
 
 std::vector<tGraphNode> tGraph::conn;
 
@@ -108,7 +109,8 @@ void tGraph::finalize(){
  
   numGlobalPart = 0;
   lastReach = false;
-} 
+  partitionOnlyRun = false;
+}
 
 /*************************************************************************
 **
@@ -122,6 +124,7 @@ void tGraph::initialize(SimulationControl* s, tMesh<tCNode>* m, tKinemat* f,
   sim = s;
   mesh = m;
   flow = f;
+  partitionOnlyRun = partitionOnly;
 
   // Create stream connectivity table
   Cout << "\nCreating stream reach connectivity table..." << endl;
@@ -271,6 +274,38 @@ void tGraph::partition(tInputFile& InputFile) {
   localPart = tParallel::getMyProc();
 #endif
 
+  // Partition-only run (PARALLELMODE 2): NUMPARTITIONS, when set, overrides
+  // the process count so the graphfile can be built for N partitions from
+  // the serial binary or a single MPI process. tPreProcess has already
+  // validated it, and required it for the serial binary.
+  if (partitionOnlyRun && InputFile.IsItemIn("NUMPARTITIONS")) {
+    int nparts = 0;
+    nparts = InputFile.ReadItem(nparts, "NUMPARTITIONS");
+#ifdef PARALLEL_TRIBS
+    if (numGlobalPart > 1)
+      Cout << "\nNote: NUMPARTITIONS = " << nparts << " sets the partition "
+           << "count, so the " << numGlobalPart << " MPI processes\neach "
+           << "repeat the same partitioning. A partition-only run needs only "
+           << "one process." << endl;
+#endif
+    numGlobalPart = nparts;
+    localPart = 0;
+  }
+  else if (!partitionOnlyRun && InputFile.IsItemIn("NUMPARTITIONS")) {
+    int nparts = 0;
+    nparts = InputFile.ReadItem(nparts, "NUMPARTITIONS");
+    if (nparts != numGlobalPart)
+      Cout << "\nNote: NUMPARTITIONS = " << nparts << " is used only by "
+           << "partition-only runs (PARALLELMODE = 2)\nand is ignored here; "
+           << "partitioning across the " << numGlobalPart
+           << " MPI processes." << endl;
+  }
+
+  if (partitionOnlyRun && numGlobalPart == 1)
+    Cout << "\nNote: only 1 partition requested, so all reaches are in "
+         << "partition 0 and no\ngraphfile is written. Set NUMPARTITIONS "
+         << "to build a graphfile for N partitions." << endl;
+
   assert(numGlobalPart > 0);
   partition(numGlobalPart, InputFile);
 
@@ -301,11 +336,15 @@ void tGraph::partition(int np, tInputFile& InputFile) {
   // partitions than reaches.
   if (np > numGlobalReach) {
     Cout << "\ntGraph: Cannot split " << numGlobalReach << " stream reaches "
-         << "across " << np << " processors." << endl;
+         << "across " << np << " partitions." << endl;
     Cout << "A stream reach is the smallest unit of work that can be assigned "
          << "to a processor,\nso the basin's reach count is the ceiling on "
-         << "parallelism. Rerun with at most\n" << numGlobalReach
-         << " processors." << endl;
+         << "parallelism." << endl;
+    if (partitionOnlyRun)
+      Cout << "Set NUMPARTITIONS to at most " << numGlobalReach << "." << endl;
+    else
+      Cout << "Rerun with at most " << numGlobalReach << " processors."
+           << endl;
     exit(1);
   }
 
@@ -422,11 +461,14 @@ void tGraph::partition(int np, tInputFile& InputFile) {
         "given a fair share of the work.",
         numGlobalReach, totalNodes, largest, suggested);
       Cout << msg << endl;
-      snprintf(msg, sizeof(msg), "Rerun with about %d processors.", suggested);
+      if (partitionOnlyRun)
+        snprintf(msg, sizeof(msg), "Set NUMPARTITIONS to about %d.", suggested);
+      else
+        snprintf(msg, sizeof(msg), "Rerun with about %d processors.", suggested);
       Cout << msg << endl;
       if (strlen(pfile) > 0 && partMethod < 0)
         Cout << "\nNote: this partition came from GRAPHFILE '" << pfile
-             << "',\nwhich may have been generated for a different processor "
+             << "',\nwhich may have been generated for a different partition "
              << "count. Delete it\nand rerun to regenerate it." << endl;
       exit(1);
     }
@@ -506,7 +548,7 @@ void tGraph::readReachPartitionFromFile(char* pfile, int np) {
             cout << "\ntGraph: Partition id " << whichPart << " in '" << pfile
                  << "' is outside this run's range 0.." << np-1 << "." << endl;
             cout << "The graph file was likely generated for a different "
-                 << "number of processors. Delete it and rerun to "
+                 << "number of partitions. Delete it and rerun to "
                  << "regenerate it." << endl;
             exit(1);
         }
