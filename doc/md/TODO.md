@@ -11,6 +11,8 @@
 - [ ] tRIBS `FillLakes` bug. When it looks for the lowest node around a pit, the check is if `(open boundary || z < lowestElev)`. Finding the outlet sets the running minimum to the outlet's elevation, so any later neighbour lower that that elev replaces it. The terminal pit therefore never drains to the outlet it's directly connected to.
 - [ ] Potential bug, `vCell::convertToVoronoiFormat` seems to trust convexity of a polygon. Thus, sizes its buffers based on that which with bad triangles cause warning less problems. Look into how we can reject or repair self-intersecting cells with a warning.
 - Look into "temp" fix implemented in commit 52f2dd084ff9fee7837ebfcc301476f37894998c and see how it affects model performance. Determine if more advanced fix is needed.
+- Partitioning only workflow (`PARALLELMODE = 2`) requires users to run the process with mpi with the # of processors they are requesting. Ways around this with `"mpirun --oversubscribe"` but ideally the users should be able to run this mode without mpi at all like they could before with MeshBuilder. Possibly add a optional keyword for # of partitions and a warning that pops up telling the users if it is not in the input file. 
+- Partitioning only workflow (`PARALLELMODE = 2`) requires some inputs like  initial groundwater, soils, landuse to exist (I think tInputFile.cpp is just checking that the paths exists, files can be empty). These files shouldn't have to exist, only the mesh files are needed. 
 
 ### Finished
 - [x] Finalize updated benchmarks
