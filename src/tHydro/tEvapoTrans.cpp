@@ -1452,7 +1452,7 @@ double tEvapoTrans::aeroResist() {
 	else
 		vegHeight = coeffH;
 
-	vegBare = 1.0;   //ERV 04/2009 used to be 0.1
+	vegBare = 0.1;   //ERV 04/2009 used to be 0.1
 	vegFrac = coeffV;
 
 	if (windSpeed == 0.0 || fabs(windSpeed-9999.99)<1.0E-3)
