@@ -21,14 +21,13 @@
 
 #ifdef PARALLEL_TRIBS
 #include "src/tParallel/tParallel.h"
-#include <fcntl.h>       // open()  -- muting METIS stdout on non-master ranks
-#include <unistd.h>      // dup(), dup2(), STDOUT_FILENO
 #endif
 
 #include <algorithm>
 #include <cassert>
 #include <cstdio>
 #include <map>
+#include <stdexcept>
 #include <utility>
 
 SimulationControl* tGraph::sim = 0;
@@ -284,9 +283,9 @@ void tGraph::partition(tInputFile& InputFile) {
 #ifdef PARALLEL_TRIBS
     if (numGlobalPart > 1)
       Cout << "\nNote: NUMPARTITIONS = " << nparts << " sets the partition "
-           << "count, so the " << numGlobalPart << " MPI processes\neach "
-           << "repeat the same partitioning. A partition-only run needs only "
-           << "one process." << endl;
+           << "count, and only the master process\npartitions, so the other "
+           << numGlobalPart - 1 << " MPI processes sit idle. A partition-only "
+           << "run needs only one\nprocess." << endl;
 #endif
     numGlobalPart = nparts;
     localPart = 0;
@@ -390,31 +389,60 @@ void tGraph::partition(int np, tInputFile& InputFile) {
     if (strcmp(pfile, "-999") == 0)   // ReadItem's missing-value sentinel
       strcpy(pfile,"");
 
-    if (strlen(pfile) > 0) {
-      ifstream graphTest(pfile);
-      if (!graphTest.good()) {
-        cout << "\ntGraph: GRAPHFILE '" << pfile << "' not found." << endl;
-        cout << "Provide a valid partition graph file, or leave GRAPHFILE "
-             << "blank to have tRIBS generate one." << endl;
-        exit(1);
-      }
-      graphTest.close();
-      readReachPartitionFromFile(pfile, np);
-    }
-    else {
+    bool readFromFile = (strlen(pfile) > 0);
+    if (!readFromFile) {
       char outbase[kMaxNameSize];
       InputFile.ReadItem( outbase, "OUTFILENAME" );
       snprintf(pfile, sizeof(pfile), "%s_%s_%dnodes.reach",
                outbase, tPartition::MethodToken(method), np);
-      Cout << "\nNo parallel partitioning graph file (GRAPHFILE) provided."
-           << "\nGenerating the partition in-process ("
-           << tPartition::MethodToken(method) << ", " << np
-           << " partitions) and writing it to '" << pfile << "'."
-           << "\nSet GRAPHFILE to this path to reuse it in future runs."
-           << endl;
-      partMethod = method;   // stays -1 when the partition is read from a file
-      generatePartition(np, method, pfile);
     }
+
+    // Only the master reads or generates the partition; the other ranks
+    // receive it by broadcast, so every rank is guaranteed the same
+    // reach2partition. The master first broadcasts a status so that a
+    // failure on the master (bad GRAPHFILE, METIS error) makes every rank
+    // exit together instead of leaving the others blocked in the broadcast.
+    bool isMaster = true;
+#ifdef PARALLEL_TRIBS
+    isMaster = tParallel::isMaster();
+#endif
+    int ok = 1;
+    if (isMaster) {
+      if (readFromFile) {
+        ifstream graphTest(pfile);
+        if (!graphTest.good()) {
+          cout << "\ntGraph: GRAPHFILE '" << pfile << "' not found." << endl;
+          cout << "Provide a valid partition graph file, or leave GRAPHFILE "
+               << "blank to have tRIBS generate one." << endl;
+          ok = 0;
+        }
+        else {
+          graphTest.close();
+          ok = readReachPartitionFromFile(pfile, np) ? 1 : 0;
+        }
+      }
+      else {
+        Cout << "\nNo parallel partitioning graph file (GRAPHFILE) provided."
+             << "\nGenerating the partition in-process ("
+             << tPartition::MethodToken(method) << ", " << np
+             << " partitions) and writing it to '" << pfile << "'."
+             << "\nSet GRAPHFILE to this path to reuse it in future runs."
+             << endl;
+        partMethod = method;   // stays -1 when the partition is read from a file
+        ok = generatePartition(np, method, pfile) ? 1 : 0;
+      }
+    }
+
+#ifdef PARALLEL_TRIBS
+    int header[2] = { ok, partMethod };
+    tParallel::broadcast(header, 2);
+    ok = header[0];
+    partMethod = header[1];
+    if (ok)
+      tParallel::broadcast(reach2partition.data(), numGlobalReach);
+#endif
+    if (!ok)
+      exit(1);
 
     // Every partition must own at least one reach. A rank with no reaches has
     // no work and no data to exchange, which either wastes the processor or
@@ -515,13 +543,13 @@ void tGraph::partition(int np, tInputFile& InputFile) {
 **
 *************************************************************************/
 
-void tGraph::readReachPartitionFromFile(char* pfile, int np) {
+bool tGraph::readReachPartitionFromFile(char* pfile, int np) {
 
     ifstream partFile;
     partFile.open(pfile);
     if (!partFile.good()) {
         cout << "\ntGraph: Cannot open graph file '" << pfile << "'" << endl;
-        exit(1);
+        return false;
     }
 
     // Validate as we read: every reach assigned exactly once and every
@@ -542,7 +570,7 @@ void tGraph::readReachPartitionFromFile(char* pfile, int np) {
                  << "' (mesh has " << numGlobalReach << " reaches)." << endl;
             cout << "The graph file does not match this mesh. Delete it and "
                  << "rerun to regenerate it." << endl;
-            exit(1);
+            return false;
         }
         if (whichPart < 0 || whichPart >= np) {
             cout << "\ntGraph: Partition id " << whichPart << " in '" << pfile
@@ -550,13 +578,13 @@ void tGraph::readReachPartitionFromFile(char* pfile, int np) {
             cout << "The graph file was likely generated for a different "
                  << "number of partitions. Delete it and rerun to "
                  << "regenerate it." << endl;
-            exit(1);
+            return false;
         }
         if (assigned[preach]) {
             cout << "\ntGraph: Reach " << preach << " is assigned twice in '"
                  << pfile << "'. Delete the file and rerun to regenerate it."
                  << endl;
-            exit(1);
+            return false;
         }
         assigned[preach] = 1;
         reach2partition[preach] = whichPart;
@@ -567,10 +595,11 @@ void tGraph::readReachPartitionFromFile(char* pfile, int np) {
              << " reaches but the mesh has " << numGlobalReach << "." << endl;
         cout << "The file is truncated or from a different mesh. Delete it "
              << "and rerun to regenerate it." << endl;
-        exit(1);
+        return false;
     }
     partFile.close();
     Cout << "\nPartitioning read from reach file " << pfile << endl;
+    return true;
 }
 
 
@@ -594,7 +623,7 @@ void tGraph::readReachPartitionFromFile(char* pfile, int np) {
 **
 *************************************************************************/
 
-void tGraph::generatePartition(int np, int method, const char* outPath) {
+bool tGraph::generatePartition(int np, int method, const char* outPath) {
 
   // 1. Node count per reach == METIS vertex weight. Read-only pass over all
   //    active nodes (every node is still active at partition time).
@@ -653,36 +682,19 @@ void tGraph::generatePartition(int np, int method, const char* outPath) {
   }
   fluxTotal /= 2;                  // each pair is stored from both ends
 
-  // 5. Partition and copy the result into reach2partition. Every rank runs
-  //    METIS, so the result is reported through Cout (master only) rather
-  //    than from inside ComputePartition.
-  // METIS reports problems with printf() from inside the vendored C library,
-  // so those lines bypass Cout's master-only gating and every rank emits its
-  // own copy. Mute stdout on non-master ranks for the duration of the call. 
-  int savedStdout = -1;
-#ifdef PARALLEL_TRIBS
-  if (!tParallel::isMaster()) {
-    fflush(stdout);
-    savedStdout = dup(STDOUT_FILENO);
-    int devNull = open("/dev/null", O_WRONLY);
-    if (devNull >= 0) {
-      dup2(devNull, STDOUT_FILENO);
-      close(devNull);
-    }
-  }
-#endif
-
+  // 5. Partition and copy the result into reach2partition. Only the master
+  //    runs METIS (the caller broadcasts the result), so METIS's own printf()
+  //    diagnostics appear once.
   int edgeCut = 0;
-  std::vector<int> part = tPartition::ComputePartition(
-      reaches, np, static_cast<tPartition::PartMethod>(method), &edgeCut);
-
-#ifdef PARALLEL_TRIBS
-  if (savedStdout >= 0) {           // restore stdout on the muted ranks
-    fflush(stdout);
-    dup2(savedStdout, STDOUT_FILENO);
-    close(savedStdout);
+  std::vector<int> part;
+  try {
+    part = tPartition::ComputePartition(
+        reaches, np, static_cast<tPartition::PartMethod>(method), &edgeCut);
   }
-#endif
+  catch (const std::runtime_error& e) {
+    cout << "\ntGraph: " << e.what() << endl;
+    return false;
+  }
 
   for (int i = 0; i < numGlobalReach; i++)
     reach2partition[i] = part[i];
@@ -695,12 +707,16 @@ void tGraph::generatePartition(int np, int method, const char* outPath) {
        << " cross processor boundaries" << endl;
 
   // 6. Persist the generated partition so it can be reused / inspected.
-  bool isMaster = true;
-#ifdef PARALLEL_TRIBS
-  isMaster = tParallel::isMaster();
-#endif
-  if (outPath != 0 && strlen(outPath) > 0 && isMaster)
-    tPartition::WriteReachFile(reaches, part, np, outPath);
+  if (outPath != 0 && strlen(outPath) > 0) {
+    try {
+      tPartition::WriteReachFile(reaches, part, np, outPath);
+    }
+    catch (const std::runtime_error& e) {
+      cout << "\ntGraph: " << e.what() << endl;
+      return false;
+    }
+  }
+  return true;
 }
 
 /*************************************************************************

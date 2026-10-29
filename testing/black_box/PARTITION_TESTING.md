@@ -33,7 +33,7 @@ New keyword semantics (breaking change from v5):
   process count, and when absent a warning is printed and `-np` is used.
   Ignored (with a note if it differs from `-np`) when `PARALLELMODE` is 1.
 
-## 1. The golden invariant (highest priority)
+## 1. Key factor
 
 **Partitioning must never change the hydrology.** Any run below should match
 the serial reference within the tolerance already used by the Big Spring
@@ -46,7 +46,7 @@ serial/parallel test. Matrix per benchmark watershed, blank `GRAPHFILE`:
 | `tRIBSpar -np 2`, `-np 4` | partition-count independence |
 | `-np 3` with `GRAPHOPTION` 0, 1, and 2 | method independence |
 
-Compare: outlet hydrograph (`_Outlet.qout` — preferred over the `.mrf` `Srf`
+Compare: outlet hydrograph (`_Outlet.qout`, preferred over the `.mrf` `Srf`
 column), `.mrf` water balance, and integrated spatial output at the final
 timestep. The GRAPHOPTION 0/1/2 runs must also match *each other*; any
 divergence points directly at the partitioner.
@@ -75,8 +75,9 @@ with fewer reaches than `np` is a useful stress case.
   against a fixed percentage: with few reaches per partition, perfect
   balance is often unreachable. One partition with many times the nodes of
   another is still a failure.
-- The partition messages must appear **once**, not once per MPI rank. All
-  ranks run METIS; only the master reports.
+- The partition messages, including any raw METIS diagnostics, must appear
+  **once**, not once per MPI rank. Only the master reads `GRAPHFILE` or runs
+  METIS; it broadcasts the partition to the other ranks.
 - If a legacy MeshBuilder-generated `.reach` file exists for a benchmark,
   run with `GRAPHFILE` pointing at it: it should pass validation and
   reproduce the same hydrology (confirms reach numbering consistency
@@ -84,7 +85,7 @@ with fewer reaches than `np` is a useful stress case.
 
 ## 3. Feature mechanics and error paths
 
-Each should exit with a clear message — never crash, hang, or run with a
+Each should exit with a clear message, never crash, hang, or run with a
 bad partition:
 
 1. Blank `GRAPHFILE` → "No parallel partitioning graph file (GRAPHFILE)
@@ -98,6 +99,11 @@ bad partition:
    partition-range error.
 5. A hand-truncated `.reach` file → fatal reach-count error.
 6. A duplicated line in the `.reach` file → fatal duplicate-assignment error.
+
+   Cases 3–6 must be run with `-np > 1` as well: these errors are detected on
+   the master only and broadcast as a status, so every rank must exit
+   promptly. A job that prints the error and then hangs means a rank is stuck
+   waiting for the partition broadcast.
 7. `GRAPHOPTION` outside 0–2 → fatal error during input preprocessing
    (fails in seconds, before mesh building).
 8. `PARALLELMODE 2` under `mpirun -np N` → `.reach` file written, partition
@@ -124,8 +130,8 @@ bad partition:
 ## 4. Determinism and performance
 
 - Same parallel config run twice → the two generated `.reach` files must be
-  byte-identical (all MPI ranks run METIS independently and rely on
-  deterministic agreement).
+  byte-identical (METIS runs on the master only with default options, so
+  reruns on the same platform are deterministic).
 - Wall time serial vs `-np 2/4`: parallel should not be slower than serial;
   a slowdown suggests a pathological partition.
 - Cross-platform note: a `.reach` generated on macOS need not be
@@ -134,9 +140,7 @@ bad partition:
 
 ## Known gaps / future hardening (not test failures)
 
-- Every MPI rank runs METIS independently and trusts identical results;
-  master-computes-then-broadcast would be more robust.
 - CI (`.github/workflows/`) compiles the vendored METIS on Linux and both
-  macOS architectures but never *runs* a parallel partition — item 1 above
+  macOS architectures but never *runs* a parallel partition, item 1 above
   is the runtime coverage that matters most.
 - Restart/hotstart interacting with generated partitions is untested.

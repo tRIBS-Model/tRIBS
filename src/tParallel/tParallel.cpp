@@ -264,6 +264,18 @@ int tParallel::sum(int value) {
 
 /***************************************************************************
 **
+** Broadcast an int array from the master to all processors. Every
+** processor must call this with the same n.
+**
+***************************************************************************/
+
+void tParallel::broadcast(int* data, int n) {
+   if (numProcs == 1 || n <= 0) return;
+   MPI_Bcast(data, n, MPI_INT, MASTER_PROC, MPI_COMM_WORLD);
+}
+
+/***************************************************************************
+**
 ** Int global summation across processors.
 ** Sum broadcast to all processors.
 **
