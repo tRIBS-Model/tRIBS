@@ -1,14 +1,20 @@
 <!--- CHANGELOG.md --->
 # Changelog 
-All notable changes to this project are documented in this file.
+All notable changes to this project are documented in this file. Each entry is a brief summary; for full details, see the tRIBS Wiki or the linked pull request.
 
-## [6.0.1] - Unreleased
+## [6.0.1] - 10/29/2026
+v6.0.1 is a minor release that fixes a bug in sub-hourly gridded precipitation and makes small improvements to the partitioning workflow introduced in v6.0.0.
+
+### Added
+* **Partition-Only Mode in Serial:** The partition-only mode introduced in v6.0.0 (`PARALLELMODE = 2`) could only run in the parallel executable and required one processor per partition, even though partitioning does not need more than one processor. It now also runs in the serial `tRIBS` executable. A new optional keyword, `NUMPARTITIONS`, sets the number of partitions to generate: it is required in serial and overrides the MPI process count in parallel. Only the mesh, channel, and reservoir inputs are read; soil, land use, groundwater, forcing, output, and restart inputs may be omitted. ([#134](https://github.com/tRIBS-Model/tRIBS/pull/134))
 
 ### Fixed
-* **Gridded Precipitation:** Fixed multiple problems with sub-hourly gridded precipitation and relaxed file naming conventions for hourly gridded precipitation. ([#133](https://github.com/tRIBS-Model/tRIBS/pull/133))
+* **Sub-hourly Gridded Precipitation:** Fixed a bug that inflated sub-hourly gridded precipitation by a factor of 1/`RAININTRVL`. Gridded values are now read as rates in mm/hr, the same as point inputs. Hourly simulations were unaffected. ([#133](https://github.com/tRIBS-Model/tRIBS/pull/133))
 
 ### Changed & Refactored
-* **Partitioning Only Mode:** The user requested partition count is set with the new `NUMPARTITIONS` keyword, so the graph file can be built with the serial `tRIBS` binary and no MPI launch (`tRIBSpar` falls back to the MPI process count when `NUMPARTITIONS` is absent). Only the mesh, channel, and reservoir inputs are read; soil, land use, groundwater, forcing, output, and restart inputs may be omitted. ([#134](https://github.com/tRIBS-Model/tRIBS/pull/134))
+* **Master-Only Partitioning in Parallel:** In v6.0.0, every processor rank partitioned the stream reach graph separately, and the model assumed all ranks reached the same result. Partitioning now runs only on the master rank, which broadcasts the result to the other ranks. If reading `GRAPHFILE` or partitioning fails, all ranks now exit together instead of crashing or hanging. ([#134](https://github.com/tRIBS-Model/tRIBS/pull/134))
+
+---
 
 ## [6.0.0] - 08/25/2026
 v6.0.0 is a major release focused on simplifying the user experience and streamlining the codebase, thus is not backwards compatible with previous versions. This version introduces a major rework of the main input file, standardized input/output file formats, complete rework of the restart module, improvements to snow physics, adds modern raster support via GDAL, and implements optimizations to improve simulation performance. **To view examples of the updated v6.0.0 input structure and the new snow parameter files (.spf), please visit our [Model Benchmark Repository](https://github.com/tRIBS-Model/tRIBS-benchmarks).**
