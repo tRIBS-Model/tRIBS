@@ -559,6 +559,7 @@ bool tGraph::readReachPartitionFromFile(char* pfile, int np) {
     std::vector<int> assigned(numGlobalReach, 0);
     int whichPart, preach;
     int nr = 0;
+    int maxPart = -1;
     while (partFile >> whichPart >> preach) {
         if (sim->debug == 'Y') {
             Cout << "Partition = " << whichPart
@@ -588,6 +589,7 @@ bool tGraph::readReachPartitionFromFile(char* pfile, int np) {
         }
         assigned[preach] = 1;
         reach2partition[preach] = whichPart;
+        if (whichPart > maxPart) maxPart = whichPart;
         nr++;
     }
     if (nr != numGlobalReach) {
@@ -595,6 +597,17 @@ bool tGraph::readReachPartitionFromFile(char* pfile, int np) {
              << " reaches but the mesh has " << numGlobalReach << "." << endl;
         cout << "The file is truncated or from a different mesh. Delete it "
              << "and rerun to regenerate it." << endl;
+        return false;
+    }
+    // A file written for np partitions uses every id 0..np-1, so a lower
+    // highest id means it was generated for fewer partitions than this run.
+    if (maxPart + 1 != np) {
+        cout << "\ntGraph: Graph file '" << pfile << "' was generated for "
+             << maxPart + 1 << " partitions, but this run was inititialized with " << np
+             << "." << endl;
+        cout << "Point GRAPHFILE at a .reach file generated for " << np
+             << " partitions, or leave GRAPHFILE blank to generate one."
+             << endl;
         return false;
     }
     partFile.close();
