@@ -14,7 +14,7 @@ WORKDIR /build
 # Build a released tag rather than a moving branch, so an image tag always
 # rebuilds to the same source. Override for a one-off build with
 # --build-arg TRIBS_VERSION=<tag>.
-ARG TRIBS_VERSION=v6.0.0
+ARG TRIBS_VERSION=v6.0.1
 
 RUN git clone --depth 1 --branch ${TRIBS_VERSION} https://github.com/tRIBS-Model/tRIBS.git .
 
