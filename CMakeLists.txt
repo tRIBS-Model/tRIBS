@@ -38,8 +38,8 @@ option(WITH_PROFILER "Build with gperftools CPU profiler" OFF)
 #
 # Must precede project(), which cannot be given a variable it does not yet know.
 ################################################################################
-set(TRIBS_VERSION 6.0.0)
-set(TRIBS_RELEASE "Summer 2026")
+set(TRIBS_VERSION 6.0.1)
+set(TRIBS_RELEASE "Fall 2026")
 
 set(TRIBS_VERSION_STAMP_ARGS
         "-DSRC_DIR=${CMAKE_CURRENT_SOURCE_DIR}"

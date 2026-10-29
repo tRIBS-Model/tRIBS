@@ -73,6 +73,9 @@ public:
   /// Delete buffers for which the send has completed
   static void freeBuffers();
 
+  /// Broadcast n ints from the master to all processors
+  static void broadcast(int* data, int n);
+
   /// Global sum for a single value
   static int sum(int value);
   /// Global sum for a single value with broadcast

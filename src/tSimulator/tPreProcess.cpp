@@ -57,7 +57,12 @@ tPreProcess::~tPreProcess()
 ** to ensure pathnames are correct or data is valid. 
 **
 ** NOTE: Upon adding new keywords to an *.in file, this function must be
-** updated to reflect the changes. 
+** updated to reflect the changes.
+**
+** A partition-only run (PARALLELMODE 2) builds just the mesh and stream
+** network, so only the keywords and files those steps read are checked;
+** the hydrologic inputs (soils, land use, groundwater, forcing, outputs,
+** restart) may be omitted or point to files that do not exist.
 **
 ***************************************************************************/
 void tPreProcess::CheckInputFile(tInputFile &infile) 
@@ -85,6 +90,13 @@ void tPreProcess::CheckInputFile(tInputFile &infile)
 
 	// Commented out several items for compatibility of existing data sets -VIVA //WR reverted 08282023
 
+	// PARALLELMODE: 0 = serial, 1 = parallel, 2 = partition-only (build and
+	// write the .reach graphfile, print statistics, and exit). Read first so
+	// partition-only runs can skip the inputs only the simulation needs.
+	optpar = 0;
+	optpar = IterReadItem(infile, optpar, "PARALLELMODE");
+	bool partitionOnly = (optpar == 2);
+
     // BEGIN Move tControl Arguments to .in file WR 08282023
     IterReadItem(infile, tempVariable,"OPTGROUNDWATER"); //   Cout<<"\t-G    Run groundwater model"<<endl;
     IterReadItem(infile, tempVariable,"OPTSPATIAL"); //  Cout<<"\t-R    Write intermediate states (spatial output)"<<endl;
@@ -99,7 +111,8 @@ void tPreProcess::CheckInputFile(tInputFile &infile)
 	IterReadItem(infile, tempVariable,"SPOPINTRVL");
 	IterReadItem(infile, tempVariable,"INTSTORMMAX");
 	//IterReadItem(infile, tempVariable,"RAINSEARCH");
-	IterReadItem(infile, tempVariable, "TLINKE");
+	if (!partitionOnly)
+		IterReadItem(infile, tempVariable, "TLINKE");
 	IterReadItem(infile, tempVariable,"BASEFLOW");       //Flow parameters
 	IterReadItem(infile, tempVariable,"KINEMVELCOEF");
 	IterReadItem(infile, tempVariable,"FLOWEXP");
@@ -115,39 +128,42 @@ void tPreProcess::CheckInputFile(tInputFile &infile)
 		IterReadItem(infile, tempVariable,"WIDTHINTERPOLATION");
 	}
 	
-	optevapotrans = IterReadItem(infile, optevapotrans, "OPTEVAPOTRANS");   //Options
-	IterReadItem(infile, tempVariable,"OPTINTERCEPT");
-	IterReadItem(infile, tempVariable,"GFLUXOPTION");
-	//IterReadItem(infile, tempVariable,"OPTRUNON");
-
-	// SKY2008Snow from AJR2007
-	IterReadItem(infile, tempVariable,"OPTSNOW");
-	IterReadItem(infile, tempVariable,"OPTRADSHELT");
-
-
 	optmesh=optrain=optrock=optmet=optgw=0; //Int
-  	optpar=optgraph=optrest=0;
+  	optgraph=optrest=0;
 
 	optres=0; // JECR 2015
 	optsoil=0; // JorgeGiuseppe 2015
-	
-	optmesh  = IterReadItem(infile, optmesh, "OPTMESHINPUT");
-	optrain  = IterReadItem(infile, optrain, "RAINSOURCE");
-	optmet   = IterReadItem(infile, optmet,  "METDATAOPTION");
-	
-	// SKYnGM2008LU: added by AJR 2007
-	optlu = IterReadItem(infile,optlu, "OPTLANDUSE");
+	optlu=0;
 
-	// SKYnGM2008LU
-	if (optlu == 1) {
-		optluinterp = IterReadItem(infile,optluinterp, "OPTLUINTERP");
+	if (!partitionOnly) {
+		optevapotrans = IterReadItem(infile, optevapotrans, "OPTEVAPOTRANS");   //Options
+		IterReadItem(infile, tempVariable,"OPTINTERCEPT");
+		IterReadItem(infile, tempVariable,"GFLUXOPTION");
+		//IterReadItem(infile, tempVariable,"OPTRUNON");
+
+		// SKY2008Snow from AJR2007
+		IterReadItem(infile, tempVariable,"OPTSNOW");
+		IterReadItem(infile, tempVariable,"OPTRADSHELT");
+
+		optrain  = IterReadItem(infile, optrain, "RAINSOURCE");
+		optmet   = IterReadItem(infile, optmet,  "METDATAOPTION");
+
+		// SKYnGM2008LU: added by AJR 2007
+		optlu = IterReadItem(infile,optlu, "OPTLANDUSE");
+
+		// SKYnGM2008LU
+		if (optlu == 1) {
+			optluinterp = IterReadItem(infile,optluinterp, "OPTLUINTERP");
+		}
+
+		optrock  = IterReadItem(infile, optrock ,"OPTBEDROCK");
+		//optgw    = IterReadItem(infile, optgw,   "OPTGWFILE");
+
+		optsoil = IterReadItem(infile, tempVariable,"OPTSOILTYPE"); // JorgeGiuseppe 2015
 	}
 
-	optrock  = IterReadItem(infile, optrock ,"OPTBEDROCK");
-	//optgw    = IterReadItem(infile, optgw,   "OPTGWFILE");
-	
+	optmesh  = IterReadItem(infile, optmesh, "OPTMESHINPUT");
 	optres = IterReadItem(infile, tempVariable,"OPTRESERVOIR"); // JECR 2015
-	optsoil = IterReadItem(infile, tempVariable,"OPTSOILTYPE"); // JorgeGiuseppe 2015	
 
 	if (optmesh == 1) {
 		IterReadItem(infile, tempString,  "INPUTDATAFILE");
@@ -169,80 +185,84 @@ void tPreProcess::CheckInputFile(tInputFile &infile)
 		CheckFileExists(tempString,"RESDATA");
 	}
 
-	if (optsoil == 1) {	 //JorgeGiuseppe2015
-		IterReadItem   (infile, tempString,"SCGRID");    //File with soil grid paths
-		CheckFileExists(tempString,"SCGRID");	
-	}
+	// Inputs read only by the hydrologic simulation (Parts 4+). A
+	// partition-only run never opens them, so they need not exist.
+	if (!partitionOnly) {
+		if (optsoil == 1) {	 //JorgeGiuseppe2015
+			IterReadItem   (infile, tempString,"SCGRID");    //File with soil grid paths
+			CheckFileExists(tempString,"SCGRID");	
+		}
 	
-	/******************** End of modifications by JECR 2015 *********************/ 
+		/******************** End of modifications by JECR 2015 *********************/ 
 
-	IterReadItem   (infile, tempString,"SOILTABLENAME");    //Watershed grids
-	CheckFileExists(tempString,"SOILTABLENAME"); 
+		IterReadItem   (infile, tempString,"SOILTABLENAME");    //Watershed grids
+		CheckFileExists(tempString,"SOILTABLENAME"); 
 	
-	IterReadItem   (infile, tempString,"SOILMAPNAME");
-	CheckFileExists(tempString,"SOILMAPNAME");
+		IterReadItem   (infile, tempString,"SOILMAPNAME");
+		CheckFileExists(tempString,"SOILMAPNAME");
 	
-	IterReadItem   (infile, tempString,"LANDTABLENAME");
-	CheckFileExists(tempString,"LANDTABLENAME");
+		IterReadItem   (infile, tempString,"LANDTABLENAME");
+		CheckFileExists(tempString,"LANDTABLENAME");
 	
-	IterReadItem   (infile, tempString,"LANDMAPNAME");
-	CheckFileExists(tempString,"LANDMAPNAME");
+		IterReadItem   (infile, tempString,"LANDMAPNAME");
+		CheckFileExists(tempString,"LANDMAPNAME");
 	
-	if (!optgw) {
-		IterReadItem   (infile, tempString,"GWATERFILE");   //Groundwater: input as grid
-		CheckFileExists(tempString,"GWATERFILE");
-	}
+		if (!optgw) {
+			IterReadItem   (infile, tempString,"GWATERFILE");   //Groundwater: input as grid
+			CheckFileExists(tempString,"GWATERFILE");
+		}
 
-	// SKY2008Snow from AJR2007
-	optradshelt  = IterReadItem(infile, optradshelt ,"OPTRADSHELT");
-	if (optradshelt){
-		IterReadItem(infile,tempString,"DEMFILE");
-		CheckFileExists(tempString,"DEMFILE");
-	}
+		// SKY2008Snow from AJR2007
+		optradshelt  = IterReadItem(infile, optradshelt ,"OPTRADSHELT");
+		if (optradshelt){
+			IterReadItem(infile,tempString,"DEMFILE");
+			CheckFileExists(tempString,"DEMFILE");
+		}
 
-	if (optrain == 1) {                //Rainfall data
-		IterReadItem(infile, tempString,"RAINFILE");
-		IterReadItem(infile, tempString,"RAINEXTENSION");
-		IterReadItem(infile, tempVariable,"RAINDISTRIBUTION");
-	}
-	else if (optrain == 2) {
-		IterReadItem   (infile, tempString,"GAUGESTATIONS");
-		CheckFileExists(tempString,"GAUGESTATIONS");
-		IterReadItem   (infile, tempVariable,"RAINDISTRIBUTION");
-	}
+		if (optrain == 1) {                //Rainfall data
+			IterReadItem(infile, tempString,"RAINFILE");
+			IterReadItem(infile, tempString,"RAINEXTENSION");
+			IterReadItem(infile, tempVariable,"RAINDISTRIBUTION");
+		}
+		else if (optrain == 2) {
+			IterReadItem   (infile, tempString,"GAUGESTATIONS");
+			CheckFileExists(tempString,"GAUGESTATIONS");
+			IterReadItem   (infile, tempVariable,"RAINDISTRIBUTION");
+		}
 	
-	if (optrock == 0) {                                  //Bedrock data
-		IterReadItem(infile,tempVariable,"DEPTHTOBEDROCK");
-	}
-	else if (optrock == 1) {
-		IterReadItem   (infile, tempString,"BEDROCKFILE");
-		CheckFileExists(tempString,"BEDROCKFILE");
-	}
+		if (optrock == 0) {                                  //Bedrock data
+			IterReadItem(infile,tempVariable,"DEPTHTOBEDROCK");
+		}
+		else if (optrock == 1) {
+			IterReadItem   (infile, tempString,"BEDROCKFILE");
+			CheckFileExists(tempString,"BEDROCKFILE");
+		}
 	
-	if (optmet == 1) {                                          //Meteorological data
-		IterReadItem   (infile, tempString,"HYDROMETSTATIONS");
-		CheckFileExists(tempString,"HYDROMETSTATIONS");
-	}
-	else if (optmet == 2) {
-		IterReadItem   (infile, tempString,"HYDROMETGRID");
-		CheckFileExists(tempString,"HYDROMETGRID");
-	}
+		if (optmet == 1) {                                          //Meteorological data
+			IterReadItem   (infile, tempString,"HYDROMETSTATIONS");
+			CheckFileExists(tempString,"HYDROMETSTATIONS");
+		}
+		else if (optmet == 2) {
+			IterReadItem   (infile, tempString,"HYDROMETGRID");
+			CheckFileExists(tempString,"HYDROMETGRID");
+		}
 
-	if (optevapotrans != 0) {
-		IterReadItem(infile, tempVariable, "CENTROIDLAT");
-		IterReadItem(infile, tempVariable, "CENTROIDLONG");
-		IterReadItem(infile, tempVariable, "UTCOFFSET");
-	}
+		if (optevapotrans != 0) {
+			IterReadItem(infile, tempVariable, "CENTROIDLAT");
+			IterReadItem(infile, tempVariable, "CENTROIDLONG");
+			IterReadItem(infile, tempVariable, "UTCOFFSET");
+		}
 
-	if (optlu == 1 || optlu == 2) {
-		IterReadItem(infile, tempString, "LUGRID");
-		CheckFileExists(tempString, "LUGRID");
-	}
+		if (optlu == 1 || optlu == 2) {
+			IterReadItem(infile, tempString, "LUGRID");
+			CheckFileExists(tempString, "LUGRID");
+		}
 
-	// SKY2008Snow from AJR2007
-	IterReadItem(infile,tempString,"TEMPLAPSE"); //Lapse rates
-	IterReadItem(infile,tempString,"PRECLAPSE");
-	IterReadItem(infile,tempVariable,"HILLALBOPT");
+		// SKY2008Snow from AJR2007
+		IterReadItem(infile,tempString,"TEMPLAPSE"); //Lapse rates
+		IterReadItem(infile,tempString,"PRECLAPSE");
+		IterReadItem(infile,tempVariable,"HILLALBOPT");
+	}
 
 
 
@@ -252,24 +272,24 @@ void tPreProcess::CheckInputFile(tInputFile &infile)
 #endif
 	
 	
-	IterReadItem(infile, tempString,"NODEOUTPUTLIST");
-	IterReadItem(infile, tempString,"HYDRONODELIST");
-	IterReadItem(infile, tempString,"OUTLETNODELIST");
+	// Simulation outputs and restart are not produced by a partition-only run
+	if (!partitionOnly) {
+		IterReadItem(infile, tempString,"NODEOUTPUTLIST");
+		IterReadItem(infile, tempString,"HYDRONODELIST");
+		IterReadItem(infile, tempString,"OUTLETNODELIST");
 
-   // Restart options
-   optrest = IterReadItem(infile, optrest, "RESTARTMODE");
-   if (optrest > 0) {
-     IterReadItem(infile, tempString, "RESTARTDIR");
-     IterReadItem(infile, tempString, "RESTARTFILE");
-     if (optrest == 1 || optrest == 3) {
-       IterReadItem(infile, tempVariable, "RESTARTINTRVL");
-     }
-   }
+	   // Restart options
+	   optrest = IterReadItem(infile, optrest, "RESTARTMODE");
+	   if (optrest > 0) {
+	     IterReadItem(infile, tempString, "RESTARTDIR");
+	     IterReadItem(infile, tempString, "RESTARTFILE");
+	     if (optrest == 1 || optrest == 3) {
+	       IterReadItem(infile, tempVariable, "RESTARTINTRVL");
+	     }
+	   }
+	}
 
-   // Parallel and graph file options
-   // PARALLELMODE: 0 = serial, 1 = parallel, 2 = partition-only (build and
-   // write the .reach graphfile, print statistics, and exit; tRIBSpar only)
-   optpar = IterReadItem(infile, optpar, "PARALLELMODE");
+   // Parallel and graph file options (PARALLELMODE was read at the top)
    if (optpar > 0) {
      optgraph = IterReadItem(infile, optgraph, "GRAPHOPTION");
      if (optgraph < 0 || optgraph > 2) {
@@ -278,6 +298,34 @@ void tPreProcess::CheckInputFile(tInputFile &infile)
      }
      // GRAPHFILE is optional: when absent or blank, the partition graphfile
      // path is derived from OUTFILENAME as <basename>_<method>_<np>nodes.reach
+   }
+
+   // NUMPARTITIONS sets the partition count for a partition-only run, so the
+   // graphfile can be built without launching that many MPI processes. The
+   // serial binary has no process count to fall back on, so it is required
+   // there; tRIBSpar falls back to the MPI process count.
+   if (partitionOnly) {
+     if (infile.IsItemIn("NUMPARTITIONS")) {
+       int nparts = 0;
+       nparts = IterReadItem(infile, nparts, "NUMPARTITIONS");
+       if (nparts < 1) {
+         cerr<<"\nNUMPARTITIONS must be at least 1. Exiting."<<endl;
+         exit(1);
+       }
+     }
+     else {
+#ifdef PARALLEL_TRIBS
+       Cout<<"\nWarning: NUMPARTITIONS is not set, so the partition count is "
+           <<"taken from the\nMPI process count (mpirun -np). Set NUMPARTITIONS "
+           <<"to build the graphfile\nwithout launching that many processes."
+           <<endl;
+#else
+       cerr<<"\nPARALLELMODE = 2 (partition-only) requires NUMPARTITIONS keyword, the "
+           <<"number of\npartitions to build, when run with the serial binary. "
+           <<"Exiting."<<endl;
+       exit(1);
+#endif
+     }
    }
 
 	Cout<<"\nInput File Keywords Checked..."<<endl<<flush;

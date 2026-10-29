@@ -78,18 +78,22 @@ public:
   /// Write out stream reach connectivity
   static void outputConnectivity(tInputFile& InputFile);
 
-  /// Partition graph based on # of processors
+  /// Partition graph based on # of processors, or on NUMPARTITIONS in a
+  /// partition-only run
   static void partition(tInputFile& InputFile);
   /// Partition graph into n pieces
   static void partition(int n, tInputFile& InputFile);
   /// Read reach-based partitions from file, validating the file against the
-  /// current mesh (reach count) and processor count (np).
-  static void readReachPartitionFromFile(char* pfile, int np);
+  /// current mesh (reach count) and partition count (np). Master only.
+  /// Returns false (after printing why) if the file is invalid.
+  static bool readReachPartitionFromFile(char* pfile, int np);
   /// Generate partitions in-process via METIS from the in-memory reach graph.
   /// method is a tPartition::PartMethod value (= GRAPHOPTION):
   /// 0=SF (flow only), 1=SSF (flow+flux), 2=SSF-H (flow+flux+headwaters).
-  /// If outPath is non-empty, the master writes the resulting .reach file there.
-  static void generatePartition(int np, int method, const char* outPath);
+  /// If outPath is non-empty, the resulting .reach file is written there.
+  /// Master only. Returns false (after printing why) if METIS fails or the
+  /// file cannot be written.
+  static bool generatePartition(int np, int method, const char* outPath);
   /// Print statistics for the current reach partition (reach/node counts and
   /// balance per partition, flow and flux edge cuts, headwater distribution).
   /// Must run before update() while the full mesh is still active.
@@ -213,6 +217,7 @@ private:
                                                   //!< used to generate the
                                                   //!< partition, or -1 when it
                                                   //!< was read from a GRAPHFILE
+  static bool                    partitionOnlyRun;//!< PARALLELMODE 2 run
 
   static std::vector<tGraphNode> conn;            //!< Connectivity of reaches
 
