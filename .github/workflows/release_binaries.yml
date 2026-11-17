@@ -38,7 +38,7 @@ jobs:
             package_dir: packaging/Linux
             asset_suffix: Linux
             extra_cmake_args: ""
-          - runner: macos-14
+          - runner: macos-15
             os_label: macOS/Silicon
             package_dir: packaging/macOS/Silicon
             asset_suffix: macOS-Silicon
