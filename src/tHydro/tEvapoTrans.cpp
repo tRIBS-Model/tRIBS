@@ -1019,6 +1019,12 @@ void tEvapoTrans::callEvapoTrans(tIntercept *Intercept, int flag)
 		cout<<"EvapoTranspiration Routine Call..."<<endl<<endl;
 	}
 
+	// Refresh the sun position for this ET/I interval. In the no-snow path
+	// SetEnvironment() only runs at METSTEP (callEvapoPotential), so when
+	// ETISTEP < METSTEP the sun would otherwise be held for the whole met
+	// interval. When ETISTEP == METSTEP this recomputes identical values.
+	SetSunVariables();
+
 	// SKYnGM2008LU: Following handles the 'Interception ON' case in SurfaceHydroProcesses
 	if (getEToption() == 0 && Intercept->getIoption() != 0) {
 	  if (luOption == 1) { // resampling Land Use grids done here, i.e., dynamic case
@@ -1575,8 +1581,7 @@ void tEvapoTrans::SetSunVariables()
 {
 	int JDay, month;
 	double r, dgmt, alphaR;
-	double Ts, Tsp1, longSM, longM;
-	double tau1, tau2;
+	double longSM, longM;
 	double Wo = 1367.0;
 	double pi = 4.0*atan(1.0);
 	double CIRC[12] = {.07, .10, .12, .14, .16, .19, .23, .20, .16, .12, .08, .07};
@@ -1585,7 +1590,6 @@ void tEvapoTrans::SetSunVariables()
 	dgmt  = gmt;
 	longSM = 15.0*abs(gmt);
 	longM = fabs(longitude);
-	Ts    =  nodeHour;      // Current Hour
 	JDay  = julianDay();    // Current Julian day
 	month = currentTime[1]; // Current Month
 							//circ  = CIRC[month-1]; // disabled
@@ -1594,33 +1598,41 @@ void tEvapoTrans::SetSunVariables()
 	del = (23.45*pi/180.0)*cos((2.0*pi/365.0)*(172.0-JDay));
 	phi = latitude*pi/180.0;
 	
-	if (gmt) 
+	// deltaT [hr]: offset of local solar noon from 12:00 standard time,
+	// i.e. solar noon occurs at 12 + deltaT (equation of time neglected).
+	// The gmt != 0 branch takes the hemisphere from the sign of gmt, so it
+	// accepts CENTROIDLONG entered with either sign.
+	if (gmt)
 		deltaT = (1.0/15.0)*(longSM - longM)*(dgmt/abs(dgmt));
-	else 
-		// If location is in the "0"th zone, 
-		// the following won't work for west longitude
-		deltaT = -longM*15.0; 
-	
-	// Compute hour angle for the current and following hour
-	tau1 = ComputeHourAngle( Ts+1.0, deltaT );
-	if (Ts < 23.0)
-		Tsp1 = Ts+timer->getEtIStep(); 
 	else
-		Tsp1 = 0.0;
-	tau2 = ComputeHourAngle( Tsp1+1.0, deltaT );
-	
-	// Take an average 'tau' representative for the current hour
-	// Around local noon, dicrepancies may arise due to non-
-	// synchronization with true solar noon: so, adjust it
-	if (fabs(tau1-tau2) >= pi) {
-		if (tau2 < tau1)
-			tau2 += (2.0*pi);
-		else 
-			tau1 += (2.0*pi);
-	}
-	tau = (tau1 + tau2)/2.0;
-	if (tau > 2.0*pi)
-		tau -= 2.0*pi;
+		// UTC+0 zone: the sign of gmt carries no hemisphere information, so
+		// CENTROIDLONG must be signed here (east positive, west negative).
+		// Original code was deltaT = -longM*15.0, which has the wrong units
+		// (deg*15 instead of deg/15) and put solar noon hours off.
+		deltaT = -longitude/15.0;
+
+	// Hour angle at the midpoint of the ET/I interval this call covers.
+	//
+	// ET/I is evaluated on the first model step of each interval (EtITime
+	// starts at TIMESTEP, and timer->Advance runs before the surface
+	// processes), so the interval began one TIMESTEP before the current time
+	// and spans ETISTEP. The clock is built from the start date plus elapsed
+	// time instead of timer->hour so that it keeps minutes (sub-hourly
+	// ETISTEP) and does not depend on when the integer hour counter rolls.
+	//
+	// Original code averaged the hour angle at Ts+1 and Ts+1+ETISTEP with
+	// Ts = timer->hour (= HH for the interval HH -> HH+1), i.e.
+	//     tau = 0.5*(ComputeHourAngle(Ts+1, deltaT)
+	//              + ComputeHourAngle(Ts+1+ETISTEP, deltaT))
+	// which places the sun at HH+1.5 instead of HH+0.5: one hour ahead of
+	// the forcing (two hours when TIMESTEP = 1 hr).
+	double etiStep  = timer->getEtIStep();
+	double tStart   = timer->hourS + timer->minuteS/60.0
+	                + timer->getCurrentTime() - timer->getTimeStep();
+	double tMid     = fmod(tStart + 0.5*etiStep, 24.0);
+	if (tMid < 0.0)
+		tMid += 24.0;
+	tau = ComputeHourAngle( tMid, deltaT );
 	
 	// Take an average of 'sinAlpha'
 	//sinAlpha = ((timer->getEtIStep())*sin(del)*sin(phi)+12.0/pi*cos(del)*cos(phi)*
