@@ -2,6 +2,13 @@
 # Changelog 
 All notable changes to this project are documented in this file. Each entry is a brief summary; for full details, see the tRIBS Wiki or the linked pull request.
 
+## [6.0.2] -[Unreleased]
+
+### Fixed
+* **Solar Timing:** The sun position used for each ET/interception interval was computed one hour after the interval midpoint, so the modeled sun ran ahead of the meteorological forcing. The hour angle is now evaluated at the true midpoint of each interval. Sub-hourly ET/interception steps now include minutes and refresh the sun position every step. Sites at `UTCOFFSET = 0` also had a units error that shifted solar noon by several hours. This is fixed, and these sites must now give `CENTROIDLONG` as a signed value (west negative).
+
+---
+
 ## [6.0.1] - 10/29/2026
 v6.0.1 is a minor release that fixes a bug in sub-hourly gridded precipitation and makes small improvements to the partitioning workflow introduced in v6.0.0.
 
