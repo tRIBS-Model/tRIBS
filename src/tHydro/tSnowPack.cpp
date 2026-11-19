@@ -122,6 +122,7 @@ void tSnowPack::SetSnowVariables(tInputFile &infile) {
 
     //fluxes
     H = L = G = Prec = Rn = 0.0;
+    Uerr = 0.0;
     snPrec = liqPrec = 0.0;
     snPrecm = liqPrecm = 0.0;
     snPrecmm = liqPrecmm = 0.0;
@@ -487,6 +488,13 @@ void tSnowPack::callSnowPack(tIntercept *Intercept, int flag) {
 
         // ensure routed liquid is reset
         cNode->setLiqRouted(0.0);
+
+        // Energy-balance error is only computed when the full snowpack energy
+        // balance runs (existing pack, see "check for balance" below). Every
+        // other branch still calls setToNodeSnP, which writes Uerr to the node
+        // and adds it to cumUError, so reset it here or those branches report
+        // the previous node's value (or uninitialized memory on the first). CJC2026
+        Uerr = 0.0;
 
         snUnload = 0.0;
         canWE = cNode->getIntSWE();
