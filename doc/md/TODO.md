@@ -8,7 +8,7 @@
 - [ ] Update input timeseries and raster forcing files to use ISO 8601 timestamp format. No chnage to outputs for now, will still be elasped simulation hours. Example from `_MMddYYYYhh.asc` to `_20240615T1200.asc`
 - [ ] The precip grid and gauge paths label intervals differently: gauge row `T` covers `[T, T+dt)` while grid file `T` covers `(T-dt, T]`, so identically stamped gauge and grid forcing are offset by one interval. Need to decide which, most radar data is end of period as implemented in the model already.
 - [ ] `RAININTRVL` values that are not exact binary fractions (10, 5, 3, 2, 1 min) are still rejected by the `fmod(1.0, dtRain) != 0` check in `tRunTimer`.
-- [ ] Potential bug, `vCell::convertToVoronoiFormat` seems to trust convexity of a polygon. Thus, sizes its buffers based on that which with bad triangles cause warning less problems. Look into how we can reject or repair self-intersecting cells with a warning.
+- [ ] `vCell::convertToVoronoiFormat` and `ComputeVoronoiArea` assume convex Voronoi cells. Non-convex cells only come from non-Delaunay input meshes, which now trigger a startup warning (`tMesh::CheckDelaunayInput`). Still open: repair such meshes on read (e.g. edge flips), or make the area and resampling code handle non-convex cells. Buffer sizes were checked and are not the problem.
 - [ ] Look into "temp" fix implemented in commit 52f2dd084ff9fee7837ebfcc301476f37894998c and see how it affects model performance. Determine if more advanced fix is needed.
 
 ### Finished

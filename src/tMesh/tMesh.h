@@ -107,6 +107,7 @@ public:
    tEdge * IntersectsAnyEdge( tEdge * );
    void CheckTriEdgeIntersect();
    void CheckLocallyDelaunay();
+   void CheckDelaunayInput();
    void MoveNodes( double time = 0.0 );
    void TellAboutNode(tSubNode *);
    void writeRestart(ostream &);

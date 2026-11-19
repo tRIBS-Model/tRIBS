@@ -541,7 +541,8 @@ MakeMeshFromInputData( tInputFile &infile )
 	Cout<<"\nTesting Mesh..."<<endl;
 	UpdateMesh();
 	CheckMeshConsistency();
-	
+	CheckDelaunayInput();
+
 }
 
 //=========================================================================
@@ -2998,6 +2999,98 @@ FlipEdge( tTriangle * tri, tTriangle * triop ,int nv, int nvop )
 //
 //
 //=========================================================================
+
+/*****************************************************************************
+**
+**  tMesh::CheckDelaunayInput
+**
+**  Warns (does not stop) when a mesh read from files (OPTMESHINPUT=1)
+**  is not Delaunay. Voronoi cells are built from triangle circumcenters,
+**  so a non-Delaunay triangle pair can make a cell non-convex or
+**  self-intersecting. ComputeVoronoiArea and the grid resampling in
+**  vCell::convertToVoronoiFormat both assume convex cells, so the
+**  cell area and any area-weighted grid inputs are then wrong.
+**
+**  For each edge shared by triangles (a,b,c) and (b,a,d), d must not
+**  lie inside the circumcircle of (a,b,c). Standard in-circle
+**  determinant with points shifted to d:
+**     det = | ax ay ax^2+ay^2 |
+**           | bx by bx^2+by^2 |
+**           | cx cy cx^2+cy^2 |
+**  det > 0 means d is inside when (a,b,c) is counter-clockwise. It is
+**  divided by (max squared length)^2 so the tolerance does not depend
+**  on map units; cocircular points (e.g. regular grids) score ~0.
+**  CJC2026
+**
+*****************************************************************************/
+template< class tSubNode >
+void tMesh< tSubNode >::
+CheckDelaunayInput()
+{
+	const int maxListed = 10;
+	const double tol = 1e-9;
+	int nBad = 0;
+	tTriangle *ct, *nbr;
+	tListIter< tTriangle > triIter( triList );
+
+	for( ct = triIter.FirstP(); !( triIter.AtEnd() ); ct = triIter.NextP() ) {
+		tNode *p0 = ct->pPtr(0), *p1 = ct->pPtr(1), *p2 = ct->pPtr(2);
+		for( int k = 0; k < 3; k++ ) {
+			nbr = ct->tPtr(k);
+			if( nbr == 0 || nbr->getID() < ct->getID() ) continue; // each pair once
+			tNode *d = 0;
+			for( int j = 0; j < 3; j++ ) {
+				tNode *q = nbr->pPtr(j);
+				if( q != p0 && q != p1 && q != p2 ) d = q;
+			}
+			if( d == 0 ) continue;
+
+			double m[3][3];
+			tNode *v[3] = { p0, p1, p2 };
+			double maxSq = 0.0;
+			for( int j = 0; j < 3; j++ ) {
+				m[j][0] = v[j]->getX() - d->getX();
+				m[j][1] = v[j]->getY() - d->getY();
+				m[j][2] = m[j][0]*m[j][0] + m[j][1]*m[j][1];
+				if( m[j][2] > maxSq ) maxSq = m[j][2];
+			}
+			double det = m[0][0]*( m[1][1]*m[2][2] - m[2][1]*m[1][2] )
+			           - m[0][1]*( m[1][0]*m[2][2] - m[2][0]*m[1][2] )
+			           + m[0][2]*( m[1][0]*m[2][1] - m[2][0]*m[1][1] );
+			double orient = ( p1->getX() - p0->getX() )*( p2->getY() - p0->getY() )
+			              - ( p2->getX() - p0->getX() )*( p1->getY() - p0->getY() );
+			if( orient < 0.0 ) det = -det;
+			if( maxSq > 0.0 ) det /= maxSq*maxSq;
+			if( det <= tol ) continue;
+
+			if( nBad == 0 )
+				Cout << "\nWarning: the input mesh is not Delaunay. The node "
+				     << "opposite these triangle edges lies inside the other "
+				     << "triangle's circumcircle:" << endl;
+			if( nBad < maxListed ) {
+				// The edge shared by ct and nbr is the one opposite ct's vertex k
+				tNode *e0 = ct->pPtr( (k+1)%3 ), *e1 = ct->pPtr( (k+2)%3 );
+				std::ostringstream line; // local, so Cout's format is untouched
+				line << std::fixed << std::setprecision(2)
+				     << "  edge between nodes " << e0->getID() << " ("
+				     << e0->getX() << ", " << e0->getY() << ") and "
+				     << e1->getID() << " (" << e1->getX() << ", "
+				     << e1->getY() << ")";
+				Cout << line.str() << endl;
+			}
+			nBad++;
+		}
+	}
+
+	if( nBad > 0 ) {
+		if( nBad > maxListed )
+			Cout << "  ... and " << nBad - maxListed << " more" << endl;
+		Cout << "  " << nBad << " non-Delaunay edge(s) in total. Voronoi cells "
+		     << "next to them may be non-convex or self-intersecting, which "
+		     << "distorts cell areas and resampled grid inputs. Re-triangulate "
+		     << "the mesh with a conforming Delaunay triangulator." << endl;
+	}
+}
 
 /*****************************************************************************
 **

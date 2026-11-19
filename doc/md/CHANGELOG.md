@@ -4,6 +4,9 @@ All notable changes to this project are documented in this file. Each entry is a
 
 ## [6.0.2] -[Unreleased]
 
+### Added
+* **Non-Delaunay Mesh Warning:** Meshes read from files (`OPTMESHINPUT = 1`) are now checked at startup to make sure they are Delaunay. Voronoi cells are built from triangle circumcenters, so a non-Delaunay triangle pair can make a cell non-convex or self-intersecting. Such cells get the wrong area and wrong resampled grid values. The model prints a warning with the number of affected edges and the node IDs and coordinates of the first 10, then continues. Meshes triangulated by tRIBS itself (`OPTMESHINPUT = 2`) are not checked, and model results do not change.
+
 ### Fixed
 * **Solar Timing:** The sun position used for each ET/interception interval was computed one hour after the interval midpoint, so the modeled sun ran ahead of the meteorological forcing. The hour angle is now evaluated at the true midpoint of each interval. Sub-hourly ET/interception steps now include minutes and refresh the sun position every step. Sites at `UTCOFFSET = 0` also had a units error that shifted solar noon by several hours. This is fixed, and these sites must now give `CENTROIDLONG` as a signed value (west negative).
 * **Snow Energy Balance Error Output:** The snowpack energy-balance error is only computed when the full energy balance runs on an existing pack, but it was written to every node at every step. On all other steps (no snow, a new pack forming, or a pack melting out) a node reported the error left over from the previous node, or uninitialized memory at the start of a run, and that value was added to its cumulative total. The error is now 0 on those steps. Only the `Uerr`/`cUErr` columns in spatial outputs and `Uerror_kJ_m2` in pixel outputs change; all hydrologic outputs are unaffected.
