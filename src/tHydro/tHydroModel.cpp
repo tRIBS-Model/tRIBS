@@ -87,6 +87,17 @@ void tHydroModel::SetHydroMVariables(tInputFile &infile,
 	else
 		RunOnoption = 0; //Default option
 
+	// The runon scheme (GetCellRunon/SetCellRunon) is disabled pending a full
+	// rework of the module. The legacy implementation double-counts runon and
+	// is not used in any supported configuration, so reject it at startup.
+	if (RunOnoption != 0) {
+		cout << "\nError: OPTRUNON = " << RunOnoption << " is not functional in this "
+		     << "version of tRIBS and has been disabled while the runon module is "
+		     << "being reworked. Set OPTRUNON = 0 or remove it from the input file."
+		     << endl;
+		exit(1);
+	}
+
 	// SKY2008Snow from AJR2007
 	SnOpt = infile.ReadItem(SnOpt, "OPTSNOW");
 

@@ -7,6 +7,9 @@ All notable changes to this project are documented in this file. Each entry is a
 ### Fixed
 * **Solar Timing:** The sun position used for each ET/interception interval was computed one hour after the interval midpoint, so the modeled sun ran ahead of the meteorological forcing. The hour angle is now evaluated at the true midpoint of each interval. Sub-hourly ET/interception steps now include minutes and refresh the sun position every step. Sites at `UTCOFFSET = 0` also had a units error that shifted solar noon by several hours. This is fixed, and these sites must now give `CENTROIDLONG` as a signed value (west negative).
 
+### Removed
+* **Runon Module Disabled:** `OPTRUNON = 1` now stops the model at startup with an error. The existing runon scheme double-counted water routed from upslope cells and is being redesigned. Runs with `OPTRUNON = 0`, or without the keyword, are unaffected.
+
 ---
 
 ## [6.0.1] - 10/29/2026
