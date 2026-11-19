@@ -805,10 +805,17 @@ void tFlowNet::FillLakes()
 						{ 
 							// If it's the basin outlet OR
 							// Is it lower than the lowest found so far?
-							if (thenode->getBoundaryFlag() == kOpenBoundary || 
+							if (thenode->getBoundaryFlag() == kOpenBoundary ||
 								thenode->getZ() < lowestElev) {
 								lowestNode = thenode;
-								lowestElev = thenode->getZ();
+								// An open boundary on the perimeter always wins. Recording
+								// its own elevation (originally lowestElev = thenode->getZ())
+								// let a lower perimeter node visited later replace it, so a
+								// lake touching the outlet drained to it or not depending on
+								// spoke order. Same rule as FindLakeNodeOutlet's
+								// maxslp = 99999 for open boundaries. CJC2026
+								lowestElev = (thenode->getBoundaryFlag() == kOpenBoundary)
+								             ? -kVeryHigh : thenode->getZ();
 							}
 						}
 						// If it's a previous lake node or a sink, add it to the list

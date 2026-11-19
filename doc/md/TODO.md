@@ -8,13 +8,11 @@
 - [ ] Update input timeseries and raster forcing files to use ISO 8601 timestamp format. No chnage to outputs for now, will still be elasped simulation hours. Example from `_MMddYYYYhh.asc` to `_20240615T1200.asc`
 - [ ] The precip grid and gauge paths label intervals differently: gauge row `T` covers `[T, T+dt)` while grid file `T` covers `(T-dt, T]`, so identically stamped gauge and grid forcing are offset by one interval. Need to decide which, most radar data is end of period as implemented in the model already.
 - [ ] `RAININTRVL` values that are not exact binary fractions (10, 5, 3, 2, 1 min) are still rejected by the `fmod(1.0, dtRain) != 0` check in `tRunTimer`.
-- [ ] tRIBS `FillLakes` bug. When it looks for the lowest node around a pit, the check is if `(open boundary || z < lowestElev)`. Finding the outlet sets the running minimum to the outlet's elevation, so any later neighbour lower that that elev replaces it. The terminal pit therefore never drains to the outlet it's directly connected to.
 - [ ] Potential bug, `vCell::convertToVoronoiFormat` seems to trust convexity of a polygon. Thus, sizes its buffers based on that which with bad triangles cause warning less problems. Look into how we can reject or repair self-intersecting cells with a warning.
-- Look into "temp" fix implemented in commit 52f2dd084ff9fee7837ebfcc301476f37894998c and see how it affects model performance. Determine if more advanced fix is needed.
-- Partitioning only workflow (`PARALLELMODE = 2`) requires users to run the process with mpi with the # of processors they are requesting. Ways around this with `"mpirun --oversubscribe"` but ideally the users should be able to run this mode without mpi at all like they could before with MeshBuilder. Possibly add a optional keyword for # of partitions and a warning that pops up telling the users if it is not in the input file. 
-- Partitioning only workflow (`PARALLELMODE = 2`) requires some inputs like  initial groundwater, soils, landuse to exist (I think tInputFile.cpp is just checking that the paths exists, files can be empty). These files shouldn't have to exist, only the mesh files are needed. 
+- [ ] Look into "temp" fix implemented in commit 52f2dd084ff9fee7837ebfcc301476f37894998c and see how it affects model performance. Determine if more advanced fix is needed.
 
 ### Finished
+- [x] Fixed `FillLakes` bug where the basin outlet could lose priority to a lower node bordering a depression, depending on mesh neighbor order
 - [x] Finalize updated benchmarks
 - [x] Remove invariant .pixel files--all relevant information can be written to the time integrated variable
 - [x] Merged tSnowIntercept with tSnowPack
